@@ -1,0 +1,20 @@
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+out/
+.DS_Store
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# Claude Code local-only settings (per-machine permissions, not shared)
+.claude/settings.local.json
+
+# OS / editor
+.idea/
+.vscode/
+*.log
