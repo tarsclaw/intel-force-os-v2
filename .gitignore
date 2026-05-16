@@ -18,3 +18,9 @@ out/
 .idea/
 .vscode/
 *.log
+
+# explicit env-file exclusions (also catch nested .env.local in legacy snapshots)
+**/.env
+**/.env.local
+**/.env.*.local
+legacy/**/.env*
