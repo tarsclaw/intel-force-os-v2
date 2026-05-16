@@ -193,7 +193,7 @@ echo "Archived: see ~/code/CortexOS/docs/_archive-build-pack/ for the prior pack
 
 # Create the operative directory structure
 mkdir -p docs/{specs,architecture,verticals/recruitment,verticals/_future,decisions,runbooks,build-brief,risk}
-mkdir -p packages/{harness,brain,agents-runtime,vertical-adapters,mcp-connectors,context-assembly,decision-log,vault-syncer,voice,onboarding-wizard,dashboard-ext}
+mkdir -p packages/{harness,brain,agents-runtime,vertical-adapters,mcp-connectors,context-assembly,decision-log,vault-syncer,voice,onboarding-wizard,dashboard-ext,agent-renderer}
 mkdir -p packages/brain/{bus-overrides,wiki,graphify,brain-ui}
 mkdir -p packages/agents-runtime/_shared/{hooks,fixtures}
 mkdir -p agents/recruitment
@@ -627,6 +627,12 @@ mkdir -p agents/recruitment/{name}/tests/fixtures/{01-primary,02-edge-case-{X},9
 
 # Then the three fixtures with golden outputs.
 # Test against fixtures; iterate; commit; PR; merge.
+
+# After merge, render the bundle for each tenant that uses this agent:
+cortextos-ifos render-agent {name} --tenant <slug>
+# For all active tenants (v1.1+): cortextos-ifos render-agent {name} --all-tenants
+# Activate: pm2 restart ifos-daemon   (for new agents)
+#       OR: cortextos-ifos bus self-restart {name}   (for re-renders of running agents)
 ```
 
 The Proposal Builder bundle (v1) is the canonical reference. **Read it before writing your first new agent.**
