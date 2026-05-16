@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/lead-hunter/v1.0.0.json",
+  "title": "Lead Hunter — Tenant Configuration",
+  "description": "Per-tenant configuration the Configuration Wizard collects to provision Lead Hunter.",
+  "type": "object",
+  "required": ["client", "icp", "integrations", "vault", "notifications", "output", "schedule"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "icp": {
+      "type": "object",
+      "required": ["definition_path", "target_count"],
+      "properties": {
+        "definition_path": { "type": "string", "default": "/vault/brand/icp.md" },
+        "suppression_list_path": { "type": "string", "default": "/vault/brand/suppression-list.md" },
+        "target_count": { "type": "integer", "minimum": 5, "maximum": 100, "default": 30 },
+        "allow_override_per_run": { "type": "boolean", "default": true }
+      }
+    },
+    "integrations": {
+      "type": "object",
+      "required": ["companies_house", "prospeo", "hubspot"],
+      "properties": {
+        "companies_house": {
+          "type": "object",
+          "required": ["api_key_ref"],
+          "properties": {
+            "api_key_ref": { "type": "string", "pattern": "^secrets://" }
+          }
+        },
+        "prospeo": {
+          "type": "object",
+          "required": ["api_key_ref"],
+          "properties": {
+            "api_key_ref": { "type": "string", "pattern": "^secrets://" },
+            "verify_emails": { "type": "boolean", "default": true },
+            "max_contacts_per_run": { "type": "integer", "default": 50 }
+          }
+        },
+        "kaspr": {
+          "type": "object",
+          "description": "Optional — required only for phone enrichment.",
+          "properties": {
+            "api_key_ref": { "type": "string", "pattern": "^secrets://" },
+            "enrich_top_n": { "type": "integer", "default": 10 }
+          }
+        },
+        "hubspot": {
+          "type": "object",
+          "required": ["oauth_token_ref", "new_deal_stage"],
+          "properties": {
+            "oauth_token_ref": { "type": "string", "pattern": "^secrets://" },
+            "new_deal_stage": { "type": "string", "default": "New — Unreviewed" },
+            "pipeline_id": { "type": "string" },
+            "source_property_value": { "type": "string", "default": "Lead Hunter" }
+          }
+        }
+      }
+    },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "prospects_output_path": { "type": "string", "default": "/vault/clients/_prospects" },
+        "retain_prev_runs_days": { "type": "integer", "default": 90 }
+      }
+    },
+    "notifications": { "$ref": "common-notifications.json" },
+    "output": {
+      "type": "object",
+      "properties": {
+        "include_disqualified_summary": { "type": "boolean", "default": true },
+        "daily_rollup_enabled": { "type": "boolean", "default": true }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "cron": { "type": "string", "default": "0 2 * * *", "description": "Default: 02:00 UTC nightly" },
+        "timezone": { "type": "string", "default": "UTC" }
+      }
+    },
+    "cost_controls": {
+      "type": "object",
+      "properties": {
+        "max_gbp_per_run": { "type": "number", "default": 10.0 },
+        "max_gbp_per_month": { "type": "number", "default": 200.0 }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "hard_min_qualified": { "type": "integer", "default": 10, "description": "Escalate NO_RESULTS_FOUND if fewer" },
+        "hard_dup_threshold_pct": { "type": "integer", "default": 80, "description": "Escalate DUPLICATE_SATURATION if above" },
+        "recency_search_top_n": { "type": "integer", "default": 30 }
+      }
+    }
+  }
+}

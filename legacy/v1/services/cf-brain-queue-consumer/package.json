@@ -1,0 +1,16 @@
+{
+  "name": "@intelforce/cf-brain-queue-consumer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker that drains the brain-build queue and POSTs to brain-builder-server. Optional layer — when not deployed, the wizard calls brain-builder directly.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240725.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.78.0"
+  }
+}

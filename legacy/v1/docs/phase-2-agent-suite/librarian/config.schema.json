@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/librarian/v1.0.0.json",
+  "title": "Librarian — Tenant Configuration",
+  "type": "object",
+  "required": ["client", "vault", "embedding", "schedule"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "archive_threshold_days": { "type": "integer", "default": 90 },
+        "daily_rollup_path": { "type": "string", "default": "/vault/daily" },
+        "findings_path": { "type": "string", "default": "/outbox/librarian" },
+        "archive_path": { "type": "string", "default": "/vault/archive" },
+        "never_archive_globs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["/vault/brand/**", "/vault/sops/**", "/vault/_meta/**", "**/CLAUDE.md"]
+        }
+      }
+    },
+    "embedding": {
+      "type": "object",
+      "required": ["provider", "api_key_ref"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["cohere", "openai"],
+          "default": "cohere"
+        },
+        "api_key_ref": { "type": "string", "pattern": "^secrets://" },
+        "model": { "type": "string", "default": "embed-v3" },
+        "region": { "type": "string", "default": "eu-west-1" },
+        "chunk_size_chars": { "type": "integer", "default": 1500 },
+        "chunk_overlap_chars": { "type": "integer", "default": 200 }
+      }
+    },
+    "pgvector": {
+      "type": "object",
+      "properties": {
+        "schema_name": { "type": "string", "default": "tenant_{{tenant_id}}" },
+        "table_name": { "type": "string", "default": "chunks" },
+        "dsn_ref": { "type": "string", "pattern": "^secrets://" }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "properties": {
+        "cron": { "type": "string", "default": "0 4 * * *", "description": "04:00 UTC daily" },
+        "max_duration_minutes": { "type": "integer", "default": 30 }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "properties": {
+        "disk_warn_pct": { "type": "integer", "default": 90 },
+        "sop_overdue_days": { "type": "integer", "default": 0, "description": "How many days past last_verified+verify_every_days before flagging" },
+        "tag_drift_warn_pct": { "type": "integer", "default": 15 },
+        "cohere_cost_warn_gbp": { "type": "number", "default": 0.50 },
+        "cohere_cost_hard_stop_gbp": { "type": "number", "default": 2.00 }
+      }
+    }
+  }
+}

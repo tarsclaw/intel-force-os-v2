@@ -1,0 +1,83 @@
+agent: reporting-engine
+version: 1.0.0
+
+required:
+  - name: hubspot
+    purpose: "Pull deal movement, pipeline data"
+    mcp_server:
+      type: official
+      source: "https://developer.hubspot.com/mcp"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/hubspot/oauth_token"
+    tools_used:
+      - mcp__hubspot__search_deals
+      - mcp__hubspot__get_deal
+    scopes_required: ["crm.objects.deals.read"]
+
+  - name: gmail
+    purpose: "Draft report-ready notification to sales lead"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/google/oauth_token"
+    tools_used: [mcp__gmail__create_draft]
+    scopes_required: ["https://www.googleapis.com/auth/gmail.compose"]
+
+  - name: filesystem
+    purpose: "Read vault activity, signed proposals, write report + PDF"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+optional:
+  - name: ga4
+    purpose: "Pull website analytics if tracked"
+    mcp_server:
+      type: build-your-own
+      status: "not-yet-built"
+      priority: "CC10"
+    auth:
+      type: service_account
+      secret_ref: "secrets://{tenant_id}/ga4/service_account"
+    tools_used: [mcp__ga4__run_report]
+    enabled_when: "integrations.ga4.enabled is true"
+    degraded_mode:
+      condition: "GA4 unavailable"
+      behaviour: "Skip web analytics section; flag DATA_GAP_DETECTED"
+
+  - name: stripe
+    purpose: "Pull revenue attribution if tracked"
+    auth:
+      type: api_key
+      secret_ref: "secrets://{tenant_id}/stripe/api_key"
+    tools_used: [mcp__stripe__list_charges]
+    enabled_when: "integrations.stripe.enabled is true"
+    degraded_mode:
+      condition: "Stripe unavailable"
+      behaviour: "Skip revenue section; do not attempt to derive"
+
+preflight_checks:
+  - name: hubspot-oauth-valid
+    blocks_activation: true
+  - name: gmail-oauth-valid
+    blocks_activation: true
+  - name: reports-output-path-writable
+    blocks_activation: true
+  - name: pandoc-available
+    description: "pandoc binary in container for PDF export"
+    blocks_activation: false
+    on_fail: "Agent produces markdown only; PDF generation skipped with warning"
+
+telemetry:
+  emit_events:
+    - name: report_draft_started
+      properties: [client_slug, period, report_type]
+    - name: report_draft_completed
+      properties: [word_count, kpi_flags, duration_ms]
+    - name: escalation_raised
+      properties: [code]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 30000
+    sonnet_output_tokens_max: 8000
+    alert_threshold_gbp: 1.00
+    hard_stop_threshold_gbp: 2.00

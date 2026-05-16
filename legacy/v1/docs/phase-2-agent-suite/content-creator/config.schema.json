@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/content-creator/v1.0.0.json",
+  "title": "Content Creator — Tenant Configuration",
+  "type": "object",
+  "required": ["client", "sales_lead", "gmail", "vault", "notifications", "schedule", "output"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "sales_lead": { "$ref": "common-sales-lead.json" },
+    "gmail": {
+      "type": "object",
+      "required": ["oauth_token_ref"],
+      "properties": {
+        "oauth_token_ref": { "type": "string", "pattern": "^secrets://" }
+      }
+    },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "long_form_output_path": { "type": "string", "default": "/vault/content/long-form" },
+        "briefs_path": { "type": "string", "default": "/vault/content/briefs" },
+        "past_pieces_retrieval_tag": { "type": "string", "default": "long-form" },
+        "retrieval_top_k": { "type": "integer", "default": 3 }
+      }
+    },
+    "notifications": { "$ref": "common-notifications.json" },
+    "schedule": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "cron": { "type": "string", "default": "0 8 * * 1", "description": "Mondays 08:00 local by default" },
+        "timezone": { "type": "string", "default": "Europe/London" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "default_length_target": { "type": "integer", "default": 1500 },
+        "chain_repurposer_on_save": { "type": "boolean", "default": true },
+        "required_sources_min": { "type": "integer", "default": 3 }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "revision_limit": { "type": "integer", "default": 3 },
+        "search_budget_per_run": { "type": "integer", "default": 8, "description": "Max web searches per run" },
+        "fetch_budget_per_run": { "type": "integer", "default": 3, "description": "Max web fetches per run" }
+      }
+    }
+  }
+}

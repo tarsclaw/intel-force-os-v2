@@ -1,0 +1,296 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/proposal-builder/v1.0.0.json",
+  "title": "Proposal Builder — Tenant Configuration",
+  "description": "Per-tenant configuration the Configuration Centre Wizard collects to provision Proposal Builder for a client. All fields marked `required` must be present before the agent will activate.",
+  "type": "object",
+  "required": [
+    "client",
+    "sales_lead",
+    "fathom",
+    "pricing",
+    "vault",
+    "notifications",
+    "output"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "client": {
+      "type": "object",
+      "description": "Core client identity. Used to template {{client.name}} throughout the agent.md.",
+      "required": ["name", "company_slug", "industry", "website", "currency", "timezone"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Client's trading name as they refer to themselves. Used in proposal headings.",
+          "examples": ["Elm Row Dental", "Rye Partners", "Finchley Creative"],
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "legal_name": {
+          "type": "string",
+          "description": "Legal entity name for contracts.",
+          "maxLength": 120
+        },
+        "company_slug": {
+          "type": "string",
+          "description": "Kebab-case slug used in file paths. Lowercase, no spaces.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "examples": ["elm-row-dental", "rye-partners"]
+        },
+        "industry": {
+          "type": "string",
+          "description": "Primary industry (SIC description or short label). Used for case-study relevance matching.",
+          "examples": ["Dental practice", "B2B SaaS", "Marketing agency", "Boutique hotel"]
+        },
+        "sic_code": {
+          "type": "string",
+          "description": "UK SIC 2007 code. Optional but improves vertical retrieval.",
+          "pattern": "^[0-9]{5}$",
+          "examples": ["86230", "62012"]
+        },
+        "website": {
+          "type": "string",
+          "format": "uri",
+          "description": "Primary client website. Used for tone reference during voice profile generation."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency for all proposals.",
+          "enum": ["GBP", "EUR", "USD"],
+          "default": "GBP"
+        },
+        "timezone": {
+          "type": "string",
+          "description": "IANA timezone for 'next step' date computations.",
+          "default": "Europe/London",
+          "examples": ["Europe/London", "Europe/Dublin", "America/New_York"]
+        },
+        "vat_treatment": {
+          "type": "string",
+          "description": "How prices are presented.",
+          "enum": ["ex-vat", "inc-vat", "no-vat"],
+          "default": "ex-vat"
+        }
+      }
+    },
+    "sales_lead": {
+      "type": "object",
+      "description": "The human who receives drafted proposals for review. Gets the Gmail draft.",
+      "required": ["name", "first_name", "email", "signature_block"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Full name as it appears in email signature."
+        },
+        "first_name": {
+          "type": "string",
+          "description": "First name for casual email salutation."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Gmail account that receives drafts. MUST be the inbox authorised via Gmail MCP OAuth."
+        },
+        "slack_handle": {
+          "type": "string",
+          "description": "Slack handle (including @) for escalation notifications.",
+          "pattern": "^@[a-zA-Z0-9_.-]+$",
+          "examples": ["@jordan"]
+        },
+        "signature_block": {
+          "type": "string",
+          "description": "Multi-line markdown signature block appended to proposals. Include name, role, phone, email, website.",
+          "minLength": 20
+        }
+      }
+    },
+    "fathom": {
+      "type": "object",
+      "description": "Fathom integration settings. Fathom is the trigger source.",
+      "required": ["api_key_ref", "filter_meeting_types"],
+      "properties": {
+        "api_key_ref": {
+          "type": "string",
+          "description": "Reference to the encrypted API key in the tenant secrets vault. NOT the key itself. Format: `secrets://{tenant_id}/fathom/api_key`.",
+          "pattern": "^secrets://"
+        },
+        "filter_meeting_types": {
+          "type": "array",
+          "description": "Meeting types (from Fathom's classification) that trigger Proposal Builder. Other types are ignored.",
+          "items": {
+            "type": "string",
+            "enum": ["discovery", "demo", "follow-up", "closing", "external"]
+          },
+          "default": ["discovery", "demo", "follow-up"],
+          "minItems": 1
+        },
+        "exclude_internal_meetings": {
+          "type": "boolean",
+          "description": "If true, meetings where all attendees are from client's own domain are skipped.",
+          "default": true
+        },
+        "minimum_duration_minutes": {
+          "type": "integer",
+          "description": "Fathom calls shorter than this are skipped (avoids processing test calls or brief check-ins).",
+          "minimum": 1,
+          "maximum": 120,
+          "default": 10
+        }
+      }
+    },
+    "pricing": {
+      "type": "object",
+      "description": "Pricing framework the agent uses to price scope. Source of truth.",
+      "required": ["framework_path", "minimum_engagement_value", "human_drafting_threshold", "tier_naming"],
+      "properties": {
+        "framework_path": {
+          "type": "string",
+          "description": "Path to the client's pricing framework document in the vault. Usually `/vault/brand/pricing.md`.",
+          "default": "/vault/brand/pricing.md"
+        },
+        "minimum_engagement_value": {
+          "type": "integer",
+          "description": "Minimum deal size the client accepts. Deals below this trigger escalation `BUDGET_BELOW_MINIMUM`.",
+          "minimum": 0,
+          "examples": [1500, 3000, 5000]
+        },
+        "human_drafting_threshold": {
+          "type": "integer",
+          "description": "Deals at or above this value always route to a human for drafting. Triggers escalation `HIGH_VALUE_HUMAN_DRAFT`.",
+          "minimum": 1000,
+          "default": 50000
+        },
+        "tier_naming": {
+          "type": "object",
+          "description": "What this client calls their pricing tiers. Matched in the Scope section of proposals.",
+          "required": ["tier_1", "tier_2", "tier_3"],
+          "properties": {
+            "tier_1": { "type": "string", "examples": ["Starter", "Foundation", "Good"] },
+            "tier_2": { "type": "string", "examples": ["Growth", "Acceleration", "Better"] },
+            "tier_3": { "type": "string", "examples": ["Scale", "Partnership", "Best"] }
+          }
+        },
+        "max_tiers_per_proposal": {
+          "type": "integer",
+          "description": "Maximum number of tiers to include in one proposal. Overrides the default 3 if needed.",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 3
+        }
+      }
+    },
+    "vault": {
+      "type": "object",
+      "description": "Where the agent reads from and writes to in the tenant vault.",
+      "required": ["clients_path", "proposals_output_path", "voice_profile_path"],
+      "properties": {
+        "clients_path": {
+          "type": "string",
+          "default": "/vault/clients",
+          "description": "Root path for per-prospect folders."
+        },
+        "proposals_output_path": {
+          "type": "string",
+          "default": "/vault/clients/{{prospect.company_slug}}/proposals",
+          "description": "Templated path where proposal drafts are saved."
+        },
+        "voice_profile_path": {
+          "type": "string",
+          "default": "/vault/brand/voice-profile.md"
+        },
+        "past_proposals_query_tag": {
+          "type": "string",
+          "description": "Vault tag used to retrieve past winning proposals for context. Defaults to `winning-proposal`.",
+          "default": "winning-proposal"
+        },
+        "retrieval_top_k": {
+          "type": "integer",
+          "description": "How many past proposals to retrieve for context injection.",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3
+        }
+      }
+    },
+    "notifications": {
+      "type": "object",
+      "description": "Slack notification settings for escalations and status.",
+      "required": ["slack_workspace_ref", "escalations_channel"],
+      "properties": {
+        "slack_workspace_ref": {
+          "type": "string",
+          "pattern": "^secrets://",
+          "description": "Reference to Slack OAuth token in tenant secrets vault."
+        },
+        "escalations_channel": {
+          "type": "string",
+          "description": "Slack channel where escalation alerts post.",
+          "pattern": "^#[a-z0-9-_]+$",
+          "examples": ["#intelforce-escalations", "#sales-urgent"]
+        },
+        "drafts_channel": {
+          "type": "string",
+          "description": "Optional — Slack channel where a note is posted when a new draft is ready. If absent, only Gmail draft is created.",
+          "pattern": "^#[a-z0-9-_]+$"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "How the agent formats and delivers its output.",
+      "required": ["gmail_draft_enabled", "hubspot_stage_on_draft"],
+      "properties": {
+        "gmail_draft_enabled": {
+          "type": "boolean",
+          "description": "If true, creates a Gmail draft for sales lead. If false, only saves to vault.",
+          "default": true
+        },
+        "hubspot_stage_on_draft": {
+          "type": "string",
+          "description": "HubSpot deal stage name to set when proposal is drafted. MUST be an existing stage in the client's pipeline.",
+          "default": "Proposal Drafted",
+          "examples": ["Proposal Drafted", "Pending Review", "Draft Ready"]
+        },
+        "hubspot_stage_excluded_from_progress": {
+          "type": "boolean",
+          "description": "If true, 'Proposal Drafted' is treated as a holding stage (not an advancement). Prevents pipeline velocity distortion.",
+          "default": true
+        },
+        "docusign_template_id": {
+          "type": ["string", "null"],
+          "description": "Optional DocuSign template ID to prepare envelope from proposal. Not sent automatically. If null, no DocuSign action.",
+          "default": null
+        },
+        "notion_database_id": {
+          "type": ["string", "null"],
+          "description": "Optional Notion DB ID to cross-post proposal for client's own proposal-tracking. If null, no Notion action.",
+          "default": null
+        }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "description": "Behavioural tuning per client. All have sensible defaults.",
+      "properties": {
+        "allow_single_tier": {
+          "type": "boolean",
+          "description": "If true, agent may propose only one tier when appropriate. If false, must always propose 2+ tiers.",
+          "default": true
+        },
+        "case_study_required": {
+          "type": "boolean",
+          "description": "If true, refuses to save proposal without a case study. If false, allows 'case studies on request' fallback.",
+          "default": false
+        },
+        "revision_limit": {
+          "type": "integer",
+          "description": "Max revision attempts against Quality Gates before escalating.",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 3
+        }
+      }
+    }
+  }
+}

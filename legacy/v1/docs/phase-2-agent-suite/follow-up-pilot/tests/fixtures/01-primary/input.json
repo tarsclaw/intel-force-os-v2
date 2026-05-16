@@ -1,0 +1,26 @@
+{
+  "fixture_name": "01-loopcatch-budget-stall",
+  "description": "Marcus Okafor at Loopcatch had his proposal from Proposal Builder fixture 02. He went quiet 23 days ago. HubSpot moved the deal to Unconverted with notes indicating he was stalled on budget ('could afford it but wanted to compare'). Agent should produce a 3-email budget-specific sequence referencing his specific prior quotes.",
+  "trigger_source": "scheduled-weekly-sweep",
+  "triggered_at": "2026-05-09T09:00:00Z",
+  "prospect": {
+    "company": "Loopcatch",
+    "contact_name": "Marcus Okafor",
+    "contact_email": "marcus@loopcatch.io",
+    "original_source": "Fathom discovery call 2026-04-16"
+  },
+  "discovery_call_date": "2026-04-16",
+  "days_since_last_contact": 23,
+  "unconverted_reason": "Stalled on budget / wanted to compare against alternatives. Marcus said 'let me think' and hasn't replied to 2 nudges.",
+  "prior_email_threads": "Thread 1 (2026-04-17): Jordan sent proposal + recap + Calendly link. Marcus replied 2026-04-18: 'Thanks Jordan, reviewing with Chris this week. Will come back to you.' Thread 2 (2026-04-22): Jordan nudge. No reply.",
+  "discovery_call_excerpt": "Marcus said twice: 'I lost a lot paying less for less' and 'last agency we used, six months in, we'd spent £40k and had nothing to show for it.' Budget range he gave: £5-15k/month. We proposed Growth at £3.5k/month + £12k setup — well inside his range but he asked to 'think it over.'",
+  "existing_sequences": "none",
+  "industry_recent_signals": "[agent to decide whether Email 2 needs a web search for recent B2B SaaS market signals]",
+  "expected_behaviour": {
+    "classifies_stall_as_budget_or_evaluation": true,
+    "produces_3_emails": true,
+    "references_marcus_quotes_verbatim": true,
+    "email_3_gives_explicit_permission_to_say_no": true,
+    "expected_escalations": "none"
+  }
+}

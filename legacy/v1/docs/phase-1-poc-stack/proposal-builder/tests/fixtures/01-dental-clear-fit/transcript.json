@@ -1,0 +1,136 @@
+{
+  "fixture_name": "01-dental-clear-fit",
+  "description": "A well-qualified UK private dental practice prospect. Discovery call with clear problem, budget signals within range, single decision-maker present. Agent should produce a clean tiered proposal with the Growth tier recommended.",
+  "recording_id": "FTM-test-fixture-001",
+  "url": "https://fathom.video/share/test-fixture-001",
+  "share_url": "https://fathom.video/share/test-fixture-001",
+  "created_at": "2026-04-15T10:32:00Z",
+  "recording_start_time": "2026-04-15T10:02:00Z",
+  "recording_end_time": "2026-04-15T10:47:00Z",
+  "meeting_type": "discovery",
+  "transcript_language": "en",
+  "calendar_invitees": [
+    {
+      "is_external": false,
+      "name": "Jordan Taylor",
+      "email": "jordan@acme-agency.co.uk"
+    },
+    {
+      "is_external": true,
+      "name": "Dr Priya Shah",
+      "email": "priya@meadowlane-dental.co.uk"
+    }
+  ],
+  "recorded_by": {
+    "name": "Jordan Taylor",
+    "email": "jordan@acme-agency.co.uk",
+    "team": "Sales"
+  },
+  "default_summary": {
+    "template_name": "discovery",
+    "markdown_formatted": "## Summary\n\nDr Priya Shah runs Meadow Lane Dental, a 3-chair private dental practice in Didsbury, Manchester. The practice does approximately £850k annual turnover, with 60% private 40% NHS mix but moving toward fully private.\n\n**Key pain points:**\n- Spending ~£2,400/month on Google Ads + Meta with what she calls 'terrible' ROI\n- Only 32% of ad-driven phone enquiries convert to booked consultations\n- Receptionist misses ~25 calls/week (Priya has checked the phone logs)\n- No follow-up system for unconverted enquiries\n- No content produced consistently — website blog last updated 2 years ago\n\n**Budget signal:** mentioned they spent '£18k last year on marketing with what felt like no return'. Open to investing similarly or more if there's accountability.\n\n**Timeline:** wants to see results before summer (June/July) — practice typically goes quieter in August.\n\n**Decision:** Priya owns the practice outright. No other decision-maker.\n\n**Competition:** evaluated one other agency 6 months ago, 'didn't like them, felt generic'. Hasn't shortlisted others.\n\n**Tone/fit:** warm, fast-talking, asks good questions, wants specificity not fluff."
+  },
+  "action_items": [
+    {
+      "description": "Send Priya a proposal covering: lead management for ad-driven enquiries, follow-up automation, and monthly content production"
+    },
+    {
+      "description": "Include 6-month timeline with monthly milestones"
+    },
+    {
+      "description": "Reference a comparable dental practice case study if possible"
+    }
+  ],
+  "transcript": [
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Hi Priya, thanks for making time. Before we dive in — what made you reach out to us specifically?",
+      "timestamp": "00:00:42"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "Honestly, I saw your case study with the Edinburgh clinic. I'm spending about two and a half grand a month on Google Ads and Meta, and it feels like it's all going into a black hole. We're a 3-chair practice, Didsbury — I need these ads to actually convert and right now they don't.",
+      "timestamp": "00:01:05"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Okay, that's helpful context. When you say it doesn't convert — what does that look like in practice? You're getting the enquiries, but they're not booking?",
+      "timestamp": "00:01:38"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "So I pulled the numbers before this call. We get roughly 80 enquiries a month from the ads. Of those, 26 actually book a consultation. So about 32% conversion. Which — that's terrible, right? And that's from the ones we even speak to. Laura at reception — she's brilliant but one person — she's missing about 25 calls a week. I've been through the phone logs. Twenty-five missed calls, every week.",
+      "timestamp": "00:02:02"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "And then the ones who don't book on the first call — nothing. We don't follow up. They're just gone. That's the one that kills me. I'm paying £30+ for each click and then when they don't book immediately we just... let them go.",
+      "timestamp": "00:02:51"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Got it. So three distinct holes: missed calls, low first-call conversion, zero follow-up. What about content — blog, social, that side?",
+      "timestamp": "00:03:30"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "Oh god, don't. Our blog hasn't been updated in two years. I know I should. Every practice owner says that. I just don't have time to write, and I hate what writers produce when they're not me — it doesn't sound like me.",
+      "timestamp": "00:03:52"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "That's a really common one, and honestly one we solve well. Can I ask about budget? What were you spending before the ads started underperforming?",
+      "timestamp": "00:04:18"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "Last year total marketing spend was about 18 grand, and I can tell you almost none of that is attributable to new patient revenue. Which — the practice does about £850k a year, roughly 60/40 private to NHS, moving toward fully private. So the marketing should be earning its keep. I'd actually spend more if I could see it working. 2-3 grand a month plus ad spend, something in that range.",
+      "timestamp": "00:04:35"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Understood. And timeline — when do you want to see movement on this?",
+      "timestamp": "00:05:20"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "Before summer. August is always quiet for us — holidays, schools — so I need the funnel working before then. Realistically, I'd want to see the missed-call and follow-up stuff fixed within 4 weeks. The content side I'm more patient with — 2-3 months is fine.",
+      "timestamp": "00:05:42"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Who else is involved in this decision?",
+      "timestamp": "00:06:10"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "Just me. I own the practice outright. I'm the decision.",
+      "timestamp": "00:06:15"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "And have you looked at other providers?",
+      "timestamp": "00:06:23"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "I spoke to one about six months ago. Didn't feel right — they pitched me the same thing they pitch everyone, very generic. I haven't actively shopped since. You're really the only conversation I'm in.",
+      "timestamp": "00:06:32"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Thank you, that's really helpful. Here's what I'd like to do: based on what you've shared, I'll pull together a proposal covering three things — the missed-call problem, the follow-up gap, and the content side. I'll have that to you within 48 hours. Sound good?",
+      "timestamp": "00:06:55"
+    },
+    {
+      "speaker": {"display_name": "Dr Priya Shah", "matched_calendar_invitee_email": "priya@meadowlane-dental.co.uk"},
+      "text": "Yes please. And if you can include a case study from another dental practice — even just one — that would land really well with me. I trust results, not pitches.",
+      "timestamp": "00:07:20"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Will do. Priya, thanks for your time. Expect the proposal by Friday end of day at the latest.",
+      "timestamp": "00:07:38"
+    }
+  ]
+}

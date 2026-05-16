@@ -1,0 +1,21 @@
+{
+  "fixture_name": "01-chained-from-content-creator",
+  "description": "Chained trigger from Content Creator after it saved the Meadow Lane Dental long-form. Agent should produce LinkedIn + Instagram + Email derivatives (default platform set) plus an atomisation index, each voice-matched and platform-specific.",
+  "source": "chained-from-content-creator",
+  "triggered_by": "content-creator@1.0.0",
+  "triggered_at": "2026-05-05T08:47:30Z",
+  "source_piece_path": "/vault/content/long-form/2026-05-05-what-to-look-for-private-dentist-2026.md",
+  "target_platforms": ["linkedin", "instagram", "email"],
+  "include_thread": false,
+  "expected_behaviour": {
+    "reads_source": true,
+    "extracts_3_to_5_ideas": true,
+    "produces_derivatives": [
+      "/vault/content/social/2026-05-05-what-to-look-for-private-dentist-2026-linkedin.md",
+      "/vault/content/social/2026-05-05-what-to-look-for-private-dentist-2026-instagram.md",
+      "/vault/content/email/2026-05-05-what-to-look-for-private-dentist-2026-email.md",
+      "/vault/content/social/2026-05-05-what-to-look-for-private-dentist-2026-atomisation.md"
+    ],
+    "expected_escalations": "none"
+  }
+}

@@ -1,0 +1,38 @@
+# fly.toml — brain-builder HTTP server
+#
+# Deploy:
+#   cd services/brain-builder-server
+#   fly launch --no-deploy
+#   fly secrets set DATABASE_URL=... GRAPHIFY_SERVICE_URL=... COHERE_API_KEY=... BRAIN_BUILDER_TOKEN=...
+#   fly deploy
+
+app = "intelforce-brain-builder"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8090
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0  # keep one warm if traffic justifies it
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 10
+    hard_limit = 20
+
+[[vm]]
+  size = "shared-cpu-1x"  # mostly waits on graphify-service
+  memory = "1gb"
+
+[checks.health]
+  port = 8090
+  type = "http"
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/health"

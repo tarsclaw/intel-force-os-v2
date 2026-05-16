@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/caption-writer/v1.0.0.json",
+  "title": "Caption Writer — Tenant Configuration",
+  "type": "object",
+  "required": ["client", "vault"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "captions_output_path": { "type": "string", "default": "/vault/content/social/captions" },
+        "intake_watch_path": { "type": "string", "default": "/tenant/intake/manual/captions" },
+        "past_captions_retrieval_tag": { "type": "string", "default": "caption-high-performing" }
+      }
+    },
+    "notifications": { "$ref": "common-notifications.json" },
+    "output": {
+      "type": "object",
+      "properties": {
+        "default_variants_count": { "type": "integer", "minimum": 3, "maximum": 5, "default": 4 },
+        "slack_notify_on_complete": { "type": "boolean", "default": true },
+        "captions_channel": { "type": "string", "default": "#content-captions" }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "default_platform": { "type": "string", "enum": ["instagram", "linkedin", "twitter", "tiktok"], "default": "instagram" },
+        "max_asset_size_mb": { "type": "integer", "default": 25 }
+      }
+    }
+  }
+}

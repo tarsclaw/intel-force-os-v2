@@ -1,0 +1,18 @@
+{
+  "fixture_name": "01-team-photo-meadowlane",
+  "description": "Priya uploads a team photo from a practice anniversary celebration. Context note mentions the 5-year milestone. Caption Writer should produce 4 variants in her voice, each with a different angle — story, community, behind-the-scenes, question-hook.",
+  "trigger_source": "dashboard-upload",
+  "triggered_at": "2026-05-10T14:22:00Z",
+  "asset_path": "/tenant/intake/manual/captions/2026-05-10-team-photo-5yr.jpg",
+  "asset_type": "image",
+  "asset_description": "Group photo of 6 people (dental team) standing in practice reception, all smiling, one holding a cake. Warm lighting. Meadow Lane Dental signage visible on back wall. Team wearing casual clothes (not uniforms) — suggests post-hours informal gathering.",
+  "context_note": "Our 5-year anniversary — we took this after closing on Friday. Priya has been the owner since day one, Laura joined in year 2. Wanted something for Instagram and LinkedIn. Not too salesy.",
+  "target_platform": "instagram,linkedin",
+  "variants_count": 4,
+  "expected_behaviour": {
+    "detects_team_photo": true,
+    "avoids_generic_culture_language": true,
+    "produces_4_variants_different_angles": true,
+    "expected_escalations": "none"
+  }
+}

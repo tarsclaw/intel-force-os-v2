@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/client-onboarder/v1.0.0.json",
+  "title": "Client Onboarder — Tenant Configuration",
+  "description": "Per-tenant configuration the Configuration Wizard collects to provision Client Onboarder.",
+  "type": "object",
+  "required": ["client", "sales_lead", "hubspot", "gmail", "vault", "notifications", "onboarding"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "sales_lead": { "$ref": "common-sales-lead.json" },
+    "hubspot": {
+      "type": "object",
+      "required": ["oauth_token_ref", "trigger_stage", "post_onboarding_stage"],
+      "properties": {
+        "oauth_token_ref": { "type": "string", "pattern": "^secrets://" },
+        "trigger_stage": {
+          "type": "string",
+          "default": "Won",
+          "description": "HubSpot deal stage that fires this agent"
+        },
+        "post_onboarding_stage": {
+          "type": "string",
+          "default": "Onboarding",
+          "description": "Stage to set once packet is drafted"
+        }
+      }
+    },
+    "gmail": {
+      "type": "object",
+      "required": ["oauth_token_ref"],
+      "properties": {
+        "oauth_token_ref": { "type": "string", "pattern": "^secrets://" }
+      }
+    },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "onboarding_output_path": {
+          "type": "string",
+          "default": "/vault/clients/{{prospect.company_slug}}/onboarding"
+        },
+        "templates_path": {
+          "type": "string",
+          "default": "/vault/brand/onboarding-templates.md",
+          "description": "Optional — client's own onboarding templates. Falls back to generic if absent."
+        }
+      }
+    },
+    "notifications": { "$ref": "common-notifications.json" },
+    "onboarding": {
+      "type": "object",
+      "required": ["produce_loom_script", "produce_first_content_brief"],
+      "properties": {
+        "produce_loom_script": { "type": "boolean", "default": true },
+        "produce_first_content_brief": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip automatically if signed scope has no content deliverables"
+        },
+        "kickoff_lead_time_days": {
+          "type": "integer",
+          "default": 7,
+          "description": "Days between onboarding packet draft and target kickoff call"
+        },
+        "access_checklist_deadline_days": {
+          "type": "integer",
+          "default": 7
+        }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "revision_limit": { "type": "integer", "default": 3 },
+        "loom_script_max_words": { "type": "integer", "default": 1050 }
+      }
+    }
+  }
+}

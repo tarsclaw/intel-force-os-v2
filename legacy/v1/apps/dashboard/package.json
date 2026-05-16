@@ -1,0 +1,49 @@
+{
+  "name": "@intelforce/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^6.0.0",
+    "@cosmograph/cosmograph": "^2.3.0",
+    "@cosmograph/react": "^2.3.0",
+    "@intelforce/db": "workspace:*",
+    "@intelforce/schemas": "workspace:*",
+    "@intelforce/trpc": "workspace:*",
+    "@prisma/client": "^6.0.0",
+    "@tanstack/react-query": "^5.0.0",
+    "@trpc/client": "^11.0.0",
+    "@trpc/next": "^11.0.0",
+    "@trpc/react-query": "^11.0.0",
+    "@trpc/server": "^11.0.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "d3-force": "^3.0.0",
+    "d3-quadtree": "^3.0.1",
+    "lucide-react": "^0.511.0",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.12.0",
+    "server-only": "^0.0.1",
+    "superjson": "^2.2.0",
+    "tailwind-merge": "^2.5.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-quadtree": "^3.0.6",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

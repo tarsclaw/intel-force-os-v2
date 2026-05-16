@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/sop-writer/v1.0.0.json",
+  "title": "SOP Writer — Tenant Configuration",
+  "type": "object",
+  "required": ["client", "vault", "notifications"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "sops_path": { "type": "string", "default": "/vault/sops" },
+        "archive_path": { "type": "string", "default": "/vault/sops/archive" },
+        "index_path": { "type": "string", "default": "/vault/sops/_index.md" },
+        "template_path": { "type": "string", "default": "/vault/sops/_template.md" }
+      }
+    },
+    "notifications": { "$ref": "common-notifications.json" },
+    "output": {
+      "type": "object",
+      "properties": {
+        "max_length_words": { "type": "integer", "default": 1000 },
+        "default_verify_every_days": { "type": "integer", "default": 180 },
+        "require_owner_to_be_role_not_name": { "type": "boolean", "default": false,
+          "description": "If true, escalates when owner is a named individual with no role"
+        }
+      }
+    },
+    "categories": {
+      "type": "object",
+      "description": "Prefix-based category system for SOP naming",
+      "default": {
+        "01": "Onboarding",
+        "02": "Content production",
+        "03": "Reporting",
+        "04": "Incident response",
+        "05": "Renewals / churn",
+        "06": "Finance / ops",
+        "09": "Miscellaneous"
+      }
+    }
+  }
+}

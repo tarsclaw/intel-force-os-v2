@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Intel Force OS — dashboard.intelforce.ai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --canvas:7 9 11;--surface:13 16 20;--deep:8 10 13;--raised:20 24 28;
+  --emerald:16 185 129;--amber:245 158 11;--red:239 68 68;--sky:56 189 248;--purple:139 92 246;
+  --text:250 250 250;--text2:161 161 170;--text3:113 113 122;
+}
+html{color-scheme:dark;font-size:14px}
+body{background:rgb(var(--canvas));color:rgb(var(--text));font-family:'Geist',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;min-height:100vh}
+.fd{font-family:'Fraunces',Georgia,serif;letter-spacing:-0.02em}
+.fm{font-family:'JetBrains Mono',monospace}
+
+/* ─── Animations ─────────────────────── */
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+@keyframes flow{0%{stroke-dashoffset:40}100%{stroke-dashoffset:0}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+.pulse{animation:pulse-dot 2s ease-in-out infinite}
+.flow{stroke-dasharray:4 6;animation:flow 1.8s linear infinite}
+.fade-up{animation:fadeUp .25s ease both}
+
+/* ─── Layout ─────────────────────────── */
+.shell{display:flex;min-height:100vh}
+
+/* Sidebar */
+.sb{
+  position:fixed;inset-y:0;left:0;width:220px;
+  background:rgb(var(--surface));
+  border-right:1px solid rgba(255 255 255/.05);
+  display:flex;flex-direction:column;z-index:30;
+  transition:width .2s;
+}
+.sb-logo{height:56px;display:flex;align-items:center;gap:10px;padding:0 16px;
+  border-bottom:1px solid rgba(255 255 255/.05);flex-shrink:0}
+.logo-mark{width:28px;height:28px;border-radius:7px;flex-shrink:0;
+  background:linear-gradient(135deg,#10b981,#059669);
+  display:flex;align-items:center;justify-content:center;font-size:11px;color:#022c22;font-weight:700;letter-spacing:-.5px}
+.logo-word{font-size:14px;font-weight:600;color:rgb(var(--text));white-space:nowrap}
+.logo-dot{color:rgb(var(--emerald))}
+
+.sb-tenant{display:flex;align-items:center;gap:8px;padding:10px 14px;
+  border-bottom:1px solid rgba(255 255 255/.05);cursor:pointer;transition:background .15s}
+.sb-tenant:hover{background:rgba(255 255 255/.02)}
+.tenant-avatar{width:20px;height:20px;border-radius:4px;background:rgba(var(--emerald)/.15);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px;color:rgb(var(--emerald));font-weight:700}
+.tenant-name{font-size:12px;color:rgb(var(--text));flex:1;truncate:ellipsis;overflow:hidden;white-space:nowrap}
+
+.sb-nav{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:1px}
+.sb-sep{height:1px;background:rgba(255 255 255/.05);margin:4px 4px}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;
+  font-size:13px;color:rgb(var(--text2));cursor:pointer;text-decoration:none;
+  transition:all .12s;position:relative;user-select:none}
+.ni:hover{color:rgb(var(--text));background:rgba(255 255 255/.03)}
+.ni.active{color:rgb(var(--text));background:rgba(var(--emerald)/.08)}
+.ni.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:2px;height:16px;background:rgb(var(--emerald));border-radius:0 2px 2px 0}
+.ni svg{width:15px;height:15px;flex-shrink:0;stroke:currentColor;fill:none;
+  stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.ni.active svg{color:rgb(var(--emerald))}
+.ni-badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+  background:rgba(var(--amber)/.2);color:rgb(var(--amber));font-size:10px;font-weight:600;
+  display:flex;align-items:center;justify-content:center}
+.kb{margin-left:auto;font-size:10px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace;
+  background:rgba(255 255 255/.04);padding:1px 5px;border-radius:4px;border:1px solid rgba(255 255 255/.06)}
+
+.sb-footer{border-top:1px solid rgba(255 255 255/.05);padding:10px 12px;flex-shrink:0}
+.plan-pill{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;
+  background:rgba(var(--emerald)/.05);border:1px solid rgba(var(--emerald)/.15);
+  font-size:11px;color:rgb(var(--emerald));font-weight:500;margin-bottom:8px}
+.plan-dot{width:6px;height:6px;border-radius:50%;background:rgb(var(--emerald))}
+
+/* Main */
+.main{margin-left:220px;min-height:100vh;display:flex;flex-direction:column}
+
+/* Top bar */
+.topbar{
+  height:52px;display:flex;align-items:center;gap:12px;
+  padding:0 24px;border-bottom:1px solid rgba(255 255 255/.05);
+  background:rgba(var(--canvas)/.9);backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:20;flex-shrink:0;
+}
+.cmd-trigger{
+  flex:1;max-width:360px;height:32px;background:rgba(255 255 255/.04);
+  border:1px solid rgba(255 255 255/.08);border-radius:8px;
+  display:flex;align-items:center;gap:8px;padding:0 10px;cursor:pointer;
+  font-size:12px;color:rgb(var(--text3));transition:all .15s;
+}
+.cmd-trigger:hover{border-color:rgba(var(--emerald)/.3);color:rgb(var(--text2))}
+.cmd-trigger svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;opacity:.5}
+.cmd-hint{margin-left:auto;font-size:10px;font-family:'JetBrains Mono',monospace;
+  background:rgba(255 255 255/.06);padding:1px 6px;border-radius:4px;color:rgb(var(--text3))}
+.topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.icon-btn{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:rgb(var(--text3));transition:all .12s;position:relative;background:transparent;border:none}
+.icon-btn:hover{background:rgba(255 255 255/.05);color:rgb(var(--text2))}
+.icon-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.notif-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;
+  background:rgb(var(--emerald));border:1.5px solid rgb(var(--canvas))}
+.avatar{width:28px;height:28px;border-radius:50%;
+  background:linear-gradient(135deg,#f59e0b,#d97706);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#422006;cursor:pointer;flex-shrink:0;
+  border:2px solid rgba(255 255 255/.1)}
+.topbar-divider{width:1px;height:20px;background:rgba(255 255 255/.08)}
+
+/* Content */
+.content{max-width:1120px;margin:0 auto;padding:28px 24px;width:100%}
+
+/* ─── Shared components ───────────────── */
+.card{background:rgb(var(--surface));border-radius:16px;border:1px solid rgba(255 255 255/.05)}
+.card-header{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;border-bottom:1px solid rgba(255 255 255/.05)}
+.card-title{font-size:13px;font-weight:600;color:rgb(var(--text))}
+.card-sub{font-size:11px;color:rgb(var(--text3));margin-top:1px}
+.badge-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;
+  font-size:10px;font-weight:600;letter-spacing:.05em}
+.badge-emerald{background:rgba(var(--emerald)/.12);border:1px solid rgba(var(--emerald)/.25);color:rgb(var(--emerald))}
+.badge-amber{background:rgba(var(--amber)/.12);border:1px solid rgba(var(--amber)/.25);color:rgb(var(--amber))}
+.badge-red{background:rgba(var(--red)/.12);border:1px solid rgba(var(--red)/.25);color:rgb(240 100 100)}
+.badge-muted{background:rgba(255 255 255/.05);border:1px solid rgba(255 255 255/.1);color:rgb(var(--text3))}
+.label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--text3));font-weight:500}
+.link-arrow{font-size:11px;color:rgb(var(--emerald));cursor:pointer;display:flex;align-items:center;gap:4px;
+  text-decoration:none;transition:color .12s}
+.link-arrow:hover{color:rgb(134 239 172)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;
+  font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;border:none;font-family:inherit}
+.btn-ghost{background:transparent;color:rgb(var(--text2));border:1px solid rgba(255 255 255/.1)}
+.btn-ghost:hover{border-color:rgba(255 255 255/.2);color:rgb(var(--text))}
+.btn-danger:hover{border-color:rgba(var(--red)/.4);color:rgb(240 100 100)}
+.btn-warn:hover{border-color:rgba(var(--amber)/.4);color:rgb(var(--amber))}
+.btn-primary{background:rgb(var(--emerald));color:#022c22;font-weight:700}
+.btn-primary:hover{background:rgb(52 211 153)}
+.sep{height:1px;background:rgba(255 255 255/.05)}
+.view{display:none}
+.view.active{display:block;animation:fadeUp .2s ease both}
+
+/* ─── Overview ────────────────────────── */
+.hero{padding:32px 0 24px;position:relative}
+.hero-glow{
+  position:absolute;top:-40px;left:-80px;width:500px;height:300px;
+  background:radial-gradient(ellipse at 30% 50%,rgba(var(--emerald)/.07) 0%,transparent 70%);
+  pointer-events:none;
+}
+.live-tag{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;color:rgb(var(--emerald));font-weight:500;margin-bottom:12px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:rgb(var(--emerald))}
+.greeting{font-size:44px;line-height:1;font-weight:300;color:rgb(var(--text));margin-bottom:6px}
+.greeting-sub{font-size:13px;color:rgb(var(--text2))}
+.hero-actions{display:flex;align-items:center;gap:8px;margin-top:20px}
+.pending-cta{
+  display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;
+  background:rgba(var(--amber)/.08);border:1px solid rgba(var(--amber)/.25);
+  color:rgb(var(--amber));font-size:13px;font-weight:500;cursor:pointer;transition:all .15s
+}
+.pending-cta:hover{background:rgba(var(--amber)/.13)}
+.pending-cta svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.kpi{background:rgb(var(--surface));border-radius:16px;padding:20px;
+  border:1px solid rgba(255 255 255/.05);transition:border-color .15s;overflow:hidden}
+.kpi:hover{border-color:rgba(var(--emerald)/.2)}
+.kpi-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.kpi-label{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgb(var(--text3));font-weight:500}
+.kpi-delta{font-size:10px;font-family:'JetBrains Mono',monospace}
+.delta-up{color:rgb(var(--emerald))}
+.delta-warn{color:rgb(var(--amber))}
+.delta-muted{color:rgb(var(--text3))}
+.kpi-value{font-size:34px;font-weight:300;color:rgb(var(--text));line-height:1;margin-bottom:14px;letter-spacing:-0.02em}
+
+/* Sparklines */
+.spark{width:100%;height:30px;overflow:visible}
+
+/* Two-col */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+
+/* Approval mini */
+.appr-mini{background:rgb(var(--surface));border-radius:14px;padding:14px 16px;
+  border:1px solid rgba(255 255 255/.05);cursor:pointer;transition:all .15s;margin-bottom:10px}
+.appr-mini:hover{border-color:rgba(var(--emerald)/.2);background:rgb(var(--raised))}
+.appr-mini-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.mini-query{font-size:13px;color:rgb(var(--text));line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mini-cat{font-size:11px;color:rgb(var(--text3));margin-top:4px}
+.t-ago{margin-left:auto;font-size:10px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace}
+
+/* Activity feed */
+.act-list{border-radius:14px;overflow:hidden;border:1px solid rgba(255 255 255/.05)}
+.act-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;
+  border-bottom:1px solid rgba(255 255 255/.04);transition:background .12s}
+.act-item:last-child{border-bottom:none}
+.act-item:hover{background:rgba(255 255 255/.015)}
+.act-icon{width:26px;height:26px;border-radius:7px;background:rgba(255 255 255/.04);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-size:12px}
+.act-body{flex:1;min-width:0}
+.act-action{font-size:13px;color:rgb(var(--text))}
+.act-detail{font-size:11px;color:rgb(var(--text3));margin-top:2px}
+.act-time{font-size:10px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace;flex-shrink:0;margin-top:2px}
+
+/* Status strip */
+.status-strip{background:rgb(var(--surface));border-radius:14px;padding:18px 20px;
+  border:1px solid rgba(255 255 255/.05)}
+.status-row{display:flex;flex-wrap:wrap;gap:20px;align-items:center}
+.status-item{display:flex;align-items:center;gap:10px}
+.si-icon{font-size:14px;color:rgb(var(--text3))}
+.si-name{font-size:13px;color:rgb(var(--text2))}
+.si-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:rgb(var(--emerald))}
+.si-dot{width:5px;height:5px;border-radius:50%;background:rgb(var(--emerald))}
+.si-sub{font-size:11px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace}
+
+/* ─── Approvals ───────────────────────── */
+.appr-page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px}
+.appr-filters{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.filter-chip{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;
+  border:1px solid rgba(255 255 255/.1);color:rgb(var(--text2));background:transparent;
+  font-family:inherit;transition:all .12s}
+.filter-chip:hover{border-color:rgba(255 255 255/.2);color:rgb(var(--text))}
+.filter-chip.active{background:rgba(var(--emerald)/.1);border-color:rgba(var(--emerald)/.35);color:rgb(var(--emerald))}
+
+.appr-card{border-radius:16px;overflow:hidden;border:1px solid rgba(255 255 255/.06);
+  margin-bottom:16px;border-left:3px solid transparent;transition:border-color .15s}
+.appr-card.critical{border-left-color:rgba(var(--red)/.6);box-shadow:inset 4px 0 24px rgba(var(--red)/.04)}
+.appr-card.high{border-left-color:rgba(var(--amber)/.5)}
+.appr-card.medium{border-left-color:rgba(255 255 255/.1)}
+.appr-hdr{display:flex;align-items:center;gap:10px;padding:12px 20px;
+  background:rgb(var(--surface));border-bottom:1px solid rgba(255 255 255/.05)}
+.appr-body{background:rgb(var(--surface));padding:20px}
+.appr-section{margin-bottom:16px}
+.appr-query{font-size:13px;color:rgb(var(--text2));line-height:1.65}
+.appr-draft{font-size:13px;color:rgb(var(--text));line-height:1.65;
+  background:rgb(var(--deep));border-radius:10px;padding:14px 16px;
+  border:1px solid rgba(255 255 255/.07)}
+.appr-draft.editing{outline:2px solid rgba(var(--emerald)/.4);outline-offset:-2px}
+.source-strip{display:flex;align-items:center;gap:8px;font-size:11px;color:rgb(var(--text3));
+  background:rgba(255 255 255/.025);border-radius:7px;padding:7px 12px}
+.source-strip+.source-strip{margin-top:4px}
+.appr-footer{display:flex;align-items:center;gap:6px;padding:12px 16px;
+  background:rgb(var(--deep));border-top:1px solid rgba(255 255 255/.05)}
+
+.resolved-section{margin-top:24px}
+.resolved-item{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:rgb(var(--surface));border-radius:10px;margin-bottom:6px;opacity:.55}
+
+/* ─── Agents canvas ──────────────────── */
+/* Full-bleed agents view — breaks out of max-width content box */
+#view-agents .content{max-width:none !important;padding:24px 28px}
+.agents-canvas{background:rgb(var(--surface));border-radius:16px;
+  border:1px solid rgba(255 255 255/.05);overflow:hidden;position:relative}
+.canvas-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 22px;border-bottom:1px solid rgba(255 255 255/.05);flex-wrap:wrap;gap:10px}
+.canvas-tabs{display:flex;gap:2px;background:rgba(255 255 255/.04);
+  border:1px solid rgba(255 255 255/.07);border-radius:7px;padding:2px}
+.ctab{padding:5px 14px;border-radius:5px;font-size:11px;font-weight:500;
+  border:none;background:transparent;color:rgb(var(--text3));cursor:pointer;font-family:inherit;transition:all .12s}
+.ctab.active{background:rgb(var(--surface));color:rgb(var(--text));box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* 6-column agents grid — fills full width */
+.agents-4col{display:grid;
+  grid-template-columns:220px 64px 200px 64px 260px 1fr;
+  min-height:480px;align-items:start}
+.col-sources{padding:18px 0 18px 18px;display:flex;flex-direction:column;gap:12px}
+.col-directors{padding:18px 0;display:flex;flex-direction:column;gap:12px}
+.col-subagents{padding:18px 16px 18px 0;border-left:1px solid rgba(255 255 255/.05);
+  min-width:0;transition:opacity .2s}
+.sg-group{display:none;animation:fadeUp .2s ease both}
+.sg-group.active{display:block}
+
+/* Source cards */
+.src-card{background:rgb(var(--deep));border-radius:12px;border:1px solid rgba(255 255 255/.07);
+  padding:13px 15px}
+.src-card-title{font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  color:rgb(var(--text3));font-weight:700;margin-bottom:10px}
+.src-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;color:rgb(var(--text2))}
+.src-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.src-meta{margin-left:auto;font-size:9.5px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace}
+
+/* Director cards */
+.dir-card{background:rgb(var(--deep));border-radius:12px;
+  border:1px solid rgba(255 255 255/.07);padding:14px 16px;
+  cursor:pointer;transition:all .15s;text-align:left;width:100%;font-family:inherit;
+  position:relative;overflow:hidden}
+.dir-card:hover{border-color:rgba(255 255 255/.14);background:rgba(255 255 255/.03);transform:translateX(2px)}
+.dir-card.active{border-color:var(--dir-color-alpha);background:rgba(255 255 255/.025)}
+.dir-card.active::before{content:'';position:absolute;left:0;top:0;bottom:0;
+  width:3px;background:var(--dir-color)}
+.dir-name{font-size:13px;font-weight:600;color:rgb(var(--text))}
+.dir-meta{font-size:10.5px;color:rgb(var(--text3));margin-top:3px;font-family:'JetBrains Mono',monospace}
+.dir-pill{display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.06em;
+  padding:2px 7px;border-radius:4px;margin-top:7px;
+  background:var(--dir-color-bg);color:var(--dir-color);border:1px solid var(--dir-color-alpha)}
+
+/* Sub-agent rows */
+.sg-header{font-size:12px;font-weight:600;color:rgb(var(--text));
+  padding:4px 0 12px;display:flex;align-items:center;gap:7px}
+.sg-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;
+  cursor:pointer;transition:all .12s;font-size:13px}
+.sg-row:hover{background:rgba(255 255 255/.05);transform:translateX(2px)}
+.sg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sg-name{color:rgb(var(--text));font-weight:500;flex:1}
+.sg-status{font-size:10.5px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace}
+.sg-out{font-size:10.5px;color:rgb(var(--text3));margin-left:auto;text-align:right;
+  font-family:'JetBrains Mono',monospace}
+
+/* Bottom nodes */
+.agents-bottom{display:flex;gap:14px;padding:14px 20px;
+  border-top:1px solid rgba(255 255 255/.05)}
+.bottom-node{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:10px;
+  border:1px dashed;font-size:12px}
+.bottom-node-approval{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.04);color:rgb(var(--amber))}
+.bottom-node-audit{border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.02);color:rgb(var(--text3));margin-left:auto}
+.bottom-dot{width:7px;height:7px;border-radius:50%}
+
+/* ─── Agent popup card (right slide-in) ─ */
+@keyframes popupIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+.agent-popup{
+  position:fixed;top:0;right:0;bottom:0;width:340px;
+  background:rgb(var(--deep));
+  border-left:1px solid rgba(255,255,255,.1);
+  box-shadow:-20px 0 60px rgba(0,0,0,.4);
+  display:flex;flex-direction:column;
+  z-index:200;
+  transform:translateX(100%);
+  transition:transform .28s cubic-bezier(.16,1,.3,1),opacity .2s;
+  opacity:0;
+  overflow-y:auto;
+}
+.agent-popup.open{transform:translateX(0);opacity:1}
+/* Overlay behind popup on mobile */
+.agent-popup-backdrop{
+  display:none;position:fixed;inset:0;z-index:199;background:rgba(0,0,0,.3);
+  backdrop-filter:blur(2px);
+}
+.agent-popup-backdrop.open{display:block;}
+.ap-close{position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:7px;
+  background:transparent;border:none;color:rgb(var(--text3));cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  transition:all .12s;z-index:2}
+.ap-close:hover{background:rgba(255 255 255/.07);color:rgb(var(--text))}
+.ap-hero{padding:22px 22px 16px;border-bottom:1px solid rgba(255 255 255/.06)}
+.ap-avatar{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;
+  justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;
+  margin-bottom:14px;letter-spacing:-.5px}
+.ap-sup{font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgb(var(--text3));font-weight:600;margin-bottom:4px}
+.ap-title{font-size:22px;font-weight:300;letter-spacing:-.02em;color:rgb(var(--text));
+  line-height:1.1;margin-bottom:10px}
+.ap-status-row{display:flex;align-items:center;gap:8px}
+.ap-body{padding:18px 22px;flex:1;display:flex;flex-direction:column;gap:16px}
+.ap-section-lbl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgb(var(--text3));font-weight:600;margin-bottom:6px}
+.ap-desc-text{font-size:13px;color:rgb(var(--text2));line-height:1.7}
+.ap-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ap-stat{background:rgba(255 255 255/.03);border:1px solid rgba(255 255 255/.06);
+  border-radius:9px;padding:10px 12px}
+.ap-stat-val{font-size:14px;font-weight:600;color:rgb(var(--text));margin-bottom:2px;
+  font-family:'JetBrains Mono',monospace}
+.ap-stat-key{font-size:9.5px;color:rgb(var(--text3));text-transform:uppercase;letter-spacing:.1em}
+.ap-int-row{display:flex;flex-wrap:wrap;gap:6px}
+.ap-int-chip{display:flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;
+  border-radius:6px;background:rgba(255 255 255/.04);border:1px solid rgba(255 255 255/.09);
+  color:rgb(var(--text2));font-weight:500}
+.ap-footer{padding:16px 22px;border-top:1px solid rgba(255 255 255/.06);
+  display:flex;gap:8px;flex-shrink:0}
+.close-btn{background:transparent;border:none;color:rgb(var(--text3));cursor:pointer;
+  padding:4px 8px;border-radius:6px;font-size:18px;transition:all .12s}
+.close-btn:hover{background:rgba(255 255 255/.05);color:rgb(var(--text))}
+
+/* ─── Activity ────────────────────────── */
+.timeline{position:relative;padding-left:36px}
+.timeline::before{content:'';position:absolute;left:15px;top:0;bottom:0;
+  width:1px;background:rgba(255 255 255/.06)}
+.tl-day{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--text3));
+  font-weight:500;margin:24px 0 12px 0;padding:0 4px;position:relative}
+.tl-day::before{content:'';position:absolute;left:-25px;top:50%;transform:translateY(-50%);
+  width:9px;height:1px;background:rgba(255 255 255/.1)}
+.tl-item{position:relative;padding:12px 14px;background:rgb(var(--surface));
+  border-radius:12px;border:1px solid rgba(255 255 255/.05);margin-bottom:8px;
+  transition:border-color .12s}
+.tl-item:hover{border-color:rgba(255 255 255/.1)}
+.tl-dot{position:absolute;left:-28px;top:17px;width:9px;height:9px;border-radius:50%;
+  background:rgb(var(--surface));border:2px solid rgba(255 255 255/.2)}
+.tl-dot.emerald{border-color:rgba(var(--emerald)/.7);background:rgba(var(--emerald)/.2)}
+.tl-dot.amber{border-color:rgba(var(--amber)/.7);background:rgba(var(--amber)/.2)}
+.tl-dot.red{border-color:rgba(var(--red)/.7);background:rgba(var(--red)/.2)}
+.tl-dot.sky{border-color:rgba(var(--sky)/.7);background:rgba(var(--sky)/.2)}
+.tl-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tl-action{font-size:13px;color:rgb(var(--text));font-weight:500}
+.tl-time{font-size:10px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace;flex-shrink:0;margin-top:1px}
+.tl-detail{font-size:11px;color:rgb(var(--text3));margin-top:3px}
+
+/* ─── Analytics ───────────────────────── */
+.period-tabs{display:flex;background:rgba(255 255 255/.04);border-radius:8px;padding:3px;
+  border:1px solid rgba(255 255 255/.07);margin-bottom:24px;width:fit-content}
+.period-tab{padding:5px 14px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;
+  color:rgb(var(--text3));transition:all .15s;border:none;background:transparent;font-family:inherit}
+.period-tab.active{background:rgb(var(--surface));color:rgb(var(--text));
+  box-shadow:0 1px 4px rgba(0 0 0/.3)}
+.chart-card{background:rgb(var(--surface));border-radius:16px;padding:20px;
+  border:1px solid rgba(255 255 255/.05)}
+.chart-title{font-size:13px;font-weight:600;color:rgb(var(--text));margin-bottom:2px}
+.chart-sub{font-size:11px;color:rgb(var(--text3));margin-bottom:16px}
+.chart-svg{width:100%;overflow:visible}
+.bar-track{height:6px;border-radius:3px;background:rgba(255 255 255/.05);overflow:hidden;flex:1}
+.bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+
+/* ─── Knowledge ───────────────────────── */
+.kb-card{background:rgb(var(--surface));border-radius:16px;overflow:hidden;
+  border:1px solid rgba(255 255 255/.05);margin-bottom:16px}
+.kb-hdr{display:flex;align-items:center;gap:10px;padding:14px 20px;
+  border-bottom:1px solid rgba(255 255 255/.05)}
+.kb-body{padding:20px}
+.health-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.health-label{font-size:12px;color:rgb(var(--text2));width:160px;flex-shrink:0}
+.health-pct{font-size:10px;font-family:'JetBrains Mono',monospace;width:40px;text-align:right;flex-shrink:0}
+
+/* ─── Severity badge ──────────────────── */
+.sv{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;
+  font-size:10px;font-weight:600;letter-spacing:.06em}
+.sv-crit{background:rgba(var(--red)/.1);border:1px solid rgba(var(--red)/.3);color:rgb(240 110 110)}
+.sv-high{background:rgba(var(--amber)/.1);border:1px solid rgba(var(--amber)/.3);color:rgb(var(--amber))}
+.sv-med{background:rgba(255 255 255/.06);border:1px solid rgba(255 255 255/.12);color:rgb(var(--text3))}
+.sv-dot{width:5px;height:5px;border-radius:50%}
+.sv-crit .sv-dot{background:rgb(var(--red))}
+.sv-high .sv-dot{background:rgb(var(--amber))}
+.sv-med  .sv-dot{background:rgb(var(--text3))}
+
+/* ─── Mobile ──────────────────────────── */
+.mob-bar{display:none}
+@media(max-width:1024px){
+  .sb{width:56px}
+  .sb .logo-word,.sb .tenant-name,.sb .kb,.sb .ni-badge-text,.plan-pill span{display:none}
+  .sb .ni-badge{position:absolute;top:4px;right:4px;min-width:14px;height:14px;font-size:8px}
+  .main{margin-left:56px}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .two-col{grid-template-columns:1fr}
+}
+@media(max-width:768px){
+  .sb{display:none}
+  .main{margin-left:0;padding-bottom:72px}
+  .mob-bar{
+    display:flex;position:fixed;bottom:0;inset-x:0;z-index:40;
+    background:rgba(13 16 20/.95);backdrop-filter:blur(16px);
+    border-top:1px solid rgba(255 255 255/.07);
+    padding-bottom:env(safe-area-inset-bottom,0)
+  }
+  .mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;
+    gap:3px;padding:10px 4px 8px;cursor:pointer;color:rgb(var(--text3));
+    font-size:10px;font-weight:500;position:relative;transition:color .15s;border:none;background:transparent;font-family:inherit}
+  .mob-tab.active{color:rgb(var(--emerald))}
+  .mob-tab.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:32px;height:2px;background:rgb(var(--emerald));border-radius:0 0 2px 2px}
+  .mob-tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+  .mob-badge{position:absolute;top:5px;right:calc(50% - 14px);
+    min-width:14px;height:14px;padding:0 3px;border-radius:7px;
+    background:rgb(var(--amber));color:#422006;font-size:8px;font-weight:700;
+    display:flex;align-items:center;justify-content:center}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .two-col{grid-template-columns:1fr}
+  .topbar .cmd-trigger{max-width:none;flex:1}
+  .content{padding:20px 16px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
+<aside class="sb">
+  <div class="sb-logo">
+    <div class="logo-mark">IF</div>
+    <span class="logo-word fd">IntelForce<span class="logo-dot">.</span>OS</span>
+  </div>
+  <div class="sb-tenant">
+    <div class="tenant-avatar">E</div>
+    <span class="tenant-name">Elm Row Dental</span>
+    <svg style="width:11px;height:11px;flex-shrink:0;stroke:rgb(var(--text3));fill:none;stroke-width:2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+  <nav class="sb-nav">
+    <a class="ni active" onclick="go('overview')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span>Overview</span>
+      <span class="kb">⌘1</span>
+    </a>
+    <a class="ni" onclick="go('approvals')">
+      <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <span>Approvals</span>
+      <span class="ni-badge">3</span>
+    </a>
+    <a class="ni" onclick="go('agents')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><path d="M12 8v5M8.5 16l3.5 2 3.5-2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
+      <span>Agents</span>
+      <span class="kb">⌘3</span>
+    </a>
+    <a class="ni" onclick="go('activity')">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>Activity</span>
+    </a>
+    <a class="ni" onclick="go('analytics')">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Analytics</span>
+    </a>
+    <a class="ni" onclick="go('knowledge')">
+      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span>Knowledge</span>
+    </a>
+    <div class="sb-sep"></div>
+    <a class="ni">
+      <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+      <span>Integrations</span>
+    </a>
+    <a class="ni">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Settings</span>
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <div class="plan-pill"><div class="plan-dot pulse"></div><span>Growth plan · HR Agent v1</span></div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ═══════════════════════════════════════════════════════════════ -->
+<div class="main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="cmd-trigger" onclick="go('overview')">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span>Search or jump to…</span>
+      <span class="cmd-hint">⌘K</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="topbar-divider"></div>
+      <button class="icon-btn" title="Notifications">
+        <div class="notif-dot"></div>
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <div class="avatar">JR</div>
+    </div>
+  </div>
+
+  <!-- ══════════ OVERVIEW ══════════════════════════════════════════════ -->
+  <div id="view-overview" class="view active">
+  <div class="content">
+
+    <div class="hero">
+      <div class="hero-glow"></div>
+      <div class="live-tag">
+        <div class="live-dot pulse"></div>
+        Live · synced 8s ago
+      </div>
+      <h1 class="greeting fd">Good afternoon.</h1>
+      <p class="greeting-sub">Elm Row Dental · Edinburgh · HR Agent v1</p>
+      <div class="hero-actions">
+        <div class="pending-cta" onclick="go('approvals')">
+          <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          3 pending approvals
+          <svg style="width:12px;height:12px" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-top"><span class="kpi-label">Handled this month</span><span class="kpi-delta delta-up fm">+24%</span></div>
+        <div class="kpi-value fd">247</div>
+        <svg class="spark" viewBox="0 0 100 30"><defs><linearGradient id="ge" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#10b981" stop-opacity=".25"/><stop offset="100%" stop-color="#10b981" stop-opacity="0"/></linearGradient></defs><polygon fill="url(#ge)" points="0,30 0,24 14,20 28,16 43,18 57,12 71,9 85,7 100,4 100,30"/><polyline fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,24 14,20 28,16 43,18 57,12 71,9 85,7 100,4"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><span class="kpi-label">Pending approval</span><span class="kpi-delta delta-warn fm">3 open</span></div>
+        <div class="kpi-value fd" style="color:rgb(var(--amber))">3</div>
+        <svg class="spark" viewBox="0 0 100 30"><polyline fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" points="0,26 14,22 28,24 43,18 57,16 71,14 85,12 100,10"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><span class="kpi-label">Cost this month</span><span class="kpi-delta delta-up fm">£22 budget</span></div>
+        <div class="kpi-value fd">£18<span style="font-size:20px;color:rgb(var(--text2))">.40</span></div>
+        <svg class="spark" viewBox="0 0 100 30"><defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#10b981" stop-opacity=".15"/><stop offset="100%" stop-color="#10b981" stop-opacity="0"/></linearGradient></defs><polygon fill="url(#ga)" points="0,30 0,27 14,25 28,23 43,21 57,19 71,17 85,15 100,12 100,30"/><polyline fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" points="0,27 14,25 28,23 43,21 57,19 71,17 85,15 100,12"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="kpi-top"><span class="kpi-label">Agent uptime</span><span class="kpi-delta delta-muted fm">stable</span></div>
+        <div class="kpi-value fd">99.9<span style="font-size:18px;color:rgb(var(--text2))">%</span></div>
+        <svg class="spark" viewBox="0 0 100 30"><polyline fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" points="0,6 14,6 28,7 43,6 57,6 71,6 85,6 100,5"/></svg>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <!-- Approval preview -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:13px;font-weight:600;color:rgb(var(--text))">Pending approvals</span>
+          <a class="link-arrow" onclick="go('approvals')">View all (3) →</a>
+        </div>
+        <div class="appr-mini" onclick="go('approvals')">
+          <div class="appr-mini-hdr">
+            <span class="sv sv-crit"><span class="sv-dot"></span>CRITICAL</span>
+            <span style="font-size:11px;color:rgb(var(--text3))">Grievance</span>
+            <span class="t-ago">8m</span>
+          </div>
+          <p class="mini-query">"I have a formal complaint about my line manager's behaviour during last week's review..."</p>
+          <p class="mini-cat">§4.3 Grievance Procedure</p>
+        </div>
+        <div class="appr-mini" onclick="go('approvals')">
+          <div class="appr-mini-hdr">
+            <span class="sv sv-high"><span class="sv-dot"></span>HIGH</span>
+            <span style="font-size:11px;color:rgb(var(--text3))">Leave &amp; Holiday</span>
+            <span class="t-ago">22m</span>
+          </div>
+          <p class="mini-query">"Do I have any remaining annual leave entitlement for this year?"</p>
+          <p class="mini-cat">§3.2 Holiday Entitlement</p>
+        </div>
+        <div style="text-align:center;padding:6px">
+          <a class="link-arrow" style="justify-content:center" onclick="go('approvals')">+1 more pending →</a>
+        </div>
+      </div>
+
+      <!-- Activity -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:13px;font-weight:600;color:rgb(var(--text))">Recent activity</span>
+          <a class="link-arrow" onclick="go('activity')">View all →</a>
+        </div>
+        <div class="act-list" style="background:rgb(var(--surface))">
+          <div class="act-item"><div class="act-icon">✓</div><div class="act-body"><div class="act-action">Draft created for approval</div><div class="act-detail">Jane D. · annual leave query · sensitivity 0.74</div></div><div class="act-time">4m</div></div>
+          <div class="act-item"><div class="act-icon">⚙</div><div class="act-body"><div class="act-action">Handbook policy lookup</div><div class="act-detail">§3.2 Holiday Entitlement · §3.5 Carry-forward</div></div><div class="act-time">4m</div></div>
+          <div class="act-item"><div class="act-icon">👤</div><div class="act-body"><div class="act-action">Employee data retrieved</div><div class="act-detail">Breathe HR · entitlement 25d · taken 18d · remaining 7d</div></div><div class="act-time">22m</div></div>
+          <div class="act-item"><div class="act-icon" style="color:rgb(var(--emerald))">✓</div><div class="act-body"><div class="act-action">Approval sent — sick leave query</div><div class="act-detail">Marcus T. · approved by Jordan R. · delivered via Teams</div></div><div class="act-time">47m</div></div>
+          <div class="act-item"><div class="act-icon">📊</div><div class="act-body"><div class="act-action">Weekly report delivered</div><div class="act-detail">#hr-updates · 28 queries MTD · 34 employees</div></div><div class="act-time">7h</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System status -->
+    <div class="status-strip">
+      <p class="label" style="margin-bottom:14px">System status</p>
+      <div class="status-row">
+        <div class="status-item">
+          <span class="si-icon">🤖</span>
+          <span class="si-name">Teams bot</span>
+          <span class="si-status"><span class="si-dot pulse"></span>ACTIVE</span>
+          <span class="si-sub">last msg 4m ago</span>
+        </div>
+        <div class="status-item">
+          <span class="si-icon">🗄️</span>
+          <span class="si-name">Breathe HR</span>
+          <span class="si-status"><span class="si-dot pulse"></span>SYNCED</span>
+          <span class="si-sub">34 employees · 12m ago</span>
+        </div>
+        <div class="status-item">
+          <span class="si-icon">⚡</span>
+          <span class="si-name">AI agent</span>
+          <span class="si-status"><span class="si-dot pulse"></span>ACTIVE</span>
+          <span class="si-sub">claude-sonnet-4-6 · p50 1.8s</span>
+        </div>
+        <div style="margin-left:auto;font-size:11px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace">
+          v1.0 · dashboard.intelforce.ai
+        </div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- ══════════ APPROVALS ══════════════════════════════════════════════ -->
+  <div id="view-approvals" class="view">
+  <div class="content">
+
+    <div class="appr-page-hdr">
+      <div>
+        <h1 class="fd" style="font-size:28px;font-weight:300;color:rgb(var(--text));letter-spacing:-.02em">Approvals</h1>
+        <p style="font-size:13px;color:rgb(var(--text3));margin-top:4px">3 pending · sorted by severity · all require your review before sending</p>
+      </div>
+      <span class="badge-pill badge-amber"><span style="width:5px;height:5px;border-radius:50%;background:rgb(var(--amber));display:inline-block" class="pulse"></span>3 pending</span>
+    </div>
+
+    <div class="appr-filters">
+      <button class="filter-chip active">All (3)</button>
+      <button class="filter-chip">Critical (1)</button>
+      <button class="filter-chip">High (1)</button>
+      <button class="filter-chip">Medium (1)</button>
+    </div>
+
+    <!-- CRITICAL card -->
+    <div class="appr-card critical">
+      <div class="appr-hdr">
+        <span class="sv sv-crit"><span class="sv-dot"></span>CRITICAL</span>
+        <span style="font-size:12px;color:rgb(var(--text2));font-weight:500">Grievance procedure</span>
+        <span style="font-size:11px;color:rgb(var(--text3));margin-left:8px">·  sensitivity <span class="fm">0.91</span></span>
+        <span class="t-ago">8m ago</span>
+        <span style="font-size:11px;color:rgb(var(--text3));margin-left:8px">Employee ref <span class="fm">A2841</span></span>
+      </div>
+      <div class="appr-body">
+        <div class="appr-section">
+          <p class="label" style="margin-bottom:6px">Employee query</p>
+          <p class="appr-query">"I have a formal complaint about my line manager's behaviour during last week's performance review. What are my rights and how do I raise this formally?"</p>
+        </div>
+        <div class="appr-section">
+          <p class="label" style="margin-bottom:6px">Draft reply</p>
+          <div class="appr-draft" id="draft-1" contenteditable="false">"Thank you for raising this with me. Under our grievance procedure (§4.3), you have the right to submit a formal written complaint to HR. Once received, we'll open a formal investigation within 5 working days and you'll be kept informed throughout. I'd like to schedule a confidential call to discuss this further — does Friday at 2pm work for you?"</div>
+        </div>
+        <div class="source-strip">
+          📖 <span><b style="color:rgb(var(--text2))">Handbook:</b> §4.3 Grievance Procedure · §4.4 Investigation Timeline · §4.5 Employee Rights</span>
+        </div>
+      </div>
+      <div class="appr-footer">
+        <button class="btn btn-ghost btn-danger" onclick="dismiss('card-1')">✕ Reject</button>
+        <button class="btn btn-ghost" onclick="editDraft('draft-1',this)">✎ Edit draft</button>
+        <button class="btn btn-ghost btn-warn">↑ Escalate</button>
+        <button class="btn btn-primary" style="margin-left:auto" onclick="dismiss('card-1')">✓ Approve &amp; send</button>
+      </div>
+    </div>
+
+    <!-- HIGH card -->
+    <div class="appr-card high" id="card-1">
+      <div class="appr-hdr">
+        <span class="sv sv-high"><span class="sv-dot"></span>HIGH</span>
+        <span style="font-size:12px;color:rgb(var(--text2));font-weight:500">Leave &amp; holiday</span>
+        <span style="font-size:11px;color:rgb(var(--text3));margin-left:8px">·  sensitivity <span class="fm">0.74</span></span>
+        <span class="t-ago">22m ago</span>
+      </div>
+      <div class="appr-body">
+        <div class="appr-section">
+          <p class="label" style="margin-bottom:6px">Employee query</p>
+          <p class="appr-query">"Do I have any remaining annual leave entitlement for this year?"</p>
+        </div>
+        <div class="appr-section">
+          <p class="label" style="margin-bottom:6px">Draft reply</p>
+          <div class="appr-draft" id="draft-2" contenteditable="false">"Based on your 25-day annual entitlement, you've taken 18 days to date, leaving 7 days remaining for the year. Our carry-forward policy allows up to 5 days into the next holiday year — the deadline to use or carry remaining leave is 31 March. Would you like help booking some time off?"</div>
+        </div>
+        <div class="source-strip">
+          📖 <span><b style="color:rgb(var(--text2))">Handbook:</b> §3.2 Holiday Entitlement · §3.5 Carry-forward Rules</span>
+        </div>
+        <div class="source-strip" style="margin-top:4px">
+          🗄️ <span><b style="color:rgb(var(--text2))">Breathe HR:</b> Entitlement 25d · Taken 18d · Remaining 7d · Carry-fwd max 5d · Dept: Operations</span>
+        </div>
+      </div>
+      <div class="appr-footer">
+        <button class="btn btn-ghost btn-danger">✕ Reject</button>
+        <button class="btn btn-ghost" onclick="editDraft('draft-2',this)">✎ Edit draft</button>
+        <button class="btn btn-ghost btn-warn">↑ Escalate</button>
+        <button class="btn btn-primary" style="margin-left:auto">✓ Approve &amp; send</button>
+      </div>
+    </div>
+
+    <!-- MEDIUM card -->
+    <div class="appr-card medium">
+      <div class="appr-hdr">
+        <span class="sv sv-med"><span class="sv-dot" style="background:rgb(var(--text3))"></span>MEDIUM</span>
+        <span style="font-size:12px;color:rgb(var(--text2));font-weight:500">Sick leave policy</span>
+        <span style="font-size:11px;color:rgb(var(--text3));margin-left:8px">·  sensitivity <span class="fm">0.48</span></span>
+        <span class="t-ago">41m ago</span>
+      </div>
+      <div class="appr-body">
+        <div class="appr-section">
+          <p class="label" style="margin-bottom:6px">Employee query</p>
+          <p class="appr-query">"How many sick days am I entitled to before it moves to statutory sick pay?"</p>
+        </div>
+        <div class="appr-section">
+          <p class="label" style="margin-bottom:6px">Draft reply</p>
+          <div class="appr-draft" id="draft-3" contenteditable="false">"Under our sick pay policy (§5.1), you receive full company sick pay for the first 10 working days of absence in any rolling 12-month period. After this, you move to statutory sick pay (SSP) at £116.75/week. Absences over 7 calendar days require a GP fit note."</div>
+        </div>
+        <div class="source-strip">
+          📖 <span><b style="color:rgb(var(--text2))">Handbook:</b> §5.1 Company Sick Pay · §5.2 Statutory Sick Pay · §5.3 Return to Work</span>
+        </div>
+      </div>
+      <div class="appr-footer">
+        <button class="btn btn-ghost btn-danger">✕ Reject</button>
+        <button class="btn btn-ghost" onclick="editDraft('draft-3',this)">✎ Edit draft</button>
+        <button class="btn btn-ghost btn-warn">↑ Escalate</button>
+        <button class="btn btn-primary" style="margin-left:auto">✓ Approve &amp; send</button>
+      </div>
+    </div>
+
+    <!-- Resolved today -->
+    <div class="resolved-section">
+      <details>
+        <summary style="font-size:12px;color:rgb(var(--text3));cursor:pointer;user-select:none;padding:6px 0;list-style:none">
+          ✓ Resolved today (12) — click to expand
+        </summary>
+        <div style="margin-top:10px">
+          <div class="resolved-item"><span style="color:rgb(var(--emerald));font-size:13px">✓</span><span style="flex:1;font-size:13px;color:rgb(var(--text2))">Parental leave query — approved · Jordan R.</span><span class="t-ago">14:22</span></div>
+          <div class="resolved-item"><span style="color:rgb(var(--emerald));font-size:13px">✓</span><span style="flex:1;font-size:13px;color:rgb(var(--text2))">Remote working policy — approved with edit</span><span class="t-ago">11:07</span></div>
+          <div class="resolved-item"><span style="color:rgb(240 100 100);font-size:13px">✕</span><span style="flex:1;font-size:13px;color:rgb(var(--text2))">Pay rise enquiry — rejected · escalated to HR Lead</span><span class="t-ago">09:34</span></div>
+        </div>
+      </details>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- ══════════ AGENTS ════════════════════════════════════════════════════ -->
+  <div id="view-agents" class="view">
+  <div class="content" style="max-width:none!important;padding:20px 24px">
+
+    <!-- Header row -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h1 class="fd" style="font-size:28px;font-weight:300;color:rgb(var(--text));letter-spacing:-.02em">Agents</h1>
+        <p style="font-size:13px;color:rgb(var(--text3));margin-top:3px">14 agents · 4 directors · running on claude-opus-4.7 + sonnet-4.6</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;font-size:11px;color:rgb(var(--text3))">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:rgb(var(--emerald));display:inline-block" class="pulse"></span>Active</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:rgb(var(--amber));display:inline-block" class="pulse"></span>Running</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:rgb(var(--sky));display:inline-block"></span>Scheduled</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:rgb(var(--text3));display:inline-block"></span>Idle</span>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <div class="kpi" style="padding:14px 18px"><div class="kpi-top"><span class="kpi-label">Agents active</span><span class="kpi-delta delta-up fm">+2</span></div><div class="kpi-value fd" style="font-size:28px">9 <span style="font-size:16px;color:rgb(var(--text3))">of 14</span></div></div>
+      <div class="kpi" style="padding:14px 18px"><div class="kpi-top"><span class="kpi-label">Runs MTD</span><span class="kpi-delta delta-up fm">+24%</span></div><div class="kpi-value fd" style="font-size:28px">247</div></div>
+      <div class="kpi" style="padding:14px 18px"><div class="kpi-top"><span class="kpi-label">Pending</span><span class="kpi-delta delta-warn fm">review</span></div><div class="kpi-value fd" style="font-size:28px;color:rgb(var(--amber))">3</div></div>
+      <div class="kpi" style="padding:14px 18px"><div class="kpi-top"><span class="kpi-label">Cost MTD</span><span class="kpi-delta delta-up fm">£3.60 under</span></div><div class="kpi-value fd" style="font-size:28px">£18<span style="font-size:16px;color:rgb(var(--text2))">.40</span></div></div>
+    </div>
+
+    <!-- Full-screen SVG canvas card -->
+    <div id="agents-main" style="background:rgb(var(--surface));border-radius:16px;
+      border:1px solid rgba(255,255,255,.05);overflow:hidden;">
+
+      <!-- Canvas header bar — normal flow -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 20px;
+        border-bottom:1px solid rgba(255,255,255,.05);
+        background:rgb(var(--surface));position:sticky;top:0;z-index:10;">
+        <span class="label">Click any director · click any agent to inspect</span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:11px;color:rgb(var(--text3))">247 runs MTD</span>
+          <div class="canvas-tabs">
+            <button class="ctab active">Hierarchy</button>
+            <button class="ctab" style="opacity:.35;cursor:not-allowed">Grid</button>
+            <button class="ctab" style="opacity:.35;cursor:not-allowed">Run</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG wrapper — scrolls horizontally on small screens, fills on large -->
+      <div style="overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;position:relative;">
+
+      <!-- THE MAIN SVG — fixed 900px wide, always readable, scrolls if needed -->
+      <svg id="agents-svg"
+        viewBox="0 0 900 560"
+        width="900" height="560"
+        style="display:block;min-width:900px;"
+        <defs>
+          <pattern id="ag" width="36" height="36" patternUnits="userSpaceOnUse">
+            <path d="M 36 0 L 0 0 0 36" fill="none" stroke="rgba(255,255,255,.025)" stroke-width=".5"/>
+          </pattern>
+          <radialGradient id="gw-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#10b981" stop-opacity=".2"/>
+            <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <rect width="900" height="560" fill="url(#ag)"/>
+
+        <!-- Ambient glow behind gateway -->
+        <circle cx="300" cy="270" r="80" fill="url(#gw-glow)"/>
+
+        <!-- ══ INPUTS COLUMN  x=10–190  one unified block ══ -->
+        <rect x="10" y="10" width="180" height="540" rx="11" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+
+        <!-- CHANNELS -->
+        <text x="22" y="32" fill="#3f3f46" font-size="8.5" font-family="Geist,sans-serif" font-weight="700" letter-spacing="1.8">CHANNELS</text>
+        <circle cx="22" cy="52" r="4" fill="#10b981"><animate attributeName="opacity" values="1;.4;1" dur="2s" repeatCount="indefinite"/></circle>
+        <text x="33" y="57" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Microsoft Teams</text>
+        <text x="183" y="57" text-anchor="end" fill="#3f3f46" font-size="9.5" font-family="JetBrains Mono,monospace">4m ago</text>
+        <circle cx="22" cy="76" r="4" fill="#10b981"/>
+        <text x="33" y="81" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Slack</text>
+        <text x="183" y="81" text-anchor="end" fill="#3f3f46" font-size="9.5" font-family="JetBrains Mono,monospace">live</text>
+        <circle cx="22" cy="100" r="4" fill="#3f3f46"/>
+        <text x="33" y="105" fill="#71717a" font-size="12" font-family="Geist,sans-serif">Email</text>
+        <text x="183" y="105" text-anchor="end" fill="#3f3f46" font-size="9.5" font-family="JetBrains Mono,monospace">ready</text>
+
+        <line x1="10" y1="120" x2="190" y2="120" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+
+        <!-- DATA SOURCES -->
+        <text x="22" y="138" fill="#3f3f46" font-size="8.5" font-family="Geist,sans-serif" font-weight="700" letter-spacing="1.8">DATA SOURCES</text>
+        <circle cx="22" cy="156" r="4" fill="#10b981"/><text x="33" y="161" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Breathe HR</text>
+        <circle cx="22" cy="178" r="4" fill="#10b981"/><text x="33" y="183" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">HubSpot</text>
+        <circle cx="22" cy="200" r="4" fill="#10b981"/><text x="33" y="205" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Fathom</text>
+        <circle cx="22" cy="222" r="4" fill="#10b981"/><text x="33" y="227" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Notion</text>
+        <circle cx="22" cy="244" r="4" fill="#10b981"/><text x="33" y="249" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Calendly</text>
+        <circle cx="22" cy="266" r="4" fill="#10b981"/><text x="33" y="271" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Google Drive</text>
+        <circle cx="22" cy="288" r="4" fill="#3f3f46"/><text x="33" y="293" fill="#71717a" font-size="12" font-family="Geist,sans-serif">Stripe</text>
+        <text x="22" y="314" fill="#2d2d2d" font-size="9.5" font-family="JetBrains Mono,monospace">+ 2 more</text>
+
+        <line x1="10" y1="328" x2="190" y2="328" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+
+        <!-- TRIGGERS -->
+        <text x="22" y="346" fill="#3f3f46" font-size="8.5" font-family="Geist,sans-serif" font-weight="700" letter-spacing="1.8">TRIGGERS</text>
+        <circle cx="22" cy="364" r="4" fill="#38bdf8"/><text x="33" y="369" fill="#d4d4d8" font-size="12" font-family="Geist,sans-serif">Cron</text><text x="183" y="369" text-anchor="end" fill="#3f3f46" font-size="9.5" font-family="JetBrains Mono,monospace">2 jobs</text>
+        <circle cx="22" cy="388" r="4" fill="#3f3f46"/><text x="33" y="393" fill="#71717a" font-size="12" font-family="Geist,sans-serif">Webhooks</text><text x="183" y="393" text-anchor="end" fill="#3f3f46" font-size="9.5" font-family="JetBrains Mono,monospace">5</text>
+
+        <!-- ── Sources → Gateway  converge at (228, 270) ── -->
+        <path class="flow" d="M 190 76  C 209 76  209 270 228 270" fill="none" stroke="#10b981" stroke-opacity=".35" stroke-width="1.2"/>
+        <path class="flow" d="M 190 222 C 209 222 209 270 228 270" fill="none" stroke="#10b981" stroke-opacity=".35" stroke-width="1.2"/>
+        <path class="flow" d="M 190 376 C 209 376 209 270 228 270" fill="none" stroke="#10b981" stroke-opacity=".35" stroke-width="1.2"/>
+
+        <!-- ══ GATEWAY  x=228–372  centre (300,270) ══ -->
+        <rect x="222" y="242" width="156" height="56" rx="13" fill="none" stroke="rgba(16,185,129,.13)" stroke-width="7"/>
+        <rect x="228" y="246" width="144" height="48" rx="11" fill="#080a0d" stroke="#10b981" stroke-width="1.6" stroke-opacity=".8"/>
+        <text x="300" y="268" text-anchor="middle" fill="#10b981" font-size="16" font-family="Geist,sans-serif">⌘</text>
+        <text x="300" y="284" text-anchor="middle" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="600">Gateway</text>
+        <circle cx="363" cy="255" r="4" fill="#10b981"><animate attributeName="opacity" values="1;.3;1" dur="2s" repeatCount="indefinite"/></circle>
+
+        <!-- ── Gateway → Directors  (from x=372, y=270 → x=420) ── -->
+        <!-- Director groupCentres: HR=75, Sales=210, Mktg=350, Ops=490 -->
+        <path class="flow" d="M 372 270 C 396 270 396 75  420 75"  fill="none" stroke="#a78bfa" stroke-opacity=".45" stroke-width="1.5"/>
+        <path class="flow" d="M 372 270 C 396 270 396 210 420 210" fill="none" stroke="#60a5fa" stroke-opacity=".45" stroke-width="1.5"/>
+        <path class="flow" d="M 372 270 C 396 270 396 350 420 350" fill="none" stroke="#5eead4" stroke-opacity=".45" stroke-width="1.5"/>
+        <path class="flow" d="M 372 270 C 396 270 396 490 420 490" fill="none" stroke="#fdba74" stroke-opacity=".45" stroke-width="1.5"/>
+
+        <!-- ══ DIRECTORS  x=420–578  w=158 h=46 ══ -->
+        <!-- HR  y=52  centre=75 -->
+        <g id="dir-hr-node" onclick="activateDirector('hr')" style="cursor:pointer">
+          <rect id="dr-hr" x="420" y="52" width="158" height="46" rx="11" fill="#080a0d" stroke="#a78bfa" stroke-width="1.5" stroke-opacity=".6"/>
+          <circle cx="436" cy="75" r="5.5" fill="#a78bfa"><animate attributeName="opacity" values="1;.4;1" dur="2.2s" repeatCount="indefinite"/></circle>
+          <text x="448" y="69" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="600">HR Director</text>
+          <text x="448" y="85" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">4 agents · sonnet-4.6</text>
+        </g>
+        <!-- Sales  y=187  centre=210 -->
+        <g id="dir-sa-node" onclick="activateDirector('sales')" style="cursor:pointer">
+          <rect x="420" y="187" width="158" height="46" rx="11" fill="#080a0d" stroke="#60a5fa" stroke-width="1.5" stroke-opacity=".55"/>
+          <circle cx="436" cy="210" r="5.5" fill="#60a5fa"><animate attributeName="opacity" values="1;.4;1" dur="1.8s" repeatCount="indefinite"/></circle>
+          <text x="448" y="204" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="600">Sales Director</text>
+          <text x="448" y="220" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">3 agents · opus-4.7</text>
+        </g>
+        <!-- Marketing  y=327  centre=350 -->
+        <g id="dir-mk-node" onclick="activateDirector('mktg')" style="cursor:pointer">
+          <rect x="420" y="327" width="158" height="46" rx="11" fill="#080a0d" stroke="#5eead4" stroke-width="1.5" stroke-opacity=".55"/>
+          <circle cx="436" cy="350" r="5.5" fill="#5eead4"><animate attributeName="opacity" values="1;.4;1" dur="2.4s" repeatCount="indefinite"/></circle>
+          <text x="448" y="344" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="600">Marketing Director</text>
+          <text x="448" y="360" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">3 agents · opus-4.7</text>
+        </g>
+        <!-- Operations  y=467  centre=490 -->
+        <g id="dir-op-node" onclick="activateDirector('ops')" style="cursor:pointer">
+          <rect x="420" y="467" width="158" height="46" rx="11" fill="#080a0d" stroke="#fdba74" stroke-width="1.5" stroke-opacity=".55"/>
+          <circle cx="436" cy="490" r="5.5" fill="#fdba74"><animate attributeName="opacity" values="1;.4;1" dur="2.6s" repeatCount="indefinite"/></circle>
+          <text x="448" y="484" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="600">Operations Director</text>
+          <text x="448" y="500" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">4 agents · sonnet-4.6</text>
+        </g>
+
+        <!-- ══ ALL 14 SUB-AGENTS  x=620–888  ALL ALWAYS VISIBLE ══
+             HR    y=10,44,78,112      centres 24,58,92,126   groupCentre=75
+             Sales y=162,196,230       centres 176,210,244    groupCentre=210
+             Mktg  y=302,336,370       centres 316,350,384    groupCentre=350
+             Ops   y=430,464,498,532   centres 444,478,512,546 groupCentre=490  ══ -->
+
+        <!-- Branch connectors from each director (x=578) to agents (x=620) -->
+        <!-- HR branches (dir centre 75) -->
+        <path d="M 578 75 C 599 75 599 24 620 24"   fill="none" stroke="#a78bfa" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 75 C 599 75 599 58 620 58"   fill="none" stroke="#a78bfa" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 75 C 599 75 599 92 620 92"   fill="none" stroke="#a78bfa" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 75 C 599 75 599 126 620 126" fill="none" stroke="#a78bfa" stroke-opacity=".25" stroke-width="1"/>
+        <!-- Sales branches (dir centre 210) -->
+        <path d="M 578 210 C 599 210 599 176 620 176" fill="none" stroke="#60a5fa" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 210 C 599 210 599 210 620 210" fill="none" stroke="#60a5fa" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 210 C 599 210 599 244 620 244" fill="none" stroke="#60a5fa" stroke-opacity=".25" stroke-width="1"/>
+        <!-- Marketing branches (dir centre 350) -->
+        <path d="M 578 350 C 599 350 599 316 620 316" fill="none" stroke="#5eead4" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 350 C 599 350 599 350 620 350" fill="none" stroke="#5eead4" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 350 C 599 350 599 384 620 384" fill="none" stroke="#5eead4" stroke-opacity=".25" stroke-width="1"/>
+        <!-- Operations branches (dir centre 490) -->
+        <path d="M 578 490 C 599 490 599 444 620 444" fill="none" stroke="#fdba74" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 490 C 599 490 599 478 620 478" fill="none" stroke="#fdba74" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 490 C 599 490 599 512 620 512" fill="none" stroke="#fdba74" stroke-opacity=".25" stroke-width="1"/>
+        <path d="M 578 490 C 599 490 599 546 620 546" fill="none" stroke="#38bdf8" stroke-opacity=".25" stroke-width="1"/>
+
+        <!-- Group labels + separators -->
+        <text x="624" y="8"   fill="#a78bfa" font-size="8" font-family="Geist,sans-serif" font-weight="600" opacity=".5" letter-spacing="1">HR</text>
+        <text x="624" y="158" fill="#60a5fa" font-size="8" font-family="Geist,sans-serif" font-weight="600" opacity=".5" letter-spacing="1">SALES</text>
+        <text x="624" y="298" fill="#5eead4" font-size="8" font-family="Geist,sans-serif" font-weight="600" opacity=".5" letter-spacing="1">MARKETING</text>
+        <text x="624" y="426" fill="#fdba74" font-size="8" font-family="Geist,sans-serif" font-weight="600" opacity=".5" letter-spacing="1">OPERATIONS</text>
+        <line x1="620" y1="148" x2="888" y2="148" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+        <line x1="620" y1="288" x2="888" y2="288" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+        <line x1="620" y1="416" x2="888" y2="416" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+
+        <!-- ── HR agents  y=10,44,78,112  h=28 gap=6 ── -->
+        <g onclick="showAgent('policy')" style="cursor:pointer"><rect x="620" y="10"  width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/><circle cx="634" cy="24" r="4" fill="#10b981"><animate attributeName="opacity" values="1;.4;1" dur="2s" repeatCount="indefinite"/></circle><text x="644" y="20" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Policy Lookup</text><text x="644" y="33" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">ACTIVE · just now</text><text x="882" y="26" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">handbook</text></g>
+        <g onclick="showAgent('employee')" style="cursor:pointer"><rect x="620" y="44"  width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(245,158,11,.22)" stroke-width="1"/><circle cx="634" cy="58" r="4" fill="#f59e0b"><animate attributeName="opacity" values="1;.4;1" dur="1.5s" repeatCount="indefinite"/></circle><text x="644" y="54" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Employee Info</text><text x="644" y="67" fill="#f59e0b" font-size="9.5" font-family="JetBrains Mono,monospace">RUNNING · now</text><text x="882" y="60" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">Breathe HR</text></g>
+        <g onclick="showAgent('router')" style="cursor:pointer"><rect x="620" y="78"  width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/><circle cx="634" cy="92" r="4" fill="#10b981"/><text x="644" y="88" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Approval Router</text><text x="644" y="101" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">ACTIVE · 4m ago</text><text x="882" y="94" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">Teams card</text></g>
+        <g onclick="showAgent('reporter')" style="cursor:pointer"><rect x="620" y="112" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(56,189,248,.2)" stroke-width="1"/><circle cx="634" cy="126" r="4" fill="#38bdf8"/><text x="644" y="122" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Weekly Reporter</text><text x="644" y="135" fill="#38bdf8" font-size="9.5" font-family="JetBrains Mono,monospace">SCHED · Fri 7am</text><text x="882" y="128" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">report</text></g>
+
+        <!-- ── Sales agents  y=162,196,230 ── -->
+        <g onclick="showAgent('proposal')" style="cursor:pointer"><rect x="620" y="162" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(245,158,11,.22)" stroke-width="1"/><circle cx="634" cy="176" r="4" fill="#f59e0b"><animate attributeName="opacity" values="1;.4;1" dur="1.5s" repeatCount="indefinite"/></circle><text x="644" y="172" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Proposal Builder</text><text x="644" y="185" fill="#f59e0b" font-size="9.5" font-family="JetBrains Mono,monospace">RUNNING · 4m ago</text><text x="882" y="178" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">£24,200</text></g>
+        <g onclick="showAgent('leadhunter')" style="cursor:pointer"><rect x="620" y="196" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/><circle cx="634" cy="210" r="4" fill="#10b981"/><text x="644" y="206" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Lead Hunter</text><text x="644" y="219" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">ACTIVE · 12m ago</text><text x="882" y="212" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">38 leads</text></g>
+        <g onclick="showAgent('followup')" style="cursor:pointer"><rect x="620" y="230" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/><circle cx="634" cy="244" r="4" fill="#10b981"/><text x="644" y="240" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Follow-Up Pilot</text><text x="644" y="253" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">ACTIVE · 2m ago</text><text x="882" y="246" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">21 sends</text></g>
+
+        <!-- ── Marketing agents  y=302,336,370 ── -->
+        <g onclick="showAgent('contentcreator')" style="cursor:pointer"><rect x="620" y="302" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(245,158,11,.22)" stroke-width="1"/><circle cx="634" cy="316" r="4" fill="#f59e0b"><animate attributeName="opacity" values="1;.4;1" dur="1.6s" repeatCount="indefinite"/></circle><text x="644" y="312" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Content Creator</text><text x="644" y="325" fill="#f59e0b" font-size="9.5" font-family="JetBrains Mono,monospace">RUNNING · now</text><text x="882" y="318" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">4 drafts</text></g>
+        <g onclick="showAgent('repurposer')" style="cursor:pointer"><rect x="620" y="336" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/><circle cx="634" cy="350" r="4" fill="#10b981"/><text x="644" y="346" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Repurposer</text><text x="644" y="359" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">ACTIVE · 22m ago</text><text x="882" y="352" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">9 posts</text></g>
+        <g onclick="showAgent('caption')" style="cursor:pointer"><rect x="620" y="370" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/><circle cx="634" cy="384" r="4" fill="#10b981"/><text x="644" y="380" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Caption Writer</text><text x="644" y="393" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">ACTIVE · 8m ago</text><text x="882" y="386" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">17 captions</text></g>
+
+        <!-- ── Operations agents  y=430,464,498,532 ── -->
+        <g onclick="showAgent('onboarder')" style="cursor:pointer"><rect x="620" y="430" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.07)" stroke-width="1"/><circle cx="634" cy="444" r="4" fill="#10b981"/><text x="644" y="440" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Client Onboarder</text><text x="644" y="453" fill="#52525b" font-size="9.5" font-family="JetBrains Mono,monospace">ACTIVE · 1h ago</text><text x="882" y="446" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">2 active</text></g>
+        <g onclick="showAgent('reportengine')" style="cursor:pointer"><rect x="620" y="464" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(56,189,248,.2)" stroke-width="1"/><circle cx="634" cy="478" r="4" fill="#38bdf8"/><text x="644" y="474" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Reporting Engine</text><text x="644" y="487" fill="#38bdf8" font-size="9.5" font-family="JetBrains Mono,monospace">SCHED · Fri 7am</text><text x="882" y="480" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">weekly</text></g>
+        <g onclick="showAgent('sopwriter')" style="cursor:pointer"><rect x="620" y="498" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(255,255,255,.04)" stroke-width="1"/><circle cx="634" cy="512" r="4" fill="#3f3f46"/><text x="644" y="508" fill="#a1a1aa" font-size="12" font-family="Geist,sans-serif" font-weight="500">SOP Writer</text><text x="644" y="521" fill="#3f3f46" font-size="9.5" font-family="JetBrains Mono,monospace">IDLE · yesterday</text><text x="882" y="514" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">34 SOPs</text></g>
+        <g onclick="showAgent('librarian')" style="cursor:pointer"><rect x="620" y="532" width="268" height="28" rx="8" fill="#080a0d" stroke="rgba(56,189,248,.18)" stroke-width="1"/><circle cx="634" cy="546" r="4" fill="#38bdf8"/><text x="644" y="542" fill="#f4f4f5" font-size="12" font-family="Geist,sans-serif" font-weight="500">Librarian</text><text x="644" y="555" fill="#38bdf8" font-size="9.5" font-family="JetBrains Mono,monospace">SCHED · 2am</text><text x="882" y="548" text-anchor="end" fill="#3a3a3a" font-size="9" font-family="JetBrains Mono,monospace">412 files</text></g>
+      </svg>
+
+      </div><!-- /svg scroll wrapper -->
+
+      <!-- ── RIGHT-SIDE POPUP CARD — fixed to viewport right edge ── -->
+      <div id="agent-popup" class="agent-popup" style="position:fixed;top:0;right:0;bottom:0;z-index:100;"
+        <button class="ap-close" onclick="closePopup()">×</button>
+        <div class="ap-hero">
+          <div id="ap-avatar" class="ap-avatar"></div>
+          <div id="ap-sup" class="ap-sup">Sub-agent</div>
+          <div id="ap-title" class="ap-title fd"></div>
+          <div class="ap-status-row">
+            <span id="ap-status-badge" class="badge-pill badge-emerald" style="font-size:10px"></span>
+            <span id="ap-last-inline" style="font-size:11px;color:rgb(var(--text3));font-family:'JetBrains Mono',monospace;margin-left:6px"></span>
+          </div>
+        </div>
+        <div class="ap-body">
+          <div>
+            <div class="ap-slbl">What it does</div>
+            <p id="ap-desc" class="ap-desc-text"></p>
+          </div>
+          <div>
+            <div class="ap-slbl">Stats</div>
+            <div class="ap-stat-grid">
+              <div class="ap-stat"><div id="ap-out" class="ap-stat-val">—</div><div class="ap-stat-key">Output</div></div>
+              <div class="ap-stat"><div id="ap-model" class="ap-stat-val" style="font-size:11px">—</div><div class="ap-stat-key">Model</div></div>
+              <div class="ap-stat"><div class="ap-stat-val">1.8s</div><div class="ap-stat-key">p50 latency</div></div>
+              <div class="ap-stat"><div id="ap-last" class="ap-stat-val" style="font-size:11px">—</div><div class="ap-stat-key">Last run</div></div>
+            </div>
+          </div>
+          <div>
+            <div class="ap-slbl">Integrations</div>
+            <div id="ap-integrations" class="ap-int-row"></div>
+          </div>
+        </div>
+        <div class="ap-footer">
+          <button class="btn btn-ghost" style="flex:1;justify-content:center;font-size:12px">⚙ Configure</button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center;font-size:12px">▷ Run now</button>
+        </div>
+      </div>
+
+    </div><!-- /agents-main canvas -->
+  </div>
+  </div>
+
+  <!-- Backdrop for agent popup (click to close) -->
+  <div id="popup-backdrop" class="agent-popup-backdrop" onclick="closePopup()"></div>
+
+
+
+  <!-- ══════════ ACTIVITY ════════════════════════════════════════════════ -->
+  <div id="view-activity" class="view">
+  <div class="content">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h1 class="fd" style="font-size:28px;font-weight:300;color:rgb(var(--text));letter-spacing:-.02em">Activity</h1>
+        <p style="font-size:13px;color:rgb(var(--text3));margin-top:4px">All events · 100 shown · live auto-refresh</p>
+      </div>
+      <button class="btn btn-ghost" style="font-size:11px">↓ Export CSV</button>
+    </div>
+
+    <div class="appr-filters" style="margin-bottom:20px">
+      <button class="filter-chip active">All</button>
+      <button class="filter-chip">Approvals</button>
+      <button class="filter-chip">Escalations</button>
+      <button class="filter-chip">Tool calls</button>
+      <button class="filter-chip">System</button>
+    </div>
+
+    <!-- Two-column: timeline + right sidebar -->
+    <div style="display:grid;grid-template-columns:1fr 268px;gap:20px;align-items:start">
+
+      <!-- Timeline -->
+      <div class="timeline">
+        <div class="tl-day">Today — Friday 25 April · 6 events</div>
+        <div class="tl-item"><div class="tl-dot emerald"></div><div class="tl-top"><span class="tl-action"><b>draft.created</b> · Annual leave query</span><span class="tl-time">09:14</span></div><p class="tl-detail">Jane D. · sensitivity <span class="fm">0.74</span> · 2 handbook sections cited · sent to HR Lead for approval</p></div>
+        <div class="tl-item"><div class="tl-dot" style="border-color:rgba(255,255,255,.18)"></div><div class="tl-top"><span class="tl-action"><b>agent.tool_call</b> · lookup_handbook_policy</span><span class="tl-time">09:10</span></div><p class="tl-detail">Query: "annual leave carry forward" — returned §3.2, §3.5 (2 sections, score 3/4)</p></div>
+        <div class="tl-item"><div class="tl-dot" style="border-color:rgba(255,255,255,.18)"></div><div class="tl-top"><span class="tl-action"><b>agent.tool_call</b> · get_employee_info</span><span class="tl-time">09:10</span></div><p class="tl-detail">Breathe HR lookup · employee ref #A2841 (redacted) · entitlement 25d · taken 18d · remaining 7d</p></div>
+        <div class="tl-item"><div class="tl-dot" style="border-color:rgba(255,255,255,.18)"></div><div class="tl-top"><span class="tl-action"><b>agent.message_received</b> · Teams gateway</span><span class="tl-time">09:09</span></div><p class="tl-detail">Channel: #hr-queries · employee query received · token count 184</p></div>
+        <div class="tl-item"><div class="tl-dot emerald"></div><div class="tl-top"><span class="tl-action"><b>approval.sent</b> · Sick leave policy</span><span class="tl-time">08:47</span></div><p class="tl-detail">Marcus T. · approved by Jordan R. (web portal) · Teams reply delivered · latency 2.1s</p></div>
+        <div class="tl-item"><div class="tl-dot sky"></div><div class="tl-top"><span class="tl-action"><b>report.delivered</b> · Weekly HR intelligence</span><span class="tl-time">07:02</span></div><p class="tl-detail">34 employees · 28 queries MTD · 94% approval rate · delivered to #hr-updates</p></div>
+        <div class="tl-day" style="margin-top:32px">Yesterday — Thursday 24 April · 25 events</div>
+        <div class="tl-item"><div class="tl-dot amber"></div><div class="tl-top"><span class="tl-action"><b>escalation.created</b> · Grievance query</span><span class="tl-time">16:33</span></div><p class="tl-detail">Sarah K. · sensitivity <span class="fm">0.89</span> · CRITICAL · routed directly to HR Lead</p></div>
+        <div class="tl-item"><div class="tl-dot emerald"></div><div class="tl-top"><span class="tl-action"><b>escalation.resolved</b> · Grievance — Sarah K.</span><span class="tl-time">14:20</span></div><p class="tl-detail">Resolved by Jordan R. · resolution: "Handled directly. Formal grievance process initiated."</p></div>
+        <div style="text-align:center;padding:24px 0;font-size:12px;color:rgb(var(--text3))">23 more events yesterday — <a class="link-arrow" style="display:inline">load more →</a></div>
+      </div>
+
+      <!-- Right sidebar: today's snapshot -->
+      <div style="display:flex;flex-direction:column;gap:12px;position:sticky;top:72px">
+
+        <div class="card" style="padding:16px">
+          <p class="label" style="margin-bottom:12px">Today at a glance</p>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;color:rgb(var(--text2))">Queries handled</span>
+              <span class="fm" style="font-size:13px;font-weight:600;color:rgb(var(--text))">6</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;color:rgb(var(--text2))">Drafts approved</span>
+              <span class="fm" style="font-size:13px;font-weight:600;color:rgb(var(--emerald))">1</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;color:rgb(var(--text2))">Pending review</span>
+              <span class="fm" style="font-size:13px;font-weight:600;color:rgb(var(--amber))">3</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;color:rgb(var(--text2))">Escalations</span>
+              <span class="fm" style="font-size:13px;font-weight:600;color:rgb(var(--text3))">0</span>
+            </div>
+            <div style="height:1px;background:rgba(255,255,255,.05);margin:4px 0"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;color:rgb(var(--text2))">Avg sensitivity</span>
+              <span class="fm" style="font-size:13px;color:rgb(var(--text3))">0.61</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;color:rgb(var(--text2))">Avg latency</span>
+              <span class="fm" style="font-size:13px;color:rgb(var(--text3))">1.9s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:16px">
+          <p class="label" style="margin-bottom:12px">Event breakdown</p>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:8px;height:8px;border-radius:50%;background:rgb(var(--emerald));flex-shrink:0"></div>
+              <span style="font-size:12px;color:rgb(var(--text2));flex:1">Approvals</span>
+              <div style="flex:2;height:5px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden"><div style="width:60%;height:100%;background:rgb(var(--emerald));border-radius:2px"></div></div>
+              <span class="fm" style="font-size:11px;color:rgb(var(--text3));width:20px;text-align:right">3</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);flex-shrink:0"></div>
+              <span style="font-size:12px;color:rgb(var(--text2));flex:1">Tool calls</span>
+              <div style="flex:2;height:5px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden"><div style="width:40%;height:100%;background:rgba(255,255,255,.15);border-radius:2px"></div></div>
+              <span class="fm" style="font-size:11px;color:rgb(var(--text3));width:20px;text-align:right">2</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:8px;height:8px;border-radius:50%;background:rgb(var(--sky));flex-shrink:0"></div>
+              <span style="font-size:12px;color:rgb(var(--text2));flex:1">Reports</span>
+              <div style="flex:2;height:5px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden"><div style="width:20%;height:100%;background:rgb(var(--sky));border-radius:2px"></div></div>
+              <span class="fm" style="font-size:11px;color:rgb(var(--text3));width:20px;text-align:right">1</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:16px">
+          <p class="label" style="margin-bottom:10px">Active right now</p>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="width:6px;height:6px;border-radius:50%;background:rgb(var(--amber));display:inline-block" class="pulse"></span>
+            <span style="font-size:12px;color:rgb(var(--text))">Employee Info</span>
+            <span style="font-size:10px;color:rgb(var(--amber));font-family:'JetBrains Mono',monospace;margin-left:auto">RUNNING</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;border-radius:50%;background:rgb(var(--emerald));display:inline-block" class="pulse"></span>
+            <span style="font-size:12px;color:rgb(var(--text))">Approval Router</span>
+            <span style="font-size:10px;color:rgb(var(--emerald));font-family:'JetBrains Mono',monospace;margin-left:auto">ACTIVE</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ══════════ ANALYTICS ══════════════════════════════════════════════ -->
+  <div id="view-analytics" class="view">
+  <div class="content">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h1 class="fd" style="font-size:28px;font-weight:300;color:rgb(var(--text));letter-spacing:-.02em">Analytics</h1>
+        <p style="font-size:13px;color:rgb(var(--text3));margin-top:4px">April 2026 · calendar month</p>
+      </div>
+    </div>
+    <div class="period-tabs">
+      <button class="period-tab">7 days</button>
+      <button class="period-tab">30 days</button>
+      <button class="period-tab active">Calendar month</button>
+      <button class="period-tab">90 days</button>
+    </div>
+    <div class="kpi-grid" style="margin-bottom:24px">
+      <div class="kpi"><div class="kpi-top"><span class="kpi-label">Queries MTD</span><span class="kpi-delta delta-up fm">↑ +24%</span></div><div class="kpi-value fd">247</div></div>
+      <div class="kpi"><div class="kpi-top"><span class="kpi-label">Approval rate</span><span class="kpi-delta delta-up fm">7 edited</span></div><div class="kpi-value fd">94.3<span style="font-size:18px;color:rgb(var(--text2))">%</span></div></div>
+      <div class="kpi"><div class="kpi-top"><span class="kpi-label">Avg latency</span><span class="kpi-delta delta-muted fm">p50</span></div><div class="kpi-value fd">1.8<span style="font-size:18px;color:rgb(var(--text2))">s</span></div></div>
+      <div class="kpi"><div class="kpi-top"><span class="kpi-label">Cost MTD</span><span class="kpi-delta delta-up fm">£3.60 under</span></div><div class="kpi-value fd">£18<span style="font-size:18px;color:rgb(var(--text2))">.40</span></div></div>
+    </div>
+    <div class="two-col" style="margin-bottom:20px">
+      <div class="chart-card">
+        <div class="chart-title">Query volume</div>
+        <div class="chart-sub">Daily queries handled · April 2026</div>
+        <svg viewBox="0 0 320 110" class="chart-svg" style="height:120px">
+          <defs>
+            <linearGradient id="vfill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#10b981" stop-opacity=".22"/>
+              <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon fill="url(#vfill)" points="0,110 0,88 14,82 28,74 42,78 56,65 70,58 84,52 98,60 112,48 126,42 140,38 154,44 168,36 182,30 196,26 210,33 224,22 238,18 252,24 266,16 280,12 294,8 320,5 320,110"/>
+          <polyline fill="none" stroke="#10b981" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" points="0,88 14,82 28,74 42,78 56,65 70,58 84,52 98,60 112,48 126,42 140,38 154,44 168,36 182,30 196,26 210,33 224,22 238,18 252,24 266,16 280,12 294,8 320,5"/>
+          <line x1="0" y1="109" x2="320" y2="109" stroke="rgba(255,255,255,.06)"/>
+          <text x="0" y="109" fill="#52525b" font-size="8" font-family="Geist,sans-serif">1 Apr</text>
+          <text x="285" y="109" fill="#52525b" font-size="8" font-family="Geist,sans-serif">25 Apr</text>
+        </svg>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Cost vs budget</div>
+        <div class="chart-sub">Running total · £22.00 budget line</div>
+        <svg viewBox="0 0 320 110" class="chart-svg" style="height:120px">
+          <defs>
+            <linearGradient id="cfill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#10b981" stop-opacity=".15"/>
+              <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <!-- Budget line at y=22 (£22 = 20% from top of 110px) -->
+          <line x1="0" y1="28" x2="320" y2="28" stroke="rgba(245,158,11,.4)" stroke-width="1" stroke-dasharray="4 4"/>
+          <text x="4" y="24" fill="rgba(245,158,11,.7)" font-size="7.5" font-family="Geist,sans-serif">£22 budget</text>
+          <!-- Spend line ~£18.40 at point 25/30 of month -->
+          <polygon fill="url(#cfill)" points="0,110 0,104 40,98 80,92 120,86 160,80 200,74 240,68 280,64 320,60 320,110"/>
+          <polyline fill="none" stroke="#10b981" stroke-width="1.75" stroke-linecap="round" points="0,104 40,98 80,92 120,86 160,80 200,74 240,68 280,64 320,60"/>
+          <line x1="0" y1="109" x2="320" y2="109" stroke="rgba(255,255,255,.06)"/>
+          <text x="0" y="109" fill="#52525b" font-size="8" font-family="Geist,sans-serif">1 Apr</text>
+          <text x="285" y="109" fill="#52525b" font-size="8" font-family="Geist,sans-serif">25 Apr</text>
+        </svg>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="chart-card">
+        <div class="chart-title">Sensitivity distribution</div>
+        <div class="chart-sub">Queries by level this month</div>
+        <div style="padding:8px 0 4px">
+          <div class="health-row"><span class="health-label">LOW</span><div class="bar-track"><div class="bar-fill" style="width:41%;background:#3f3f46"></div></div><span class="health-pct fm" style="color:rgb(var(--text3))">41%</span></div>
+          <div class="health-row"><span class="health-label">MEDIUM</span><div class="bar-track"><div class="bar-fill" style="width:47%;background:#52525b"></div></div><span class="health-pct fm" style="color:rgb(var(--text3))">47%</span></div>
+          <div class="health-row"><span class="health-label">HIGH</span><div class="bar-track"><div class="bar-fill" style="width:9%;background:#f59e0b"></div></div><span class="health-pct fm" style="color:rgb(var(--amber))">9%</span></div>
+          <div class="health-row"><span class="health-label">CRITICAL</span><div class="bar-track"><div class="bar-fill" style="width:3%;background:#ef4444"></div></div><span class="health-pct fm" style="color:rgb(var(--red))">3%</span></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Approval outcomes</div>
+        <div class="chart-sub">How queries were resolved this month</div>
+        <div style="padding:8px 0">
+          <div class="health-row"><span class="health-label" style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(var(--emerald));display:inline-block"></span>Approved</span><div class="bar-track"><div class="bar-fill" style="width:73%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">73%</span></div>
+          <div class="health-row"><span class="health-label" style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(56 189 248);display:inline-block"></span>Edited</span><div class="bar-track"><div class="bar-fill" style="width:21%;background:#38bdf8"></div></div><span class="health-pct fm" style="color:rgb(var(--sky))">21%</span></div>
+          <div class="health-row"><span class="health-label" style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(var(--amber));display:inline-block"></span>Escalated</span><div class="bar-track"><div class="bar-fill" style="width:4%;background:#f59e0b"></div></div><span class="health-pct fm" style="color:rgb(var(--amber))">4%</span></div>
+          <div class="health-row"><span class="health-label" style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(var(--red));display:inline-block"></span>Rejected</span><div class="bar-track"><div class="bar-fill" style="width:2%;background:#ef4444"></div></div><span class="health-pct fm" style="color:rgb(var(--red))">2%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ══════════ KNOWLEDGE ══════════════════════════════════════════════ -->
+  <div id="view-knowledge" class="view">
+  <div class="content">
+    <div style="margin-bottom:24px">
+      <h1 class="fd" style="font-size:28px;font-weight:300;color:rgb(var(--text));letter-spacing:-.02em">Knowledge</h1>
+      <p style="font-size:13px;color:rgb(var(--text3));margin-top:4px">What your HR agent knows — handbook + live employee data</p>
+    </div>
+
+    <!-- Handbook -->
+    <div class="kb-card">
+      <div class="kb-hdr">
+        <span style="font-size:15px">📖</span>
+        <div><span style="font-size:13px;font-weight:600;color:rgb(var(--text))">Company handbook</span></div>
+        <span class="badge-pill badge-emerald" style="margin-left:auto">✓ UPLOADED</span>
+      </div>
+      <div class="kb-body">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:24px">
+          <div><p class="label" style="margin-bottom:5px">Filename</p><p style="font-size:13px;color:rgb(var(--text))">HR_Handbook_2025.pdf</p></div>
+          <div><p class="label" style="margin-bottom:5px">Last updated</p><p style="font-size:13px;color:rgb(var(--text))">14 March 2026 · Jordan R.</p></div>
+          <div><p class="label" style="margin-bottom:5px">Size</p><p style="font-size:13px;color:rgb(var(--text))">2.4 MB · 48 pages · 9 sections</p></div>
+        </div>
+        <p class="label" style="margin-bottom:14px">Policy coverage</p>
+        <div class="health-row"><span class="health-label">Leave &amp; Holiday</span><div class="bar-track"><div class="bar-fill" style="width:95%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">GOOD</span></div>
+        <div class="health-row"><span class="health-label">Sick Leave</span><div class="bar-track"><div class="bar-fill" style="width:92%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">GOOD</span></div>
+        <div class="health-row"><span class="health-label">Grievance</span><div class="bar-track"><div class="bar-fill" style="width:88%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">GOOD</span></div>
+        <div class="health-row"><span class="health-label">Pay &amp; Benefits</span><div class="bar-track"><div class="bar-fill" style="width:58%;background:#f59e0b"></div></div><span class="health-pct fm" style="color:rgb(var(--amber))">PART</span></div>
+        <div class="health-row"><span class="health-label">Disciplinary</span><div class="bar-track"><div class="bar-fill" style="width:84%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">GOOD</span></div>
+        <div class="health-row"><span class="health-label">Health &amp; Safety</span><div class="bar-track"><div class="bar-fill" style="width:76%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">GOOD</span></div>
+        <p style="font-size:11px;color:rgb(var(--text3));margin-top:6px">Pay &amp; Benefits (§7) is thin — consider expanding with salary band details and benefits summary to improve response quality.</p>
+        <div style="margin-top:20px;display:flex;gap:8px">
+          <button class="btn btn-ghost">↑ Upload new version</button>
+          <button class="btn btn-ghost">↓ Download current</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Breathe HR -->
+    <div class="kb-card">
+      <div class="kb-hdr">
+        <span style="font-size:15px">🗄️</span>
+        <div><span style="font-size:13px;font-weight:600;color:rgb(var(--text))">Live employee data</span><span style="font-size:12px;color:rgb(var(--text3));margin-left:8px">via Breathe HR</span></div>
+        <span class="badge-pill badge-emerald" style="margin-left:auto"><span style="width:5px;height:5px;border-radius:50%;background:rgb(var(--emerald));display:inline-block" class="pulse"></span>CONNECTED</span>
+      </div>
+      <div class="kb-body">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:20px">
+          <div><p class="label" style="margin-bottom:5px">Employees</p><p class="fd" style="font-size:24px;font-weight:300;color:rgb(var(--text))">34</p></div>
+          <div><p class="label" style="margin-bottom:5px">Departments</p><p class="fd" style="font-size:24px;font-weight:300;color:rgb(var(--text))">5</p></div>
+          <div><p class="label" style="margin-bottom:5px">Sync interval</p><p style="font-size:13px;color:rgb(var(--text))">Every 4 hours</p></div>
+          <div><p class="label" style="margin-bottom:5px">Last sync</p><p style="font-size:13px;color:rgb(var(--text))">12 minutes ago</p></div>
+        </div>
+        <p class="label" style="margin-bottom:14px">Data availability</p>
+        <div class="health-row"><span class="health-label">Leave balances</span><div class="bar-track"><div class="bar-fill" style="width:100%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">100%</span></div>
+        <div class="health-row"><span class="health-label">Employee profiles</span><div class="bar-track"><div class="bar-fill" style="width:100%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">100%</span></div>
+        <div class="health-row"><span class="health-label">Absence history</span><div class="bar-track"><div class="bar-fill" style="width:100%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">100%</span></div>
+        <div class="health-row"><span class="health-label">Department mapping</span><div class="bar-track"><div class="bar-fill" style="width:100%;background:#10b981"></div></div><span class="health-pct fm" style="color:rgb(var(--emerald))">100%</span></div>
+        <div style="margin-top:20px;display:flex;gap:8px">
+          <button class="btn btn-ghost">🔄 Force sync</button>
+          <button class="btn btn-ghost">Integration settings →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Brain (locked) -->
+    <div class="kb-card" style="opacity:.6">
+      <div class="kb-hdr">
+        <span style="font-size:15px">✨</span>
+        <div><span style="font-size:13px;font-weight:600;color:rgb(var(--text))">Brain / semantic vault</span></div>
+        <span class="badge-pill badge-muted" style="margin-left:auto">COMING SOON</span>
+      </div>
+      <div class="kb-body" style="text-align:center;padding:28px 20px">
+        <p style="font-size:13px;color:rgb(var(--text3));max-width:380px;margin:0 auto;line-height:1.65">
+          Semantic search across all past decisions, escalations, and handbook content. Powered by pgvector. Surfaces relevant precedents when drafting HR replies.
+        </p>
+      </div>
+    </div>
+  </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Mobile bottom bar -->
+<nav class="mob-bar">
+  <button class="mob-tab active" onclick="go('overview')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Overview
+  </button>
+  <button class="mob-tab" onclick="go('approvals')">
+    <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <span class="mob-badge">3</span>
+    Approvals
+  </button>
+  <button class="mob-tab" onclick="go('agents')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><path d="M12 8v5M8.5 16l3.5 2 3.5-2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
+    Agents
+  </button>
+  <button class="mob-tab" onclick="go('activity')">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Activity
+  </button>
+  <button class="mob-tab" onclick="go('analytics')">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Analytics
+  </button>
+</nav>
+
+</div><!-- /shell -->
+
+<script>
+const agents = {
+  // ── HR Director (claude-sonnet-4-6) ──
+  policy:       {name:'Policy Lookup',    dept:'HR Director · ACTIVE',    model:'claude-sonnet-4-6', last:'Just now',   out:'2 handbook sections', integrations:['Company Handbook','D1 audit log'], desc:'Searches the uploaded company handbook using keyword matching. Returns the top 4 most relevant policy paragraphs ranked by query-word overlap. Falls back to a "set confidence below 0.5" instruction if no handbook has been uploaded.'},
+  employee:     {name:'Employee Info',    dept:'HR Director · RUNNING',   model:'claude-sonnet-4-6', last:'Now',        out:'Breathe HR pull',       integrations:['Breathe HR','D1 audit log'],    desc:'Queries the Breathe HR REST API for live employee data — leave entitlement, days taken, absence history (90 days), and department mapping. Falls back to handbook-only mode with a clear notice if the API key is not configured for this tenant.'},
+  router:       {name:'Approval Router',  dept:'HR Director · ACTIVE',    model:'claude-sonnet-4-6', last:'4m ago',     out:'Teams card sent',       integrations:['Microsoft Teams','D1 audit log'], desc:'Routes the draft to the HR Lead via a Teams Adaptive Card. Queries with sensitivity ≥ 0.7 are escalated directly (no draft shown to employee). Handles approve, edit, reject, escalate, and request-backup card actions.'},
+  reporter:     {name:'Weekly Reporter',  dept:'HR Director · SCHEDULED', model:'claude-sonnet-4-6', last:'Fri 7am',    out:'Weekly report card',    integrations:['Microsoft Teams','D1 audit log'], desc:'Runs every Friday at 07:00 UK time via Cloudflare cron trigger. Queries D1 for weekly query stats and formats an HR intelligence report card delivered to the configured Teams channel and web portal.'},
+  // ── Sales Director (claude-opus-4-7) ──
+  proposal:     {name:'Proposal Builder', dept:'Sales Director · RUNNING', model:'claude-opus-4-7',  last:'4m ago',     out:'£24,200 engagement',    integrations:['Fathom','HubSpot','Notion'],    desc:'Pulls discovery call notes from Fathom, references past winning proposals stored in Notion, and drafts a scoped engagement with pricing and timeline. Sent for HR Lead review the moment a call ends. Current run: £24,200 dental practice engagement.'},
+  leadhunter:   {name:'Lead Hunter',      dept:'Sales Director · ACTIVE',  model:'claude-opus-4-7',  last:'12m ago',    out:'38 qualified leads',     integrations:['HubSpot','Companies House','Clay'], desc:'Scrapes UK Companies House and Apollo/Clay, qualifies against the client ICP, and writes enriched lead records to HubSpot. De-duplicates against existing contacts and assigns lead scores based on firmographic fit.'},
+  followup:     {name:'Follow-Up Pilot',  dept:'Sales Director · ACTIVE',  model:'claude-opus-4-7',  last:'2m ago',     out:'21 sends · 7 replies',   integrations:['Gmail','HubSpot','Calendly'],   desc:'Monitors CRM for dormant prospects (no activity > 14 days), generates on-brand follow-up emails referencing the client voice profile, and books replies directly into Calendly. Current run: 21 sends with 7 replies (33% open rate).'},
+  // ── Marketing Director (claude-opus-4-7) ──
+  contentcreator:{name:'Content Creator', dept:'Marketing Director · RUNNING', model:'claude-opus-4-7', last:'Now',    out:'4 drafts queued',        integrations:['Notion','Google Docs'],        desc:'Trained on the client voice profile (URL samples + tone description from onboarding). Produces long-form content from a one-line brief — blog posts, LinkedIn articles, email sequences. Drafts are always staged in Notion for review before publishing.'},
+  repurposer:   {name:'Repurposer',       dept:'Marketing Director · ACTIVE',  model:'claude-opus-4-7', last:'22m ago', out:'9 derivative pieces',   integrations:['Notion','Buffer'],             desc:'Takes one pillar piece (podcast episode, long-form article, webinar) and turns it into LinkedIn post, Instagram carousel, YouTube Short script, email, and X/Twitter thread — all voice-matched and ready for Buffer/Later scheduling.'},
+  caption:      {name:'Caption Writer',   dept:'Marketing Director · ACTIVE',  model:'claude-opus-4-7', last:'8m ago',  out:'17 captions ready',      integrations:['Buffer','Google Drive'],       desc:'Writes platform-native social captions with CTAs tuned for each network. Sources assets from Google Drive, writes captions in the client tone, and queues them in Buffer with optimal posting times based on historical engagement data.'},
+  // ── Operations Director (claude-sonnet-4-6) ──
+  onboarder:    {name:'Client Onboarder', dept:'Operations Director · ACTIVE',    model:'claude-sonnet-4-6', last:'1h ago',   out:'2 in progress',   integrations:['DocuSign','Slack','ClickUp'],  desc:'Fires on contract signature via DocuSign webhook. Creates the Slack channel, sends the welcome sequence, dispatches the intake form, and drops the kickoff invite into the client calendar. Currently has 2 active onboardings in progress.'},
+  reportengine: {name:'Reporting Engine', dept:'Operations Director · SCHEDULED', model:'claude-sonnet-4-6', last:'Fri 7am',  out:'Weekly briefing',  integrations:['Stripe','GA4','Meta Ads','Slack'], desc:'Aggregates data from Stripe (revenue), GA4 (traffic), Meta Ads (performance), and CRM (pipeline). Delivers a weekly intelligence briefing in Slack and as a PDF — ready before Monday morning standup.'},
+  sopwriter:    {name:'SOP Writer',       dept:'Operations Director · IDLE',      model:'claude-sonnet-4-6', last:'Yesterday', out:'34 SOPs in library', integrations:['Loom','Notion'],            desc:'Ingests Loom screen recordings and auto-generates Notion-formatted Standard Operating Procedures from the narration and screen actions. Library has 34 SOPs. Idle since yesterday — no new Looms queued.'},
+  librarian:    {name:'Librarian',        dept:'Operations Director · SCHEDULED', model:'claude-sonnet-4-6', last:'2am today', out:'412 files indexed',  integrations:['Google Drive','Notion'],    desc:'Nightly job at 2am. Scans all connected Google Drive and Notion workspaces, extracts metadata, and maintains the client knowledge index used by all other agents for context retrieval. 412 files currently indexed across 3 workspaces.'},
+};
+
+// Director colour scheme for popup avatar backgrounds
+const dirColors = {
+  'HR Director':          {bg:'rgba(167,139,250,.18)', color:'#a78bfa', initials:'HR'},
+  'Sales Director':       {bg:'rgba(96,165,250,.18)',  color:'#60a5fa', initials:'SA'},
+  'Marketing Director':   {bg:'rgba(94,234,212,.18)',  color:'#5eead4', initials:'MK'},
+  'Operations Director':  {bg:'rgba(253,186,116,.18)', color:'#fdba74', initials:'OP'},
+};
+
+function showAgent(id) {
+  const a = agents[id]; if (!a) return;
+
+  // Derive director from dept string (e.g. "HR Director · ACTIVE" → "HR Director")
+  const dirKey = Object.keys(dirColors).find(k => a.dept.startsWith(k)) || 'HR Director';
+  const dc = dirColors[dirKey];
+
+  // Avatar
+  const avatar = document.getElementById('ap-avatar');
+  avatar.style.background = dc.bg;
+  avatar.style.color = dc.color;
+  avatar.style.border = `1px solid ${dc.color}40`;
+  avatar.textContent = dc.initials;
+
+  // Status
+  const statusRaw = a.dept.split(' · ').pop() || 'ACTIVE';
+  const statusBadge = document.getElementById('ap-status-badge');
+  const statusColors = {ACTIVE:'badge-emerald', RUNNING:'badge-amber', SCHEDULED:'',IDLE:''};
+  statusBadge.className = 'badge-pill ' + (statusColors[statusRaw] || 'badge-muted');
+  statusBadge.style.fontSize = '10px';
+  statusBadge.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;margin-right:4px"></span>${statusRaw}`;
+
+  document.getElementById('ap-sup').textContent = a.dept.split(' · ').slice(0, 2).join(' · ');
+  document.getElementById('ap-title').textContent = a.name;
+  document.getElementById('ap-desc').textContent = a.desc;
+  document.getElementById('ap-last').textContent = a.last;
+  document.getElementById('ap-last-inline').textContent = 'last: ' + a.last;
+  document.getElementById('ap-out').textContent = a.out;
+  document.getElementById('ap-model').textContent = a.model || 'claude-sonnet-4-6';
+
+  const intEl = document.getElementById('ap-integrations');
+  intEl.innerHTML = (a.integrations || []).map(i =>
+    `<span class="ap-int-chip"><span style="width:5px;height:5px;border-radius:50%;background:${dc.color};display:inline-block"></span>${i}</span>`
+  ).join('');
+
+  // Open popup
+  document.getElementById('agent-popup').classList.add('open');
+  const bd = document.getElementById('popup-backdrop');
+  if (bd) bd.classList.add('open');
+}
+
+function closePopup() {
+  document.getElementById('agent-popup').classList.remove('open');
+  const bd = document.getElementById('popup-backdrop');
+  if (bd) bd.classList.remove('open');
+}
+
+function activateDirector(dir) {
+  // All agents always visible — just highlight active director
+  const dirMap = {hr:'dir-hr-node', sales:'dir-sa-node', mktg:'dir-mk-node', ops:'dir-op-node'};
+  Object.entries(dirMap).forEach(([d, nodeId]) => {
+    const node = document.getElementById(nodeId);
+    if (!node) return;
+    const rect = node.querySelector('rect');
+    if (rect) {
+      rect.setAttribute('stroke-width', d === dir ? '2.5' : '1.5');
+      rect.setAttribute('stroke-opacity', d === dir ? '1' : '.45');
+    }
+  });
+  closePopup();
+}
+
+function go(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.mob-tab').forEach(n => n.classList.remove('active'));
+  const v = document.getElementById('view-' + view);
+  if (v) v.classList.add('active');
+  const map = {overview:0, approvals:1, agents:2, activity:3, analytics:4, knowledge:5};
+  const ni = document.querySelectorAll('.ni');
+  const mt = document.querySelectorAll('.mob-tab');
+  if (ni[map[view]]) ni[map[view]].classList.add('active');
+  const mmap = {overview:0, approvals:1, agents:2, activity:3, analytics:4};
+  if (mt[mmap[view]] !== undefined) mt[mmap[view]].classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function editDraft(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const editing = el.contentEditable === 'true';
+  el.contentEditable = editing ? 'false' : 'true';
+  el.classList.toggle('editing', !editing);
+  btn.textContent = editing ? '✎ Edit draft' : '✎ Editing…';
+  if (!editing) { el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+}
+
+function dismiss(id) {
+  const el = document.getElementById(id);
+  if (el) { el.style.transition = 'all .25s'; el.style.opacity = '0'; el.style.transform = 'translateX(8px)'; setTimeout(() => el.style.display='none', 250); }
+}
+
+// Period tab switching
+document.querySelectorAll('.period-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.period-tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+  });
+});
+
+// Filter chip switching
+document.querySelectorAll('.filter-chip').forEach(c => {
+  c.addEventListener('click', () => {
+    c.closest('.appr-filters, .appr-filters + .appr-filters')
+      ?.querySelectorAll('.filter-chip')
+      .forEach(x => x.classList.remove('active'));
+    const group = c.parentElement;
+    group.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+  });
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey) {
+    if (e.key === '1') { e.preventDefault(); go('overview'); }
+    if (e.key === '2') { e.preventDefault(); go('approvals'); }
+    if (e.key === '3') { e.preventDefault(); go('agents'); }
+    if (e.key === 'k') { e.preventDefault(); /* cmd palette */ }
+  }
+});
+</script>
+</body>
+</html>

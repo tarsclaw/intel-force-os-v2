@@ -1,0 +1,55 @@
+{
+  "fixture_name": "01-dental-agency-uk",
+  "description": "Nightly scheduled run for a UK dental-sector marketing agency. ICP: private dental practices in Greater London + Home Counties, 2–8 chairs, signs of growth. Expected output: 20–30 ranked prospects, ~£4.50 cost, zero suppression-list violations.",
+  "mode": "scheduled",
+  "trigger_timestamp": "2026-04-22T02:00:00Z",
+  "icp_override": "none",
+  "target_count": 30,
+  "budget_override": "default",
+  "icp_snapshot": {
+    "sic_codes": ["86230"],
+    "geography": {
+      "postcode_areas": ["W", "NW", "SW", "SE", "N", "E", "EC", "WC", "KT", "TW", "HA", "UB", "EN", "IG", "RM", "BR", "CR", "DA", "AL", "HP", "LU", "MK", "OX", "RG", "SG", "SL", "WD"]
+    },
+    "size": {
+      "employee_min": 4,
+      "employee_max": 25,
+      "revenue_min": 400000,
+      "revenue_max": 3000000
+    },
+    "disqualifiers": [
+      "NHS-only practices (100% NHS revenue)",
+      "Corporate dental groups (10+ practices)",
+      "Practices in administration or liquidation",
+      "Chains: Bupa, Mydentist, Portman, Rodericks"
+    ],
+    "tech_signals_positive": [
+      "Dentally practice management",
+      "Software of Excellence (SOE) Exact",
+      "Recent website redesign (last 18mo)",
+      "Active Instagram/Facebook business account"
+    ],
+    "recency_signals": [
+      "New premises / expansion",
+      "Hired a practice manager in last 6 months",
+      "Added a new dentist to the team in last 12 months"
+    ],
+    "target_roles": [
+      "Practice Principal",
+      "Practice Owner",
+      "Managing Director",
+      "Practice Manager (if Principal unreachable)"
+    ]
+  },
+  "expected_behaviour": {
+    "passes_icp_check": true,
+    "searches_companies_house": true,
+    "estimated_qualified_pool_size": "100-150",
+    "calls_prospeo": true,
+    "calls_kaspr_for_top_n": 10,
+    "writes_to_vault": "/vault/clients/_prospects/2026-04-22-prospect-list.md",
+    "creates_hubspot_deals": true,
+    "writes_daily_rollup": true,
+    "expected_escalations": "none for this clean ICP"
+  }
+}

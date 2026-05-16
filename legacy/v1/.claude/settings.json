@@ -1,0 +1,69 @@
+{
+  "$comment": "Intel Force OS Claude Code project settings. MCP servers for Cloudflare docs and observability, plus permission rules.",
+
+  "mcpServers": {
+    "cloudflare-docs": {
+      "type": "http",
+      "url": "https://docs.mcp.cloudflare.com/mcp",
+      "description": "Authoritative Cloudflare documentation. Use for Workers, KV, D1, wrangler questions."
+    },
+    "cloudflare-observability": {
+      "type": "http",
+      "url": "https://observability.mcp.cloudflare.com/mcp",
+      "description": "Worker logs and metrics. Use for live debugging and incident response."
+    }
+  },
+
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm install)",
+      "Bash(npm test)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run build)",
+      "Bash(npm run dev)",
+      "Bash(git log:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m:*)",
+      "Bash(wrangler tail:*)",
+      "Bash(wrangler deployments list:*)",
+      "Bash(wrangler d1 execute *SELECT*)",
+      "Bash(wrangler kv:key get:*)",
+      "Bash(wrangler kv:key list:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ],
+    "ask": [
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler secret:*)",
+      "Bash(wrangler d1 execute *INSERT*)",
+      "Bash(wrangler d1 execute *UPDATE*)",
+      "Bash(wrangler d1 execute *DELETE*)",
+      "Bash(wrangler kv:key put:*)",
+      "Bash(wrangler kv:key delete:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(npm install:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard origin/*)",
+      "Write(.env*)",
+      "Write(docs/**)"
+    ]
+  },
+
+  "environment": {
+    "$comment": "Non-secret defaults. Secrets are in .env.local (gitignored) or Wrangler secrets.",
+    "NODE_ENV": "development"
+  },
+
+  "hooks": {}
+}

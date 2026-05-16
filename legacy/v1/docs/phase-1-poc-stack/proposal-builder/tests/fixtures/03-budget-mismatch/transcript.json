@@ -1,0 +1,95 @@
+{
+  "fixture_name": "03-budget-mismatch-escalation",
+  "description": "Discovery call where the prospect's budget is well below the client's minimum engagement value. The agent MUST trigger escalation code BUDGET_BELOW_MINIMUM rather than producing a watered-down proposal. This fixture tests that the agent correctly refuses to downscope.",
+  "recording_id": "FTM-test-fixture-003",
+  "url": "https://fathom.video/share/test-fixture-003",
+  "share_url": "https://fathom.video/share/test-fixture-003",
+  "created_at": "2026-04-17T11:30:00Z",
+  "recording_start_time": "2026-04-17T11:00:00Z",
+  "recording_end_time": "2026-04-17T11:28:00Z",
+  "meeting_type": "discovery",
+  "transcript_language": "en",
+  "calendar_invitees": [
+    {
+      "is_external": false,
+      "name": "Jordan Taylor",
+      "email": "jordan@acme-agency.co.uk"
+    },
+    {
+      "is_external": true,
+      "name": "Sam Whitley",
+      "email": "sam@whitleylawn.co.uk"
+    }
+  ],
+  "recorded_by": {
+    "name": "Jordan Taylor",
+    "email": "jordan@acme-agency.co.uk",
+    "team": "Sales"
+  },
+  "default_summary": {
+    "template_name": "discovery",
+    "markdown_formatted": "## Summary\n\nSam Whitley runs Whitley Lawn Care — small garden maintenance service, Hertfordshire. Sole trader plus one part-time helper. Turnover ~£65k/year.\n\n**Situation:** wants 'some AI stuff' to help him compete with bigger local companies. Saw Acme's LinkedIn content. Heard we help businesses with AI.\n\n**Budget:** explicitly said he can afford 'maybe £200-300 a month, that's my ceiling'. Setup fee of more than £500 is 'impossible'.\n\n**Timeline:** 'whenever works'.\n\n**What he wants:** vague — 'some automation', 'a chatbot for the website', 'maybe Facebook ads'.\n\n**Decision:** him alone.\n\n**Fit assessment:** well below Acme's minimum engagement threshold of £1,500/month retainer + £3,500 setup. Sam is a great person, genuinely wants to grow, but the unit economics don't work for our service model."
+  },
+  "action_items": [
+    {
+      "description": "Respond to Sam respectfully — either recommend a lower-cost alternative or explain why we're not the right fit right now"
+    }
+  ],
+  "transcript": [
+    {
+      "speaker": {"display_name": "Sam Whitley", "matched_calendar_invitee_email": "sam@whitleylawn.co.uk"},
+      "text": "Hi Jordan, thanks for making time. So I saw your posts on LinkedIn about AI for small businesses. I'm a small garden maintenance business — me and Dave part-time — and I want to grow. The bigger local companies are using this stuff and I feel like I'm being left behind. What can you do for me?",
+      "timestamp": "00:00:35"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Hi Sam, thanks for reaching out. Before I pitch you anything — can I just understand your shape a bit? What's the business look like right now? Revenue, how you get customers, what the week looks like?",
+      "timestamp": "00:01:02"
+    },
+    {
+      "speaker": {"display_name": "Sam Whitley", "matched_calendar_invitee_email": "sam@whitleylawn.co.uk"},
+      "text": "Sure. Whitley Lawn Care, I started it about 5 years ago. Turnover last year was about £65k. Most of it's repeat customers — retired folks mostly, I've had some on the books for years. New customers come mainly word of mouth, occasionally someone finds my website but honestly the site is barely a website. I do about 25 lawns a week in season. Dave helps me 2 days a week. That's it.",
+      "timestamp": "00:01:28"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Got it. And what are you hoping AI could do for you specifically?",
+      "timestamp": "00:02:15"
+    },
+    {
+      "speaker": {"display_name": "Sam Whitley", "matched_calendar_invitee_email": "sam@whitleylawn.co.uk"},
+      "text": "Maybe some automation of the booking? And I'd love a chatbot on the website that answers basic questions. Maybe Facebook ads or something. Honestly I don't really know — I hear 'AI' everywhere and I figured if a bigger competitor is using it, I probably should be too.",
+      "timestamp": "00:02:32"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "That's honest, appreciate it. Budget-wise — what can you afford to invest here, realistically?",
+      "timestamp": "00:03:10"
+    },
+    {
+      "speaker": {"display_name": "Sam Whitley", "matched_calendar_invitee_email": "sam@whitleylawn.co.uk"},
+      "text": "That's the tricky bit. I can do maybe £200-300 a month. That's my ceiling, truly. Any setup fee of more than £500 is impossible for me right now — I just had to replace the van.",
+      "timestamp": "00:03:30"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Appreciate you being straight with me on that. I want to be straight with you back — that's below where our service engagements start, we usually work with businesses in the £1,500+ per month range. I don't want to lowball you a watered-down version of what we actually do, because it wouldn't move your needle.",
+      "timestamp": "00:03:48"
+    },
+    {
+      "speaker": {"display_name": "Sam Whitley", "matched_calendar_invitee_email": "sam@whitleylawn.co.uk"},
+      "text": "Ah that's a shame. Okay — well, thanks for being upfront. Any advice on who might actually fit?",
+      "timestamp": "00:04:15"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Yeah — let me think and send over a proper response with some pointers. There are some self-serve tools that would cover the chatbot and basic booking automation for £50-100/month total, you might get 80% of what you need that way. I'll send you links. No charge. Give me a day or two.",
+      "timestamp": "00:04:30"
+    },
+    {
+      "speaker": {"display_name": "Sam Whitley", "matched_calendar_invitee_email": "sam@whitleylawn.co.uk"},
+      "text": "That would be great. Really appreciate it, Jordan.",
+      "timestamp": "00:05:02"
+    }
+  ]
+}

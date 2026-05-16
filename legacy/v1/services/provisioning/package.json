@@ -1,0 +1,21 @@
+{
+  "name": "@intelforce/provisioning",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "worker": "ts-node src/worker.ts",
+    "replay": "ts-node src/replay.ts"
+  },
+  "dependencies": {
+    "@intelforce/db": "workspace:*",
+    "@temporalio/activity": "^1.11.0",
+    "@temporalio/client": "^1.11.0",
+    "@temporalio/worker": "^1.11.0",
+    "@temporalio/workflow": "^1.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.7.0"
+  }
+}

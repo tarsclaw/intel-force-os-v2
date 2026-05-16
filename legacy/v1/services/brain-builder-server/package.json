@@ -1,0 +1,20 @@
+{
+  "name": "@intelforce/brain-builder-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HTTP server that wraps @intelforce/brain-builder. The wizard POSTs build jobs here; this service drains them async.",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,87 @@
+agent: follow-up-pilot
+version: 1.0.0
+
+required:
+  - name: hubspot
+    purpose: "Pull unconverted deals, read deal notes, update deal after draft"
+    mcp_server:
+      type: official
+      source: "https://developer.hubspot.com/mcp"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/hubspot/oauth_token"
+    tools_used:
+      - mcp__hubspot__get_deal
+      - mcp__hubspot__get_contact
+      - mcp__hubspot__search_deals
+      - mcp__hubspot__update_deal
+      - mcp__hubspot__create_note
+    scopes_required:
+      - "crm.objects.deals.read"
+      - "crm.objects.deals.write"
+      - "crm.objects.contacts.read"
+      - "crm.objects.notes.write"
+    degraded_mode:
+      condition: "HubSpot unreachable"
+      behaviour: "Can't identify unconverted deals — skip run, retry next cron"
+      fallback_available: false
+
+  - name: gmail
+    purpose: "Read prior thread history, create follow-up drafts"
+    mcp_server:
+      type: community
+      source_repo: "https://github.com/gongrzhe/server-gmail-autoauth-mcp"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/google/oauth_token"
+    tools_used:
+      - mcp__gmail__search_threads
+      - mcp__gmail__get_thread
+      - mcp__gmail__create_draft
+    scopes_required:
+      - "https://www.googleapis.com/auth/gmail.readonly"
+      - "https://www.googleapis.com/auth/gmail.compose"
+    degraded_mode:
+      condition: "Gmail unavailable"
+      behaviour: "Save email bodies to /outbox/emails-pending/, notify Slack"
+      fallback_available: true
+
+  - name: filesystem
+    purpose: "Read voice profile, suppression list; write follow-up files"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+optional:
+  - name: web_search
+    purpose: "Find industry-relevant signals for Email 2 value content"
+    mcp_server: null
+    tools_used: [WebSearch]
+    enabled_when: true
+    degraded_mode:
+      condition: "WebSearch unavailable"
+      behaviour: "Email 2 uses vault-sourced content only"
+
+preflight_checks:
+  - name: suppression-list-exists
+    description: "/vault/brand/suppression-list.md present (even if empty)"
+    blocks_activation: true
+  - name: hubspot-unconverted-stage-exists
+    description: "Configured unconverted stage exists in pipeline"
+    blocks_activation: true
+  - name: gmail-oauth-valid
+    blocks_activation: true
+
+telemetry:
+  emit_events:
+    - name: follow_up_run_started
+      properties: [eligible_deals_count]
+    - name: sequence_drafted
+      properties: [prospect, stall_reason, emails_count]
+    - name: escalation_raised
+      properties: [code, prospect]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 20000
+    sonnet_output_tokens_max: 4000
+    alert_threshold_gbp: 0.80
+    hard_stop_threshold_gbp: 1.50

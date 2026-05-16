@@ -1,0 +1,41 @@
+{
+  "fixture_name": "01-meadowlane-dental-growth-won",
+  "description": "HubSpot deal for Meadow Lane Dental moved to Won after Priya signed the Growth-tier proposal from Proposal Builder fixture 01. Client Onboarder should produce all 6 artefacts including a first content brief (because Growth includes Content Creator).",
+  "trigger_source": "hubspot_stage_change",
+  "deal_id": "hs_deal_74821",
+  "hubspot_deal_id": "74821",
+  "prospect": {
+    "company": "Meadow Lane Dental",
+    "slug": "meadowlane-dental",
+    "domain": "meadowlane-dental.co.uk",
+    "industry": "Dental practice"
+  },
+  "primary_contact": {
+    "name": "Dr Priya Shah",
+    "email": "priya@meadowlane-dental.co.uk",
+    "role": "Principal Dentist"
+  },
+  "secondary_contacts": [
+    { "name": "Laura Chen", "email": "laura@meadowlane-dental.co.uk", "role": "Practice Manager" }
+  ],
+  "signed_date": "2026-04-25",
+  "tier_name": "Growth",
+  "deal_value_display": "£18,000 setup + £1,800/month",
+  "deal_value_numeric": 18000,
+  "monthly_retainer": 1800,
+  "scope_summary": "Voice Receptionist + missed-call recovery + Follow-Up Pilot + Content Creator (1 long-form + 4 social + 1 email per month) + monthly reporting.",
+  "expected_behaviour": {
+    "reads_signed_proposal": "/vault/clients/meadowlane-dental/proposals/2026-04-15-meadowlane-dental-v1.md (or similar signed)",
+    "produces_artefacts": [
+      "/vault/clients/meadowlane-dental/onboarding/01-welcome-email.md",
+      "/vault/clients/meadowlane-dental/onboarding/02-kickoff-agenda.md",
+      "/vault/clients/meadowlane-dental/onboarding/03-loom-script.md",
+      "/vault/clients/meadowlane-dental/onboarding/04-access-checklist.md",
+      "/vault/clients/meadowlane-dental/content/briefs/01-meadowlane-dental-first-brief.md",
+      "/vault/clients/meadowlane-dental/00-context.md"
+    ],
+    "produces_gmail_drafts": 4,
+    "updates_hubspot_stage": "Onboarding",
+    "expected_escalations": "none"
+  }
+}

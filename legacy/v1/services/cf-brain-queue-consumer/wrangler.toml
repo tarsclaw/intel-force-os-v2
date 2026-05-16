@@ -1,0 +1,25 @@
+name = "intelforce-brain-queue-consumer"
+main = "src/index.ts"
+compatibility_date = "2026-04-26"
+compatibility_flags = ["nodejs_compat"]
+
+# Queue binding — drains the "brain-build" queue
+[[queues.consumers]]
+queue = "brain-build"
+max_batch_size = 5
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "brain-build-dlq"
+
+# Producer binding — same Worker can also produce (e.g. retry on failure)
+[[queues.producers]]
+queue = "brain-build"
+binding = "BRAIN_QUEUE"
+
+# Vars (non-secret). Brain-builder URL is the same one the wizard would call
+# directly if this consumer didn't exist.
+[vars]
+BRAIN_BUILDER_URL = "https://intelforce-brain-builder.fly.dev"
+
+# Secrets (set via `wrangler secret put`):
+#   BRAIN_BUILDER_TOKEN — bearer auth shared with brain-builder-server

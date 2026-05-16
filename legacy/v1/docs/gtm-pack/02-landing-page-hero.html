@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intel Force OS — Your HR inbox, handled</title>
+  <meta name="description" content="An AI assistant that reads every HR message, drafts every reply, and flags what needs your judgement. Built for UK SMEs on Breathe HR.">
+  
+  <!-- Open Graph / social share -->
+  <meta property="og:title" content="Intel Force OS — Your HR inbox, handled">
+  <meta property="og:description" content="AI for UK SME HR teams. Drafts every reply. Sends nothing without approval.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://intelforce.ai">
+  
+  <!-- Fonts: Inter for UI, JetBrains Mono for accent -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind via CDN for v1 — swap for built Tailwind in Next.js later -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            emerald: {
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+            },
+            amber: {
+              400: '#fbbf24',
+              500: '#f59e0b',
+            },
+            bg: {
+              DEFAULT: '#0a0a0a',
+              elevated: '#141414',
+              border: '#262626',
+            },
+          },
+        },
+      },
+    }
+  </script>
+  
+  <style>
+    html { scroll-behavior: smooth; }
+    body { background: #0a0a0a; }
+    .gradient-text {
+      background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .noise-overlay {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    }
+    .pulse-dot::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body class="font-sans text-neutral-200 antialiased">
+
+  <!-- NAV -->
+  <nav class="border-b border-bg-border/50">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded bg-emerald-500 flex items-center justify-center">
+          <span class="text-bg font-bold text-sm">I</span>
+        </div>
+        <span class="font-semibold text-neutral-100">Intel Force OS</span>
+      </a>
+      <div class="flex items-center gap-6 text-sm">
+        <a href="#demo" class="text-neutral-400 hover:text-neutral-100 transition hidden sm:inline">Demo</a>
+        <a href="#how" class="text-neutral-400 hover:text-neutral-100 transition hidden sm:inline">How it works</a>
+        <a href="https://cal.com/intelforce/intro" class="px-4 py-2 bg-emerald-500 text-bg font-medium rounded hover:bg-emerald-400 transition">
+          Book 30 min
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="relative overflow-hidden noise-overlay">
+    <div class="max-w-6xl mx-auto px-6 pt-20 pb-24 sm:pt-28 sm:pb-32">
+      
+      <!-- status badge -->
+      <div class="inline-flex items-center px-3 py-1 rounded-full border border-bg-border bg-bg-elevated text-xs text-neutral-400 mb-8 pulse-dot">
+        <span>Onboarding founding customers — 10 places</span>
+      </div>
+
+      <!-- H1 -->
+      <h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold text-neutral-100 leading-[1.05] tracking-tight max-w-4xl">
+        Your HR inbox,
+        <br>
+        <span class="gradient-text">handled.</span>
+      </h1>
+
+      <!-- Subhead -->
+      <p class="mt-8 text-xl sm:text-2xl text-neutral-400 max-w-2xl leading-relaxed">
+        An AI assistant that reads every HR message, drafts every reply, and flags what needs your judgement. Built for UK SMEs on Breathe HR.
+      </p>
+
+      <!-- CTAs -->
+      <div class="mt-12 flex flex-col sm:flex-row gap-4">
+        <a href="https://cal.com/intelforce/intro"
+           class="inline-flex items-center justify-center px-8 py-4 bg-emerald-500 text-bg font-semibold rounded hover:bg-emerald-400 transition group">
+          Book a 30-minute call
+          <svg class="ml-2 w-5 h-5 group-hover:translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </a>
+        <a href="#demo"
+           class="inline-flex items-center justify-center px-8 py-4 border border-bg-border bg-bg-elevated text-neutral-200 font-medium rounded hover:border-neutral-600 transition">
+          <svg class="mr-2 w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          Watch 3-min demo
+        </a>
+      </div>
+
+      <!-- microcopy -->
+      <p class="mt-8 text-sm text-neutral-500 font-mono">
+        UK-based · GDPR-compliant · Built on Claude · Nothing sends without you
+      </p>
+
+    </div>
+  </section>
+
+  <!-- DEMO EMBED -->
+  <section id="demo" class="border-t border-bg-border/50">
+    <div class="max-w-5xl mx-auto px-6 py-20">
+      <div class="text-center mb-10">
+        <h2 class="text-3xl sm:text-4xl font-bold text-neutral-100">See it in action</h2>
+        <p class="mt-3 text-neutral-400">Three real scenarios in three minutes.</p>
+      </div>
+      
+      <!-- LOOM EMBED — replace src with actual Loom share-embed URL -->
+      <div class="relative rounded-lg overflow-hidden border border-bg-border bg-bg-elevated" style="padding-top: 56.25%;">
+        <iframe
+          src="https://www.loom.com/embed/REPLACE_WITH_LOOM_VIDEO_ID"
+          frameborder="0"
+          webkitallowfullscreen
+          mozallowfullscreen
+          allowfullscreen
+          class="absolute inset-0 w-full h-full"
+          title="Intel Force OS demo">
+        </iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS (three-card summary) -->
+  <section id="how" class="border-t border-bg-border/50 bg-bg-elevated/30">
+    <div class="max-w-6xl mx-auto px-6 py-20">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold text-neutral-100">How it works</h2>
+        <p class="mt-3 text-neutral-400">One principle, three behaviours.</p>
+      </div>
+      
+      <div class="grid md:grid-cols-3 gap-6">
+        
+        <div class="p-8 rounded-lg border border-bg-border bg-bg">
+          <div class="w-10 h-10 rounded bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-5">
+            <span class="text-emerald-400 font-mono font-bold">01</span>
+          </div>
+          <h3 class="text-xl font-semibold text-neutral-100 mb-3">Reads everything</h3>
+          <p class="text-neutral-400 leading-relaxed">
+            Every message that hits your HR inbox — holiday questions, policy asks, payroll queries, the lot. No rules to maintain, no keyword filters to tune.
+          </p>
+        </div>
+        
+        <div class="p-8 rounded-lg border border-emerald-500/30 bg-emerald-500/5 relative">
+          <div class="absolute -top-3 right-5 px-2 py-0.5 text-xs font-mono text-bg bg-emerald-500 rounded">
+            core
+          </div>
+          <div class="w-10 h-10 rounded bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-5">
+            <span class="text-emerald-400 font-mono font-bold">02</span>
+          </div>
+          <h3 class="text-xl font-semibold text-neutral-100 mb-3">Drafts every reply</h3>
+          <p class="text-neutral-400 leading-relaxed">
+            Pulls from your actual handbook and company tone. You see every draft before anything leaves your name. Approve, edit, or reject — one click.
+          </p>
+        </div>
+        
+        <div class="p-8 rounded-lg border border-bg-border bg-bg">
+          <div class="w-10 h-10 rounded bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-5">
+            <span class="text-amber-400 font-mono font-bold">03</span>
+          </div>
+          <h3 class="text-xl font-semibold text-neutral-100 mb-3">Flags what needs you</h3>
+          <p class="text-neutral-400 leading-relaxed">
+            Grievances, resignations, anything sensitive — escalated to you immediately with a gentle holding reply. The judgement calls stay yours.
+          </p>
+        </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="border-t border-bg-border/50">
+    <div class="max-w-3xl mx-auto px-6 py-24 text-center">
+      <h2 class="text-4xl sm:text-5xl font-bold text-neutral-100">
+        Stop reading twelve of the same questions every week.
+      </h2>
+      <p class="mt-6 text-xl text-neutral-400">
+        Book a 30-minute call. If it's a fit, we'll talk pricing. If not, you've seen the fastest-improving AI in production — worthwhile either way.
+      </p>
+      <div class="mt-10">
+        <a href="https://cal.com/intelforce/intro"
+           class="inline-flex items-center justify-center px-10 py-5 bg-emerald-500 text-bg font-semibold rounded-lg hover:bg-emerald-400 transition text-lg">
+          Book your call
+          <svg class="ml-3 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </a>
+      </div>
+      <p class="mt-6 text-sm text-neutral-500 font-mono">
+        Replies within 24 hours · No sales team · Founder-led
+      </p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-bg-border/50">
+    <div class="max-w-6xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-neutral-500">
+      <div>
+        © 2026 Intel Force Ltd. Registered in England &amp; Wales.
+      </div>
+      <div class="flex gap-6">
+        <a href="/privacy" class="hover:text-neutral-300 transition">Privacy</a>
+        <a href="/terms" class="hover:text-neutral-300 transition">Terms</a>
+        <a href="mailto:hello@intelforce.ai" class="hover:text-neutral-300 transition">hello@intelforce.ai</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

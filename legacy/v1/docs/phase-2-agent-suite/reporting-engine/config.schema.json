@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/reporting-engine/v1.0.0.json",
+  "title": "Reporting Engine — Tenant Configuration",
+  "type": "object",
+  "required": ["client", "sales_lead", "gmail", "vault", "schedule", "integrations"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "sales_lead": { "$ref": "common-sales-lead.json" },
+    "gmail": {
+      "type": "object",
+      "required": ["oauth_token_ref"],
+      "properties": { "oauth_token_ref": { "type": "string", "pattern": "^secrets://" } }
+    },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "reports_output_path": { "type": "string", "default": "/vault/reports/monthly" },
+        "pdf_output_path": { "type": "string", "default": "/vault/reports/monthly/pdf" }
+      }
+    },
+    "integrations": {
+      "type": "object",
+      "properties": {
+        "hubspot": {
+          "type": "object",
+          "properties": {
+            "oauth_token_ref": { "type": "string", "pattern": "^secrets://" },
+            "enabled": { "type": "boolean", "default": true }
+          }
+        },
+        "ga4": {
+          "type": "object",
+          "properties": {
+            "service_account_ref": { "type": "string", "pattern": "^secrets://" },
+            "property_id": { "type": "string" },
+            "enabled": { "type": "boolean", "default": false }
+          }
+        },
+        "stripe": {
+          "type": "object",
+          "properties": {
+            "api_key_ref": { "type": "string", "pattern": "^secrets://" },
+            "enabled": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "properties": {
+        "monthly_cron": { "type": "string", "default": "0 6 1 * *" },
+        "weekly_snapshot_cron": { "type": "string", "default": "0 6 * * 1" },
+        "weekly_snapshots_enabled": { "type": "boolean", "default": false }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "include_raw_appendix": { "type": "boolean", "default": false },
+        "kpi_under_target_threshold_pct": { "type": "integer", "default": 20 },
+        "minimum_client_tenure_days": { "type": "integer", "default": 30 }
+      }
+    }
+  }
+}

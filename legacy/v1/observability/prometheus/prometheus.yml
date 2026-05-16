@@ -1,0 +1,42 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: production
+    product: intel-force-os
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: loki
+    static_configs:
+      - targets: [loki:3100]
+    metrics_path: /metrics
+
+  - job_name: cloudflare-worker
+    # Cloudflare doesn't expose Prometheus metrics directly
+    # Use the Cloudflare Analytics API via the observability MCP
+    # This is a placeholder — real metrics come from Cloudflare dashboard
+    static_configs:
+      - targets: []
+
+  - job_name: postgres
+    # pg_exporter sidecar on the Hetzner DB node
+    static_configs:
+      - targets: [postgres-exporter:9187]
+
+  - job_name: next-dashboard
+    # Next.js instrumentation (opentelemetry)
+    static_configs:
+      - targets: [dashboard:3000]
+    metrics_path: /api/metrics

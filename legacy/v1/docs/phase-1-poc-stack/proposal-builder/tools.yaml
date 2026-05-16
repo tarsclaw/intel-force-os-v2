@@ -1,0 +1,201 @@
+# proposal-builder/tools.yaml
+#
+# Declares the MCP servers and tools this agent requires, the scopes needed,
+# and the degraded-mode behaviour when any of them is unreachable.
+#
+# The Provisioning System reads this file at tenant deployment time to:
+#   (a) verify all required OAuth tokens are present in the tenant secrets vault,
+#   (b) register the corresponding MCP servers in the tenant's `.claude/mcp.json`,
+#   (c) configure health monitoring for each integration.
+
+agent: proposal-builder
+version: 1.0.0
+
+# ============================================================================
+# REQUIRED integrations — agent cannot run without these
+# ============================================================================
+required:
+
+  - name: fathom
+    purpose: "Source of the discovery call transcript, summary, and action items."
+    mcp_server:
+      type: community-forked
+      source_repo: "https://github.com/Dot-Fun/fathom-mcp"
+      our_fork: "https://github.com/intelforce/fathom-mcp-hardened"
+      version_pin: ">=1.2.0"
+    auth:
+      type: api_key
+      secret_ref: "secrets://{tenant_id}/fathom/api_key"
+    tools_used:
+      - mcp__fathom__get_transcript
+      - mcp__fathom__get_summary
+      - mcp__fathom__get_action_items
+    scopes_required:
+      - "read:recordings"
+      - "read:transcripts"
+    rate_limits:
+      provider_limit: "60 requests/minute (per user API key)"
+      our_usage_budget: "max 4 calls per invocation (1 transcript + 1 summary + 1 action items + 1 retry)"
+    degraded_mode:
+      condition: "Fathom API returns 5xx or OAuth rejected"
+      behaviour: "Abort this invocation. Do NOT attempt partial drafting without transcript. Escalate with code FATHOM_UNAVAILABLE. Next cron sweep will retry."
+      fallback_available: false
+
+  - name: hubspot
+    purpose: "Update the deal record after drafting. Source of deal metadata."
+    mcp_server:
+      type: official
+      source: "https://developer.hubspot.com/mcp"
+      version_pin: "latest"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/hubspot/oauth_token"
+      refresh_policy: "refresh 60 minutes before expiry"
+    tools_used:
+      - mcp__hubspot__get_deal
+      - mcp__hubspot__update_deal
+      - mcp__hubspot__create_note
+    scopes_required:
+      - "crm.objects.deals.read"
+      - "crm.objects.deals.write"
+      - "crm.objects.contacts.read"
+      - "crm.objects.notes.write"
+    rate_limits:
+      provider_limit: "100 requests per 10s (Professional tier)"
+      our_usage_budget: "max 6 calls per invocation"
+    degraded_mode:
+      condition: "HubSpot API unreachable or OAuth rejected"
+      behaviour: "Complete the proposal draft and save to vault. Skip HubSpot update. Log the failure. Queue a retry via the reconciliation job (runs every 15 minutes). Notify sales lead via the Gmail draft body: 'HubSpot update pending — I could not reach your CRM. I'll retry automatically; log entry {log_id}.'"
+      fallback_available: true
+      fallback_tool: "queue-for-retry"
+
+  - name: gmail
+    purpose: "Create the draft email for the sales lead. This is the human-review delivery channel."
+    mcp_server:
+      type: community
+      source_repo: "https://github.com/gongrzhe/server-gmail-autoauth-mcp"
+      version_pin: ">=0.3.0"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/google/oauth_token"
+      refresh_policy: "refresh 60 minutes before expiry"
+    tools_used:
+      - mcp__gmail__create_draft
+    scopes_required:
+      - "https://www.googleapis.com/auth/gmail.compose"
+    rate_limits:
+      provider_limit: "1 billion quota units/day (effectively unlimited for our use)"
+    degraded_mode:
+      condition: "Gmail API rejects or OAuth invalid"
+      behaviour: "Save the drafted email body to /outbox/emails-pending/{timestamp}-{prospect_slug}.md. Post to Slack drafts_channel with subject and link. Log the failure. DO NOT send via alternative route — drafts must land in the sales lead's mailbox, not elsewhere."
+      fallback_available: true
+      fallback_tool: "slack-notify"
+
+  - name: filesystem
+    purpose: "Read/write within the tenant vault. Provided by Claude Code's built-in tools, not MCP."
+    mcp_server: null
+    tools_used:
+      - Read
+      - Write
+      - Edit
+    scopes_required: null
+    degraded_mode:
+      condition: "Vault filesystem unavailable (mount failure)"
+      behaviour: "This is a fatal error. Exit with status code 3. Alert on-call via the observability stack. No workaround — vault is the canonical store."
+      fallback_available: false
+
+# ============================================================================
+# OPTIONAL integrations — agent runs without these, but adds value if present
+# ============================================================================
+optional:
+
+  - name: docusign
+    purpose: "Prepare an envelope from the proposal (do not send). If configured, lets sales lead send via one click."
+    mcp_server:
+      type: build-your-own
+      status: "not-yet-built"
+      priority: "v1.1 — build after first 5 clients"
+      source_reference: "https://developers.docusign.com/docs/esign-rest-api/"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/docusign/oauth_token"
+    tools_used:
+      - mcp__docusign__create_envelope_draft
+    scopes_required:
+      - "signature"
+      - "impersonation"
+    enabled_when: "output.docusign_template_id is not null in tenant config"
+    degraded_mode:
+      condition: "DocuSign unavailable OR not enabled for this tenant"
+      behaviour: "Skip the envelope preparation step. Proposal is still drafted and delivered via Gmail. No functional impact — DocuSign is purely a convenience layer."
+
+  - name: notion
+    purpose: "Cross-post proposal to client's Notion workspace if they use Notion as their source of truth for deals."
+    mcp_server:
+      type: official
+      source: "https://github.com/makenotion/notion-mcp-server"
+      version_pin: "latest"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/notion/oauth_token"
+    tools_used:
+      - mcp__notion__create_page
+    scopes_required:
+      - "write"
+    enabled_when: "output.notion_database_id is not null in tenant config"
+    degraded_mode:
+      condition: "Notion unavailable OR not enabled"
+      behaviour: "Skip. Log. Proposal exists in vault as source of truth regardless."
+
+# ============================================================================
+# Pre-flight checks
+# ============================================================================
+# The Provisioning System runs these checks before marking the agent "Ready".
+# Failing any check leaves the agent in "Pending" state with the failure
+# surfaced on the tenant dashboard.
+
+preflight_checks:
+  - name: fathom-api-key-valid
+    description: "Call Fathom `GET /meetings?limit=1` with stored key. Must return 200."
+    blocks_activation: true
+  - name: hubspot-oauth-valid
+    description: "Call HubSpot `GET /account-info/v3/details`. Must return 200."
+    blocks_activation: true
+  - name: gmail-oauth-valid
+    description: "Call Gmail `GET /users/me/profile`. Must return 200."
+    blocks_activation: true
+  - name: sales-lead-email-matches-gmail-account
+    description: "Verify `sales_lead.email` from config matches the authenticated Gmail account."
+    blocks_activation: true
+  - name: pricing-framework-exists
+    description: "Verify pricing.framework_path exists in the vault and is non-empty."
+    blocks_activation: true
+  - name: voice-profile-exists
+    description: "Verify vault.voice_profile_path exists and is non-empty."
+    blocks_activation: false
+    on_fail: "Agent activates but warns: 'Voice profile not yet complete — outputs will be generic until profile is ingested.'"
+
+# ============================================================================
+# Observability hooks
+# ============================================================================
+
+telemetry:
+  emit_events:
+    - name: proposal_draft_started
+      when: "at Step 1 begin"
+    - name: escalation_raised
+      when: "any escalation condition triggers"
+      properties: [escalation_code, prospect_company, call_id]
+    - name: proposal_draft_completed
+      when: "at Step 9 end"
+      properties: [prospect_company, deal_value, tier_name, duration_ms]
+    - name: quality_gate_failure
+      when: "any Quality Gate fails"
+      properties: [gate_id, attempt_number]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 30000
+    sonnet_output_tokens_max: 12000
+    llm_judge_tokens_max: 1500
+    alert_threshold_gbp: 0.50
+    hard_stop_threshold_gbp: 1.00

@@ -1,0 +1,18 @@
+{
+  "fixture_name": "01-client-escalation-sop",
+  "description": "Priya wants an SOP formalising how the Meadow Lane team should handle a situation when Voice Receptionist flags a clinical emergency caller. Input is a Slack thread she had with Laura. Agent should produce a clean 04-xx category incident SOP.",
+  "trigger_source": "manual-dashboard",
+  "triggered_at": "2026-06-10T11:30:00Z",
+  "requester": "Dr Priya Shah",
+  "suggested_name": "Voice Receptionist emergency escalation",
+  "related_existing_sop": "none",
+  "is_revision": false,
+  "input_description": "SLACK THREAD — #meadowlane-ops — 2026-06-09:\n\n**Priya (10:14):** Laura we need a proper SOP for when the voice agent flags an emergency. It's happened twice now and we winged it both times.\n\n**Laura (10:16):** Yeah agree. So walk me through what we did? First one was the broken crown at 8pm on a Tuesday, second was the kid with the knocked-out tooth last Friday.\n\n**Priya (10:18):** OK so what should happen: Voice agent detects emergency keywords (pain, swelling, trauma, bleeding, facial swelling, can't close mouth, knocked out). It immediately sends the caller to our after-hours voicemail with the specific emergency script. Then pings me on WhatsApp AND Laura on SMS. Whichever of us sees it first responds — call back within 15 minutes.\n\n**Laura (10:19):** What if neither of us answers\n\n**Priya (10:21):** Right so escalation. If neither responds within 15 min, voice agent calls the emergency dentist on the NHS 111 dental line and reads them the situation. Also texts Dr Singh who's our backup locum.\n\n**Laura (10:24):** And during business hours?\n\n**Priya (10:27):** Different flow. In hours, voice agent interrupts whichever of us is nearest reception — not Dentally, not email. It has to be a loud ping on our phones. We drop whatever we're doing, take the call directly, assess in 2 minutes max, book emergency slot if needed.\n\n**Laura (10:30):** What counts as 'drop whatever we're doing' vs 'finish current patient'?\n\n**Priya (10:32):** If we're mid-procedure we obviously don't stop. The nearest non-clinical person picks up — that's usually you. If you're mid-patient-intake, that's where judgement kicks in but default is: emergencies trump admin.\n\n**Laura (10:34):** OK I think I have enough. I'll ask Jordan to get an SOP written up so we can run it past Dr Singh.\n\n**Priya (10:35):** Good. Also — we need to log every emergency call somewhere. Dentally has an incidents field we never use. Let's use that. And review monthly.",
+  "expected_behaviour": {
+    "category": "04 incident response",
+    "identifies_two_flows": "business-hours vs after-hours",
+    "names_escalation_chain": true,
+    "includes_logging_to_dentally": true,
+    "expected_escalations": "none"
+  }
+}

@@ -1,0 +1,44 @@
+name = "intel-force-os-bot"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# EU/UK data residency — prefer European regions
+placement = { mode = "smart" }
+
+[[kv_namespaces]]
+binding = "TENANT_CONFIG"
+id = "REPLACE_WITH_KV_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+[[d1_databases]]
+binding = "AUDIT_DB"
+database_name = "intel-force-audit"
+database_id = "REPLACE_WITH_D1_ID"
+
+[triggers]
+crons = ["0 8 * * 1"]
+
+[vars]
+ENVIRONMENT = "production"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
+
+[env.preview]
+name = "intel-force-os-bot-preview"
+vars = { ENVIRONMENT = "preview", ANTHROPIC_MODEL = "claude-sonnet-4-6" }
+
+[[env.preview.kv_namespaces]]
+binding = "TENANT_CONFIG"
+id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+[[env.preview.d1_databases]]
+binding = "AUDIT_DB"
+database_name = "intel-force-audit-preview"
+database_id = "REPLACE_WITH_D1_PREVIEW_ID"
+
+# Secrets — set via: wrangler secret put <NAME>
+# MICROSOFT_APP_ID       — from Azure bot registration
+# MICROSOFT_APP_PASSWORD — from Azure Entra ID client secret
+# ANTHROPIC_API_KEY      — from Anthropic workspace
+# SENTRY_DSN             — from Sentry project settings (optional)
+# POSTGRES_HTTP_URL      — Neon HTTP endpoint or Hyperdrive proxy (optional, enables Postgres dual-write)

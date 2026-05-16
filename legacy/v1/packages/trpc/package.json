@@ -1,0 +1,19 @@
+{
+  "name": "@intelforce/trpc",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./client": "./src/client.ts"
+  },
+  "dependencies": {
+    "@intelforce/db": "workspace:*",
+    "@intelforce/schemas": "workspace:*",
+    "@trpc/server": "^11.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,105 @@
+agent: hr-agent
+version: 1.0.0
+
+# Tools used by the HR agent in the Cloudflare Worker runtime.
+# These translate to Anthropic tool-use schema in src/agents/tools.ts.
+# For Architecture A (Claude Code container runtime), these would be MCP server declarations.
+
+required:
+
+  - name: submit_draft_for_approval
+    purpose: "Structured output tool — the only mechanism for the agent to submit a reply. Guarantees structured output with sensitivity classification."
+    runtime: anthropic_tool_use
+    tools_used:
+      - submit_draft_for_approval
+    required_input_fields:
+      - draft_reply
+      - sensitivity_score
+      - escalation_recommended
+      - confidence
+    degraded_mode:
+      condition: "Agent fails to call this tool within max rounds"
+      behaviour: "Return ESCALATION_FALLBACK with sensitivity_category=system_unavailable"
+      fallback_available: true
+
+  - name: handbook_search
+    purpose: "Keyword search over the customer's HR handbook text stored in Cloudflare KV. Returns the most relevant paragraphs for a given query."
+    runtime: worker_route
+    worker_function: searchHandbook
+    source_file: "src/agents/tool-executor.ts"
+    tools_used:
+      - lookup_handbook_policy
+    degraded_mode:
+      condition: "Handbook KV key is empty or not found"
+      behaviour: "Return 'No handbook uploaded' message; agent sets confidence < 0.5 and escalates"
+      fallback_available: true
+
+  - name: breathe_hr
+    purpose: "Read-only access to Breathe HR for employee leave balances, department, and start date."
+    runtime: worker_route
+    worker_function: getEmployeeInfo
+    source_file: "src/agents/tool-executor.ts"
+    auth:
+      type: api_key
+      secret_ref: "wrangler_secret:BREATHE_HR_API_KEY"
+    tools_used:
+      - get_employee_info
+    degraded_mode:
+      condition: "Breathe HR API unavailable or key not set (v1 stub)"
+      behaviour: "Return stub response; agent proceeds from handbook only and notes the gap"
+      fallback_available: true
+
+optional:
+
+  - name: microsoft_graph
+    purpose: "Resolve employee names and manager relationships from Microsoft Graph API. Used for name redaction and manager lookup."
+    runtime: worker_route
+    auth:
+      type: oauth2
+      secret_ref: "wrangler_secret:GRAPH_ACCESS_TOKEN"
+    enabled_when: "GRAPH_ACCESS_TOKEN is set in Worker secrets"
+    degraded_mode:
+      condition: "Graph unavailable or token expired"
+      behaviour: "Use truncated AAD object ID as name identifier (current v1 behaviour in utils/redact.ts)"
+      fallback_available: true
+
+preflight_checks:
+  - name: handbook-uploaded
+    description: "Verify handbook_text:{tenant_id} exists in KV and has content"
+    blocks_activation: false
+    warning: "Bot will escalate all policy questions until handbook is uploaded"
+
+  - name: anthropic-key-valid
+    description: "POST to Anthropic API models endpoint; expect 200"
+    blocks_activation: true
+
+  - name: hr-lead-convo-ref
+    description: "Verify hr_lead_conversation:{tenant_id}:{aad_id} exists in KV"
+    blocks_activation: false
+    warning: "Approval cards cannot be delivered until HR Lead has opened 1:1 chat with bot"
+
+telemetry:
+  emit_events:
+    - name: message_received
+      when: "handleMessage called"
+      properties: [tenant_id, sensitivity_score, escalation_recommended, channel]
+    - name: draft_submitted
+      when: "submit_draft_for_approval tool called"
+      properties: [tenant_id, sensitivity_score, confidence, citations_count]
+    - name: approval_action
+      when: "handleCardAction called"
+      properties: [tenant_id, action, audit_id]
+    - name: agent_timeout
+      when: "Anthropic call exceeds 25s"
+      properties: [tenant_id, round]
+    - name: escalation_fallback
+      when: "ESCALATION_FALLBACK returned"
+      properties: [tenant_id, reason]
+
+  cost_budget_per_invocation:
+    model: claude-sonnet-4-6
+    max_input_tokens: 200000
+    max_output_tokens: 4096
+    alert_threshold_gbp: 0.10
+    hard_stop_threshold_gbp: 0.50
+    note: "Prompt caching on the system prompt (handbook) reduces cost ~90% on cache hits"

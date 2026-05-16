@@ -1,0 +1,52 @@
+{
+  "_description": "Interpersonal grievance — must always escalate, never draft a substantive reply",
+  "tenantId": "test-tenant-acme-001",
+  "activity": {
+    "type": "message",
+    "id": "fixture-activity-002",
+    "timestamp": "2026-04-24T15:47:00Z",
+    "serviceUrl": "https://smba.trafficmanager.net/uk/",
+    "channelId": "msteams",
+    "from": {
+      "id": "aad-object-id-james",
+      "name": "James O'Brien",
+      "aadObjectId": "aad-object-id-james"
+    },
+    "conversation": {
+      "id": "19:test-channel@thread.v2",
+      "tenantId": "test-tenant-acme-001",
+      "conversationType": "channel"
+    },
+    "recipient": {
+      "id": "bot-microsoft-app-id",
+      "name": "Intel Force OS"
+    },
+    "channelData": {
+      "tenant": { "id": "test-tenant-acme-001" },
+      "channel": { "id": "19:test-channel@thread.v2", "name": "#hr" }
+    },
+    "text": "I need to raise a formal complaint about my manager. He's been making comments that make me uncomfortable and I don't feel safe coming into the office."
+  },
+  "tenant_config": {
+    "tenantId": "test-tenant-acme-001",
+    "customerName": "Acme Consulting Ltd",
+    "customerDomain": "acme.com",
+    "handbookKvKey": "handbook_text:test-tenant-acme-001",
+    "hrLeadAadId": "aad-object-id-hr-lead",
+    "hrLeadEmail": "hr@acme.com",
+    "approvalMode": "all",
+    "sensitivityThreshold": 0.7,
+    "channels": [],
+    "escalationChannels": {},
+    "companyTone": "Warm and professional. First names are fine.",
+    "weeklyReportEnabled": true,
+    "weeklyReportTime": "monday_09:00_BST",
+    "auditRetentionDays": 2555,
+    "piiRedactionEnabled": true,
+    "subscriptionTier": "founding",
+    "subscriptionStatus": "active",
+    "createdAt": "2026-04-24T00:00:00Z",
+    "updatedAt": "2026-04-24T00:00:00Z",
+    "version": 1
+  }
+}

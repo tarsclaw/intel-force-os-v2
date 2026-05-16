@@ -1,0 +1,128 @@
+{
+  "fixture_name": "02-multi-service-ambiguous",
+  "description": "A SaaS founder exploring multiple workstreams on one call (content, sales, ops automation). No single clear problem. Scope is ambiguous and the agent must either propose three tiers that match different interpretations, OR escalate if the scope spans multiple service lines the client doesn't normally combine.",
+  "recording_id": "FTM-test-fixture-002",
+  "url": "https://fathom.video/share/test-fixture-002",
+  "share_url": "https://fathom.video/share/test-fixture-002",
+  "created_at": "2026-04-16T14:15:00Z",
+  "recording_start_time": "2026-04-16T14:00:00Z",
+  "recording_end_time": "2026-04-16T14:42:00Z",
+  "meeting_type": "discovery",
+  "transcript_language": "en",
+  "calendar_invitees": [
+    {
+      "is_external": false,
+      "name": "Jordan Taylor",
+      "email": "jordan@acme-agency.co.uk"
+    },
+    {
+      "is_external": true,
+      "name": "Marcus Okafor",
+      "email": "marcus@loopcatch.io"
+    }
+  ],
+  "recorded_by": {
+    "name": "Jordan Taylor",
+    "email": "jordan@acme-agency.co.uk",
+    "team": "Sales"
+  },
+  "default_summary": {
+    "template_name": "discovery",
+    "markdown_formatted": "## Summary\n\nMarcus Okafor is founder/CEO of Loopcatch, a B2B SaaS at ~£400k ARR selling a feedback-loop tool to product teams. Team of 7.\n\n**Multiple workstreams discussed, in this order:**\n1. Content marketing (wants to 'do proper content')\n2. Outbound sales automation (had a recent bad SDR hire)\n3. Customer success (losing 2-3 accounts per quarter to usage drop-off)\n4. Hiring help (wants AI in the loop for candidate screening)\n\n**Budget signal:** 'somewhere between 5 and 15k a month, depends what's included'. Very open-ended.\n\n**Timeline:** wants to start 'within the month'. No hard deadline.\n\n**Decision:** Marcus decides, but mentioned needing to 'run it past Chris' (co-founder, not on the call).\n\n**Concerns:** Marcus explicitly said he's 'wary of agencies' — had a bad experience with a previous provider who 'overpromised'. Wants to see 'how you think', not just deliverables.\n\n**Tone/fit:** sharp, skeptical, treats every claim like a pitch he has to dismantle."
+  },
+  "action_items": [
+    {
+      "description": "Send proposal covering content marketing — this was the highest-energy topic"
+    },
+    {
+      "description": "Reference Marcus's previous bad agency experience in framing (explicitly avoid generic pitch tropes)"
+    }
+  ],
+  "transcript": [
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Before you pitch me anything — last agency we used, six months in, we'd spent £40k and had nothing to show for it. Blog posts they wrote we'd never have written ourselves, case studies that didn't sound like us, 'strategy sessions' that were just them asking me what I wanted. So. Tell me how you're different, concretely, or this is a short call.",
+      "timestamp": "00:00:45"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Fair. Short version: we don't write as you until we've read fifty of your things first. Voice profile extraction is literally the first week of any engagement. You'll see drafts next to past things you wrote and you'll either recognise them as yours or we rewrite. Longer version we can get into. But first — tell me where you actually are. What's working, what's broken.",
+      "timestamp": "00:01:15"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Okay. Loopcatch is £400k ARR, team of seven, product is a feedback-loop tool for product teams. Growing but slow. I want faster. A few things I'm thinking about — content is one, we don't produce enough and what we do is me writing at midnight. Sales, I hired an SDR in January, didn't work, now I'm doing outbound myself which is ridiculous. Customer success — we lose two, maybe three accounts a quarter to usage drop-off, not churn but just fade-away. And I've been wondering if AI could help us screen inbound candidates because hiring is eating me alive.",
+      "timestamp": "00:01:58"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "That's four things. If you had to pick one that's most painful right now, which is it?",
+      "timestamp": "00:02:52"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Honestly? Probably content. Because if content was cranking, some of the outbound problem solves itself — warm inbound instead of cold out. But outbound is more urgent because I'm literally doing it myself. And customer success — churn kills a SaaS, obviously. So. Maybe all three, honestly.",
+      "timestamp": "00:03:05"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "And the hiring thing — is that a now-thing or a nice-to-have?",
+      "timestamp": "00:03:40"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Nice to have. Lower priority. I'm just curious if you do it.",
+      "timestamp": "00:03:50"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Budget-wise, where are you?",
+      "timestamp": "00:04:05"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Honestly, somewhere between five and fifteen grand a month, depending what's actually in it. I don't mind paying more if it's working. I lost a lot paying less for less.",
+      "timestamp": "00:04:18"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "And timeline?",
+      "timestamp": "00:04:35"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Within the month. No hard deadline but I've been kicking this can for two quarters.",
+      "timestamp": "00:04:40"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Who else is part of this decision?",
+      "timestamp": "00:04:55"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Me. I run it past Chris — co-founder, CTO — but he'll go with whatever I decide on this.",
+      "timestamp": "00:05:02"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Anyone else you're talking to?",
+      "timestamp": "00:05:18"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "You're the main conversation. I had exploratory chats with two others but neither were right — one was too big, one was too small.",
+      "timestamp": "00:05:25"
+    },
+    {
+      "speaker": {"display_name": "Jordan Taylor", "matched_calendar_invitee_email": "jordan@acme-agency.co.uk"},
+      "text": "Okay. Let me send you a proposal that covers three shapes of engagement — content-led, sales-led, and full stack. You pick the one that matches where your head is actually at. I'll have it by Thursday.",
+      "timestamp": "00:05:40"
+    },
+    {
+      "speaker": {"display_name": "Marcus Okafor", "matched_calendar_invitee_email": "marcus@loopcatch.io"},
+      "text": "Thursday works. One favour — whatever you send, include how you'd voice-match me in the first month. That's the thing that killed the last relationship.",
+      "timestamp": "00:06:05"
+    }
+  ]
+}

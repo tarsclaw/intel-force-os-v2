@@ -1,0 +1,14 @@
+.env
+.env.local
+.env.*.local
+node_modules/
+.DS_Store
+dist/*.zip
+build/
+.next/
+.turbo/
+.wrangler/
+*.log
+
+# Quartz tree (cloned standalone, not part of workspace)
+services/quartz/

@@ -1,0 +1,89 @@
+agent: client-onboarder
+version: 1.0.0
+
+required:
+
+  - name: hubspot
+    purpose: "Read the Won deal's context, update to Onboarding stage, attach onboarding packet"
+    mcp_server:
+      type: official
+      source: "https://developer.hubspot.com/mcp"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/hubspot/oauth_token"
+    tools_used:
+      - mcp__hubspot__get_deal
+      - mcp__hubspot__update_deal
+      - mcp__hubspot__create_note
+    scopes_required:
+      - "crm.objects.deals.read"
+      - "crm.objects.deals.write"
+      - "crm.objects.contacts.read"
+      - "crm.objects.notes.write"
+    degraded_mode:
+      condition: "HubSpot unavailable"
+      behaviour: "Produce all onboarding artefacts to vault, queue HubSpot update for reconciliation"
+      fallback_available: true
+
+  - name: gmail
+    purpose: "Create the four draft emails"
+    mcp_server:
+      type: community
+      source_repo: "https://github.com/gongrzhe/server-gmail-autoauth-mcp"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/google/oauth_token"
+    tools_used:
+      - mcp__gmail__create_draft
+    scopes_required:
+      - "https://www.googleapis.com/auth/gmail.compose"
+    degraded_mode:
+      condition: "Gmail unavailable"
+      behaviour: "Save email bodies to /outbox/emails-pending/ with clear subject prefixes; post to Slack drafts channel"
+      fallback_available: true
+
+  - name: filesystem
+    purpose: "Read signed proposal + discovery transcript, write 6 onboarding artefacts"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+optional:
+
+  - name: slack
+    purpose: "Notify the delivery team in #client-onboarding that a new packet is ready"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/slack/oauth_token"
+    enabled_when: "notifications.drafts_channel is configured"
+    degraded_mode:
+      condition: "Slack unavailable"
+      behaviour: "Skip notification; delivery team picks up from Gmail drafts"
+
+preflight_checks:
+  - name: hubspot-trigger-stage-exists
+    description: "Verify the configured trigger stage (default 'Won') exists in tenant's pipeline"
+    blocks_activation: true
+  - name: gmail-oauth-valid
+    description: "GET /users/me/profile"
+    blocks_activation: true
+  - name: sales-lead-email-matches-gmail
+    description: "Verify sales_lead.email matches the authenticated Gmail account"
+    blocks_activation: true
+
+telemetry:
+  emit_events:
+    - name: onboarding_triggered
+      when: "workflow start"
+      properties: [prospect_company, deal_value, tier]
+    - name: onboarding_packet_drafted
+      when: "workflow end"
+      properties: [artefacts_produced, content_brief_skipped, duration_ms]
+    - name: escalation_raised
+      when: "any escalation"
+      properties: [code]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 20000
+    sonnet_output_tokens_max: 10000
+    alert_threshold_gbp: 0.60
+    hard_stop_threshold_gbp: 1.20

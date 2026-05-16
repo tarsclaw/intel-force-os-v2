@@ -1,0 +1,74 @@
+agent: content-creator
+version: 1.0.0
+
+required:
+  - name: web_search
+    purpose: "Research claims, find authoritative sources"
+    mcp_server: null
+    tools_used: [WebSearch]
+    degraded_mode:
+      condition: "Web search unavailable"
+      behaviour: "Escalate SOURCES_INSUFFICIENT — cannot write responsibly without research"
+      fallback_available: false
+
+  - name: web_fetch
+    purpose: "Retrieve full source content for accurate citation"
+    mcp_server: null
+    tools_used: [WebFetch]
+    degraded_mode:
+      condition: "WebFetch unavailable"
+      behaviour: "Rely on search snippets only; flag lower confidence on direct quotes"
+
+  - name: gmail
+    purpose: "Notify sales lead that draft is ready"
+    mcp_server:
+      type: community
+      source_repo: "https://github.com/gongrzhe/server-gmail-autoauth-mcp"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/google/oauth_token"
+    tools_used: [mcp__gmail__create_draft]
+    scopes_required: ["https://www.googleapis.com/auth/gmail.compose"]
+    degraded_mode:
+      condition: "Gmail unavailable"
+      behaviour: "Save notification to /outbox/emails-pending/; post Slack drafts channel"
+
+  - name: filesystem
+    purpose: "Read brief + voice profile, write long-form output, write Repurposer trigger"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+optional:
+  - name: ahrefs
+    purpose: "SEO intent signals on topic (v1.1)"
+    enabled_when: false
+    degraded_mode:
+      condition: "Not enabled"
+      behaviour: "Skip SEO weighting; content is written without SEO optimisation"
+
+preflight_checks:
+  - name: voice-profile-exists
+    blocks_activation: false
+    on_fail: "Agent activates but warns — outputs will be generic until profile populated"
+  - name: briefs-path-exists
+    description: "/vault/content/briefs/ directory exists"
+    blocks_activation: false
+  - name: gmail-oauth-valid
+    blocks_activation: true
+
+telemetry:
+  emit_events:
+    - name: content_draft_started
+      properties: [brief_source, requested_length]
+    - name: content_draft_completed
+      properties: [word_count, sources_count, duration_ms]
+    - name: escalation_raised
+      properties: [code]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 40000
+    sonnet_output_tokens_max: 15000
+    web_searches_max: 8
+    web_fetches_max: 3
+    alert_threshold_gbp: 1.50
+    hard_stop_threshold_gbp: 3.00

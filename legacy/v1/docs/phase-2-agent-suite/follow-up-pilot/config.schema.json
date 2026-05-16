@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/follow-up-pilot/v1.0.0.json",
+  "title": "Follow-Up Pilot — Tenant Configuration",
+  "type": "object",
+  "required": ["client", "sales_lead", "hubspot", "gmail", "vault", "notifications", "sequence", "schedule"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "sales_lead": { "$ref": "common-sales-lead.json" },
+    "hubspot": {
+      "type": "object",
+      "required": ["oauth_token_ref", "unconverted_stage_name"],
+      "properties": {
+        "oauth_token_ref": { "type": "string", "pattern": "^secrets://" },
+        "unconverted_stage_name": { "type": "string", "default": "Unconverted" },
+        "archive_stage_name": { "type": "string", "default": "Closed Lost" }
+      }
+    },
+    "gmail": {
+      "type": "object",
+      "required": ["oauth_token_ref"],
+      "properties": { "oauth_token_ref": { "type": "string", "pattern": "^secrets://" } }
+    },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "follow_up_output_path": { "type": "string", "default": "/vault/clients/{{slug}}/follow-up" },
+        "suppression_list_path": { "type": "string", "default": "/vault/brand/suppression-list.md" }
+      }
+    },
+    "notifications": { "$ref": "common-notifications.json" },
+    "sequence": {
+      "type": "object",
+      "properties": {
+        "email_count": { "type": "integer", "minimum": 2, "maximum": 5, "default": 3 },
+        "day_spacing": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "default": [0, 12, 21]
+        },
+        "re_nurture_cooldown_days": { "type": "integer", "default": 45 },
+        "stale_threshold_days": { "type": "integer", "default": 90 }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "cron": { "type": "string", "default": "0 9 * * 1", "description": "Mondays 09:00 local" },
+        "max_sequences_per_run": { "type": "integer", "default": 15 }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "require_discovery_call_or_3_emails": { "type": "boolean", "default": true },
+        "auto_archive_stale_deals": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

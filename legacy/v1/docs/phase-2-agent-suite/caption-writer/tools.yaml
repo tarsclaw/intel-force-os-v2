@@ -1,0 +1,50 @@
+agent: caption-writer
+version: 1.0.0
+
+required:
+  - name: filesystem
+    purpose: "Read assets from intake folder, write caption files to vault"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+  - name: native_vision
+    purpose: "Analyse images via Claude's native multimodal capability"
+    mcp_server: null
+    tools_used: []
+    scopes_required: []
+    degraded_mode:
+      condition: "Vision unavailable"
+      behaviour: "Require upload context note for every asset; escalate ASSET_UNREADABLE if no note"
+
+optional:
+  - name: slack
+    purpose: "Notify client that captions are ready"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/slack/oauth_token"
+    enabled_when: "output.slack_notify_on_complete is true"
+    degraded_mode:
+      condition: "Slack unavailable"
+      behaviour: "Skip notification; client discovers via dashboard or next vault sync"
+
+preflight_checks:
+  - name: intake-folder-exists
+    description: "/tenant/intake/manual/captions/ exists and is writable"
+    blocks_activation: true
+  - name: vault-output-path-writable
+    blocks_activation: true
+
+telemetry:
+  emit_events:
+    - name: caption_set_started
+      properties: [asset_path, asset_type]
+    - name: caption_set_completed
+      properties: [variants_count, duration_ms]
+    - name: escalation_raised
+      properties: [code]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 8000
+    sonnet_output_tokens_max: 3000
+    alert_threshold_gbp: 0.25
+    hard_stop_threshold_gbp: 0.50

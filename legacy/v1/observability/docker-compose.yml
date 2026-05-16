@@ -1,0 +1,118 @@
+version: '3.8'
+
+# Intel Force OS — Observability stack
+# Per docs/phase-3-platform/observability/observability-spec.md
+#
+# Run: docker compose up -d
+# Requires: Docker, ~2GB RAM
+#
+# Access:
+#   Grafana:    http://localhost:3001  (admin/admin — change in prod)
+#   Prometheus: http://localhost:9090
+#   Loki:       http://localhost:3100
+
+services:
+
+  # ─── Loki — log aggregation ──────────────────────────────────────────────────
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: intelforce-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/config.yaml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks: [observability]
+
+  # ─── Prometheus — metrics ─────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: intelforce-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.path=/prometheus
+    networks: [observability]
+
+  # ─── Grafana — dashboards ─────────────────────────────────────────────────────
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: intelforce-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://grafana.intelforce.ai
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks: [observability]
+
+  # ─── Vector — log shipping agent ──────────────────────────────────────────────
+
+  vector:
+    image: timberio/vector:0.38.0-debian
+    container_name: intelforce-vector
+    restart: unless-stopped
+    volumes:
+      - ./vector/vector.toml:/etc/vector/vector.toml
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [observability]
+    depends_on: [loki]
+
+  # ─── Alertmanager — PagerDuty + Slack routing ─────────────────────────────────
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: intelforce-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/config.yml:/etc/alertmanager/config.yml
+    networks: [observability]
+
+  # ─── MarkItDown — PDF/Word/PPT → Markdown conversion service ──────────────────
+
+  markitdown:
+    build:
+      context: ../services/markitdown
+      dockerfile: Dockerfile
+    container_name: intelforce-markitdown
+    restart: unless-stopped
+    ports:
+      - "8181:8080"      # dashboard calls http://localhost:8181/convert
+    networks: [observability]
+    # Resource limits — PDF conversion can be memory intensive
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+volumes:
+  loki-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  observability:
+    driver: bridge

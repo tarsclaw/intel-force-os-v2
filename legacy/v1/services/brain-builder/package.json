@@ -1,0 +1,18 @@
+{
+  "name": "@intelforce/brain-builder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Per-tenant brain builder — takes a handbook file, runs graphify, persists the result to ops.brain_graphs.",
+  "scripts": {
+    "build:tenant": "ts-node src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@intelforce/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.7.0"
+  }
+}

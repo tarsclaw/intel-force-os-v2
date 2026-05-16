@@ -1,0 +1,147 @@
+agent: lead-hunter
+version: 1.0.0
+
+required:
+
+  - name: companies_house
+    purpose: "UK-native company database. Free, authoritative, GDPR-safe source for company-level filtering."
+    mcp_server:
+      type: build-your-own
+      status: "not-yet-built"
+      priority: "CC9 — build as part of Phase 3"
+      source_reference: "https://developer-specs.company-information.service.gov.uk/"
+    auth:
+      type: api_key
+      secret_ref: "secrets://{tenant_id}/companies_house/api_key"
+    tools_used:
+      - mcp__companies_house__search_companies
+      - mcp__companies_house__get_company_profile
+      - mcp__companies_house__get_officers
+    scopes_required: []
+    rate_limits:
+      provider_limit: "600 requests per 5 minutes"
+      our_usage_budget: "max 300 calls per run"
+    degraded_mode:
+      condition: "Companies House API returns 5xx on >30% of requests"
+      behaviour: "Escalate DATA_PROVIDER_DEGRADED, retry next cycle"
+      fallback_available: false
+
+  - name: prospeo
+    purpose: "Contact finder — resolves company domains to verified decision-maker emails. UK-compliant (GDPR)."
+    mcp_server:
+      type: build-your-own
+      status: "not-yet-built"
+      priority: "CC9 — build as part of Phase 3"
+      source_reference: "https://prospeo.io/api/docs"
+    auth:
+      type: api_key
+      secret_ref: "secrets://{tenant_id}/prospeo/api_key"
+    tools_used:
+      - mcp__prospeo__find_contacts
+      - mcp__prospeo__verify_email
+    scopes_required: []
+    rate_limits:
+      provider_limit: "varies by plan — typically 2 req/sec"
+      our_usage_budget: "max 60 contact-finds + 60 verifications per run"
+    degraded_mode:
+      condition: "Prospeo returns 429 or 5xx"
+      behaviour: "Back off exponentially, max 3 retries. If still failing, continue with Companies House data only and mark the run as partial."
+      fallback_available: true
+      fallback_tool: "companies-house-officers-fallback"
+
+  - name: hubspot
+    purpose: "Create and dedupe against CRM deals."
+    mcp_server:
+      type: official
+      source: "https://developer.hubspot.com/mcp"
+      version_pin: "latest"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/hubspot/oauth_token"
+      refresh_policy: "refresh 60 minutes before expiry"
+    tools_used:
+      - mcp__hubspot__get_contact
+      - mcp__hubspot__search_deals
+      - mcp__hubspot__create_deal
+      - mcp__hubspot__create_contact
+    scopes_required:
+      - "crm.objects.deals.read"
+      - "crm.objects.deals.write"
+      - "crm.objects.contacts.read"
+      - "crm.objects.contacts.write"
+    rate_limits:
+      provider_limit: "100 requests per 10s"
+      our_usage_budget: "max 120 calls per run (1 search + 2 writes per prospect × 30)"
+    degraded_mode:
+      condition: "HubSpot unreachable"
+      behaviour: "Save the prospect list file anyway; queue deal creation for reconciliation job; flag in daily rollup"
+      fallback_available: true
+
+  - name: filesystem
+    purpose: "Read ICP, write prospect list, read previous runs for dedup"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+optional:
+
+  - name: kaspr
+    purpose: "Phone + LinkedIn enrichment for top-ranked prospects"
+    mcp_server:
+      type: build-your-own
+      status: "not-yet-built"
+      priority: "CC9 — build as part of Phase 3"
+      source_reference: "https://kaspr.io/api-documentation"
+    auth:
+      type: api_key
+      secret_ref: "secrets://{tenant_id}/kaspr/api_key"
+    tools_used:
+      - mcp__kaspr__enrich_contact
+    enabled_when: "integrations.kaspr.api_key_ref is set"
+    degraded_mode:
+      condition: "Kaspr unavailable or not configured"
+      behaviour: "Skip phone enrichment; the top 10 show email-only"
+
+  - name: web_search
+    purpose: "Recency signals on top candidates (funding, hiring, press)"
+    mcp_server: null
+    tools_used: [WebSearch]
+    enabled_when: "behaviour.recency_search_top_n > 0"
+    degraded_mode:
+      condition: "WebSearch unavailable"
+      behaviour: "Score without recency signal (max score drops from 100 to 80)"
+
+preflight_checks:
+  - name: icp-file-exists
+    description: "Verify /vault/brand/icp.md exists and has required fields populated"
+    blocks_activation: true
+  - name: companies-house-api-valid
+    description: "GET /company/00000006 (Companies House's test company)"
+    blocks_activation: true
+  - name: prospeo-api-valid
+    description: "GET /account/quota"
+    blocks_activation: true
+  - name: hubspot-pipeline-has-new-stage
+    description: "Verify the configured hubspot.new_deal_stage exists in tenant's pipeline"
+    blocks_activation: true
+
+telemetry:
+  emit_events:
+    - name: lead_hunter_run_started
+      when: "Step 1 begin"
+    - name: lead_hunter_ran_icp_check
+      when: "Step 1 end"
+      properties: [icp_fields_present]
+    - name: lead_hunter_run_completed
+      when: "Step 10 end"
+      properties: [search_count, qualified_count, ranked_count, enriched_count, cost_gbp, duration_ms]
+    - name: escalation_raised
+      when: "any escalation triggers"
+      properties: [code]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 25000
+    sonnet_output_tokens_max: 8000
+    prospeo_calls_max: 120
+    kaspr_calls_max: 15
+    alert_threshold_gbp: 8.0
+    hard_stop_threshold_gbp: 12.0

@@ -1,0 +1,36 @@
+agent: repurposer
+version: 1.0.0
+
+required:
+  - name: filesystem
+    purpose: "Read source long-form, write derivative files, write atomisation index"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+optional: []
+
+preflight_checks:
+  - name: voice-profile-exists
+    blocks_activation: false
+    on_fail: "Agent activates; outputs use base voice without platform overrides"
+  - name: social-output-path-writable
+    description: "/vault/content/social/ writable"
+    blocks_activation: true
+  - name: email-output-path-writable
+    description: "/vault/content/email/ writable"
+    blocks_activation: true
+
+telemetry:
+  emit_events:
+    - name: repurpose_started
+      properties: [source_path, source_word_count]
+    - name: repurpose_completed
+      properties: [derivatives_produced, platforms, duration_ms]
+    - name: escalation_raised
+      properties: [code]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 15000
+    sonnet_output_tokens_max: 6000
+    alert_threshold_gbp: 0.40
+    hard_stop_threshold_gbp: 0.80

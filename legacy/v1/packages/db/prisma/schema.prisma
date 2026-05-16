@@ -1,0 +1,476 @@
+// Intel Force OS — Prisma schema
+// Mirrors docs/phase-3-platform/postgres/schema-spec.md
+// Run: pnpm --filter @intelforce/db generate
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  schemas    = ["control", "ops"]
+  extensions = [pgvector(map: "vector", schema: "public"), pgcrypto(schema: "public")]
+}
+
+// ─── control schema ──────────────────────────────────────────────────────────
+
+model Tenant {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String    @unique
+  name           String
+  plan           Plan      @default(STARTER)
+  status         TenantStatus @default(ACTIVE)
+  parentTenantId String?   @map("parent_tenant_id") @db.Uuid
+  clerkOrgId     String?   @unique @map("clerk_org_id")
+  billingEmail   String?   @map("billing_email")
+  timezone       String    @default("Europe/London")
+  currency       String    @default("GBP")
+  agentsEnabled  String[]  @map("agents_enabled")
+  costBudgetGbp  Decimal?  @map("cost_budget_gbp") @db.Decimal(10, 2)
+  hardStopBudget Boolean   @default(false) @map("hard_stop_budget")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  suspendedAt    DateTime? @map("suspended_at")
+  decommissionedAt DateTime? @map("decommissioned_at")
+
+  // Relations
+  parent         Tenant?   @relation("AgencyHierarchy", fields: [parentTenantId], references: [id])
+  subTenants     Tenant[]  @relation("AgencyHierarchy")
+  userRoles      UserRole[]
+  invocations    Invocation[]
+  escalations    Escalation[]
+  costs          Cost[]
+  auditEvents    AuditEvent[]
+  invitations    Invitation[]
+  webhooks       WebhookRegistration[]
+  brainGraph     BrainGraph?
+
+  @@map("tenants")
+  @@schema("control")
+}
+
+model User {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clerkUserId String   @unique @map("clerk_user_id")
+  email       String
+  name        String?
+  imageUrl    String?  @map("image_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  roles       UserRole[]
+  auditEvents AuditEvent[] @relation("ActorUser")
+  invitedBy   Invitation[] @relation("InvitedBy")
+  approvals   PendingApproval[] @relation("RequesterApprovals")
+  approved    PendingApproval[] @relation("ApproverApprovals")
+
+  @@map("users")
+  @@schema("control")
+}
+
+model UserRole {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  role       Role
+  grantedBy  String?  @map("granted_by") @db.Uuid
+  grantedAt  DateTime @default(now()) @map("granted_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  user   User   @relation(fields: [userId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@map("users_roles")
+  @@schema("control")
+}
+
+model Invitation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String
+  tenantId    String    @map("tenant_id") @db.Uuid
+  role        Role
+  token       String    @unique @default(dbgenerated("gen_random_uuid()"))
+  invitedById String    @map("invited_by_id") @db.Uuid
+  expiresAt   DateTime  @map("expires_at")
+  acceptedAt  DateTime? @map("accepted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  invitedBy User   @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([tenantId])
+  @@index([token])
+  @@map("invitations")
+  @@schema("control")
+}
+
+model PendingApproval {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action       String
+  requesterId  String   @map("requester_id") @db.Uuid
+  approverId   String?  @map("approver_id") @db.Uuid
+  tenantId     String?  @map("tenant_id") @db.Uuid
+  payload      Json
+  status       ApprovalStatus @default(PENDING)
+  requestedAt  DateTime @default(now()) @map("requested_at")
+  resolvedAt   DateTime? @map("resolved_at")
+  expiresAt    DateTime @map("expires_at")
+
+  requester User  @relation("RequesterApprovals", fields: [requesterId], references: [id])
+  approver  User? @relation("ApproverApprovals", fields: [approverId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("pending_approvals")
+  @@schema("control")
+}
+
+model WizardDraft {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdById String    @map("created_by_id") @db.Uuid
+  agencyId    String?   @map("agency_id") @db.Uuid
+  currentStep Int       @default(1) @map("current_step")
+  draftData   Json      @map("draft_data")
+  submittedAt DateTime? @map("submitted_at")
+  tenantId    String?   @map("tenant_id") @db.Uuid
+  workflowId  String?   @map("workflow_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  expiresAt   DateTime  @map("expires_at")
+
+  @@index([createdById])
+  @@map("wizard_drafts")
+  @@schema("control")
+}
+
+// ─── ops schema ──────────────────────────────────────────────────────────────
+
+model Invocation {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  agent        String
+  trigger      String
+  status       InvocationStatus @default(RUNNING)
+  startedAt    DateTime @default(now()) @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  durationMs   Int?     @map("duration_ms")
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  costGbp      Decimal? @map("cost_gbp") @db.Decimal(10, 6)
+  model        String?
+  provider     String?
+  errorCode    String?  @map("error_code")
+  errorMessage String?  @map("error_message")
+  outputPath   String?  @map("output_path")
+  metadata     Json?
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  costs    Cost[]
+
+  @@index([tenantId, startedAt(sort: Desc)])
+  @@index([tenantId, status])
+  @@index([status])
+  @@map("invocations")
+  @@schema("ops")
+}
+
+model Escalation {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  category        String
+  severity        EscalationSeverity @default(MEDIUM)
+  status          EscalationStatus @default(OPEN)
+  originalMessage String   @map("original_message")
+  employeeAadId   String?  @map("employee_aad_id")
+  agentReasoning  String?  @map("agent_reasoning")
+  resolvedById    String?  @map("resolved_by_id") @db.Uuid
+  resolvedAt      DateTime? @map("resolved_at")
+  resolution      String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  correlationId   String?  @map("correlation_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, status])
+  @@index([status])
+  @@map("escalations")
+  @@schema("ops")
+}
+
+model Cost {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  invocationId String?  @map("invocation_id") @db.Uuid
+  provider     String
+  model        String
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  cacheHits    Int      @default(0) @map("cache_hits")
+  costGbp      Decimal  @map("cost_gbp") @db.Decimal(10, 6)
+  recordedAt   DateTime @default(now()) @map("recorded_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  invocation Invocation? @relation(fields: [invocationId], references: [id])
+
+  @@index([tenantId, recordedAt(sort: Desc)])
+  @@map("costs")
+  @@schema("ops")
+}
+
+model AuditEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  actorId     String?  @map("actor_id") @db.Uuid
+  actorKind   ActorKind @map("actor_kind")
+  actorLabel  String?  @map("actor_label")
+  action      String
+  targetKind  String?  @map("target_kind")
+  targetId    String?  @map("target_id")
+  targetLabel String?  @map("target_label")
+  detail      String?
+  metadata    Json?
+  severity    AuditSeverity @default(INFO)
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  correlationId String? @map("correlation_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  actor  User?   @relation("ActorUser", fields: [actorId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([action])
+  @@map("audit_log")
+  @@schema("ops")
+}
+
+model WebhookRegistration {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  provider   String
+  endpoint   String
+  secretHash String   @map("secret_hash")
+  status     String   @default("active")
+  lastFiredAt DateTime? @map("last_fired_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("webhook_registrations")
+  @@schema("ops")
+}
+
+model Deployment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  env         String
+  component   String
+  version     String
+  sha         String?
+  deployedBy  String?  @map("deployed_by")
+  deployedAt  DateTime @default(now()) @map("deployed_at")
+  status      String   @default("success")
+
+  @@index([env, deployedAt(sort: Desc)])
+  @@map("deployments")
+  @@schema("ops")
+}
+
+// ─── Brain (per-tenant knowledge graph) ──────────────────────────────────────
+// One row per tenant. graphJson holds the full Graphify output (nodes, edges,
+// communities). Embeddings live in a separate table (BrainNodeEmbedding) and
+// are added in Phase 5 — until then, semantic search degrades to substring.
+
+model BrainGraph {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String           @unique @map("tenant_id") @db.Uuid
+  status       BrainGraphStatus @default(PENDING)
+  graphJson    Json?            @map("graph_json")
+  nodeCount    Int?             @map("node_count")
+  edgeCount    Int?             @map("edge_count")
+  communityCount Int?           @map("community_count")
+  sourceFiles  Json?            @map("source_files") // [{ name, sha256, size, ingestedAt }]
+  version      Int              @default(1)
+  generatedAt  DateTime?        @map("generated_at")
+  durationMs   Int?             @map("duration_ms")
+  inputTokens  Int?             @map("input_tokens")
+  outputTokens Int?             @map("output_tokens")
+  costGbp      Decimal?         @map("cost_gbp") @db.Decimal(10, 6)
+  lastError    String?          @map("last_error")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  edgeReviews  BrainEdgeReview[]
+  embeddings   BrainNodeEmbedding[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("brain_graphs")
+  @@schema("ops")
+}
+
+// Per-node embeddings for semantic search. Generated by the brain builder
+// after each graphify run. The vector dimension is fixed by the provider
+// (Cohere embed-v3 = 1024). Stored as pgvector for fast nearest-neighbour
+// queries via the `<=>` cosine-distance operator.
+
+model BrainNodeEmbedding {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brainGraphId String  @map("brain_graph_id") @db.Uuid
+  nodeId       String  @map("node_id") // matches the node id inside graphJson
+  label        String  // copied from the node for fast preview without graph join
+  sourceFile   String? @map("source_file")
+  // Cohere embed-v3 returns 1024-dim float vectors.
+  // Prisma has no first-class vector type yet; pgvector handles it via Unsupported.
+  embedding    Unsupported("vector(1024)")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  brainGraph   BrainGraph @relation(fields: [brainGraphId], references: [id], onDelete: Cascade)
+
+  @@unique([brainGraphId, nodeId])
+  @@index([brainGraphId])
+  @@map("brain_node_embeddings")
+  @@schema("ops")
+}
+
+// Review history for INFERRED edges. Customers can approve/reject each edge,
+// and the reviews are persisted so the brain self-corrects over time.
+
+model BrainEdgeReview {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brainGraphId String       @map("brain_graph_id") @db.Uuid
+  edgeKey      String       @map("edge_key") // canonical "sourceId|targetId" key
+  sourceNodeId String       @map("source_node_id")
+  targetNodeId String       @map("target_node_id")
+  relation     String
+  decision     EdgeDecision
+  reviewerId   String?      @map("reviewer_id") @db.Uuid
+  reviewerNote String?      @map("reviewer_note")
+  reviewedAt   DateTime     @default(now()) @map("reviewed_at")
+
+  brainGraph   BrainGraph @relation(fields: [brainGraphId], references: [id], onDelete: Cascade)
+
+  @@unique([brainGraphId, edgeKey])
+  @@index([brainGraphId, decision])
+  @@map("brain_edge_reviews")
+  @@schema("ops")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Plan {
+  FOUNDING
+  STARTER
+  GROWTH
+  SCALE
+  ENTERPRISE
+  AGENCY_PARTNER
+
+  @@schema("control")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  DECOMMISSIONED
+  PENDING
+
+  @@schema("control")
+}
+
+enum Role {
+  // Platform roles
+  PLATFORM_ADMIN
+  PLATFORM_READONLY
+  // Tenant roles
+  TENANT_OWNER
+  TENANT_MEMBER
+  TENANT_VIEWER
+  // Agency roles
+  AGENCY_ADMIN
+  AGENCY_MEMBER
+
+  @@schema("control")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+
+  @@schema("control")
+}
+
+enum InvocationStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  ESCALATED
+  CANCELLED
+
+  @@schema("ops")
+}
+
+enum EscalationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@schema("ops")
+}
+
+enum EscalationStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  WONT_FIX
+
+  @@schema("ops")
+}
+
+enum ActorKind {
+  USER
+  AGENT
+  SYSTEM
+  API_KEY
+  WEBHOOK
+
+  @@schema("ops")
+}
+
+enum AuditSeverity {
+  INFO
+  WARN
+  ERROR
+  CRITICAL
+
+  @@schema("ops")
+}
+
+enum BrainGraphStatus {
+  PENDING       // tenant exists but no build attempted
+  BUILDING      // builder service is running
+  READY         // graph is queryable
+  FAILED        // last build failed — see lastError, retryable
+  STALE         // source docs changed since last build
+
+  @@schema("ops")
+}
+
+enum EdgeDecision {
+  APPROVED      // human verified the inferred edge is correct
+  REJECTED      // edge is wrong, hide from future queries
+  UNCERTAIN     // human reviewed but couldn't decide
+
+  @@schema("ops")
+}

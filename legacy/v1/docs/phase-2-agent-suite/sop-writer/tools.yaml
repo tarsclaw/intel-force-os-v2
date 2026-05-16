@@ -1,0 +1,39 @@
+agent: sop-writer
+version: 1.0.0
+
+required:
+  - name: filesystem
+    purpose: "Read existing SOPs + index + template; write new SOP + update index"
+    mcp_server: null
+    tools_used: [Read, Write, Edit, Bash]
+
+optional:
+  - name: slack
+    purpose: "Notify requester when SOP is ready"
+    auth:
+      type: oauth2
+      secret_ref: "secrets://{tenant_id}/slack/oauth_token"
+    enabled_when: "notifications.drafts_channel is configured"
+
+preflight_checks:
+  - name: sops-index-exists
+    description: "/vault/sops/_index.md present"
+    blocks_activation: false
+    on_fail: "Agent activates; creates index on first SOP"
+  - name: template-exists
+    description: "/vault/sops/_template.md present"
+    blocks_activation: false
+    on_fail: "Agent uses embedded template shape"
+
+telemetry:
+  emit_events:
+    - name: sop_drafted
+      properties: [sop_title, version, category, word_count]
+    - name: escalation_raised
+      properties: [code]
+
+  cost_budget_per_invocation:
+    sonnet_input_tokens_max: 12000
+    sonnet_output_tokens_max: 4000
+    alert_threshold_gbp: 0.35
+    hard_stop_threshold_gbp: 0.70

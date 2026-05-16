@@ -1,0 +1,15 @@
+/* Cosmograph attribution stub — see lib/cosmograph-style-stub.module.css for the
+   long-form version. This file lives here because Cosmograph's published bundle
+   imports `@/cosmograph/style.module.css` and our `@/` alias points at this dir. */
+.attribution {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  z-index: 10;
+}

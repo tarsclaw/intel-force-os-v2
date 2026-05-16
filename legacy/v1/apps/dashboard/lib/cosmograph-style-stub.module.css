@@ -1,0 +1,16 @@
+/* Stub for Cosmograph's missing @/cosmograph/style.module.css.
+   The package's published build references this path for the attribution
+   badge but the actual file isn't shipped. We provide an empty class so
+   the import resolves; the badge styling is handled by Cosmograph's runtime. */
+.attribution {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  z-index: 10;
+}

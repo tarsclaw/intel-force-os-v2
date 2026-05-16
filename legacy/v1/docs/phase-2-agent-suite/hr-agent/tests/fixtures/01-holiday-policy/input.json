@@ -1,0 +1,53 @@
+{
+  "_description": "Simple handbook policy question — the most common query type",
+  "tenantId": "test-tenant-acme-001",
+  "activity": {
+    "type": "message",
+    "id": "fixture-activity-001",
+    "timestamp": "2026-04-24T14:23:00Z",
+    "serviceUrl": "https://smba.trafficmanager.net/uk/",
+    "channelId": "msteams",
+    "from": {
+      "id": "aad-object-id-sarah",
+      "name": "Sarah Chen",
+      "aadObjectId": "aad-object-id-sarah"
+    },
+    "conversation": {
+      "id": "19:test-channel@thread.v2",
+      "tenantId": "test-tenant-acme-001",
+      "conversationType": "channel"
+    },
+    "recipient": {
+      "id": "bot-microsoft-app-id",
+      "name": "Intel Force OS"
+    },
+    "channelData": {
+      "tenant": { "id": "test-tenant-acme-001" },
+      "channel": { "id": "19:test-channel@thread.v2", "name": "#hr" }
+    },
+    "text": "What's the holiday carry-over policy?"
+  },
+  "tenant_config": {
+    "tenantId": "test-tenant-acme-001",
+    "customerName": "Acme Consulting Ltd",
+    "customerDomain": "acme.com",
+    "handbookKvKey": "handbook_text:test-tenant-acme-001",
+    "hrLeadAadId": "aad-object-id-hr-lead",
+    "hrLeadEmail": "hr@acme.com",
+    "approvalMode": "all",
+    "sensitivityThreshold": 0.7,
+    "channels": [],
+    "escalationChannels": {},
+    "companyTone": "Warm and professional. First names are fine.",
+    "weeklyReportEnabled": true,
+    "weeklyReportTime": "monday_09:00_BST",
+    "auditRetentionDays": 2555,
+    "piiRedactionEnabled": true,
+    "subscriptionTier": "founding",
+    "subscriptionStatus": "active",
+    "createdAt": "2026-04-24T00:00:00Z",
+    "updatedAt": "2026-04-24T00:00:00Z",
+    "version": 1
+  },
+  "handbook_excerpt": "Holiday Entitlement and Carry-Over Policy\n\nAll full-time employees are entitled to 25 days annual leave plus 8 public holidays. Part-time employees receive a pro-rated entitlement.\n\nCarry-Over: Employees may carry over a maximum of 5 days unused holiday into the following leave year. These carried-over days must be used by 31 March of the new leave year or they are forfeited. Requests to carry over more than 5 days require written approval from the HR Lead and a valid business reason.\n\nBooking: Holiday requests must be submitted via Breathe HR with a minimum of 2 weeks notice for requests up to 5 days, and 4 weeks notice for longer periods. All requests are subject to operational requirements and manager approval."
+}

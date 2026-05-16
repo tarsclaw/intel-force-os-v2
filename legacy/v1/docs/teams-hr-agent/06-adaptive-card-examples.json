@@ -1,0 +1,865 @@
+{
+  "_description": "Intel Force OS — Adaptive Card Templates",
+  "_version": "1.0.0",
+  "_notes": [
+    "These are working Adaptive Card JSON templates for Intel Force OS.",
+    "Templating syntax uses ${variable} placeholders (adaptivecards-templating library).",
+    "In src/cards/*.ts, use Template from 'adaptivecards-templating' to fill with data.",
+    "Schema version 1.5 — supported in Teams desktop, web, and mobile as of 2024+.",
+    "Test cards at: https://dev.teams.microsoft.com/tools/adaptive-cards-editor",
+    "Do NOT use custom CSS — Teams strips it. Use the schema's built-in style properties only."
+  ],
+
+  "approval_card": {
+    "_description": "Sent to HR Lead's 1:1 DM when a new HR query arrives requiring approval",
+    "_used_in": "src/cards/approval.ts -> buildApprovalCard(data)",
+    "_template_data_shape": {
+      "employeeName": "Sarah Chen",
+      "channelName": "#hr",
+      "originalMessage": "What's the holiday carry-over policy?",
+      "draftReply": "Our carry-over policy allows up to 5 days...",
+      "sensitivityLabel": "Low",
+      "sensitivityColor": "good",
+      "confidencePercent": "92",
+      "citations": [
+        { "snippet": "Holiday carry-over", "source": "handbook.pdf p.23" }
+      ],
+      "auditId": "12345",
+      "conversationId": "19:abc@thread.v2",
+      "submittedAt": "14:23"
+    },
+
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "Container",
+        "style": "emphasis",
+        "items": [
+          {
+            "type": "ColumnSet",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "👋",
+                    "size": "Large"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "**New query from ${employeeName}** in ${channelName}",
+                    "wrap": true,
+                    "spacing": "None"
+                  },
+                  {
+                    "type": "TextBlock",
+                    "text": "${submittedAt} · awaiting your approval",
+                    "isSubtle": true,
+                    "size": "Small",
+                    "spacing": "None"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**Original message**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "Container",
+        "style": "default",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${originalMessage}",
+            "wrap": true
+          }
+        ]
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**Intel Force OS draft**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "Container",
+        "style": "accent",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${draftReply}",
+            "wrap": true
+          }
+        ]
+      },
+
+      {
+        "type": "ColumnSet",
+        "spacing": "Medium",
+        "columns": [
+          {
+            "type": "Column",
+            "width": "auto",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "Sensitivity:",
+                "isSubtle": true,
+                "size": "Small"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "auto",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "●  ${sensitivityLabel}",
+                "color": "${sensitivityColor}",
+                "size": "Small",
+                "weight": "Bolder"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "Confidence ${confidencePercent}%",
+                "isSubtle": true,
+                "size": "Small",
+                "horizontalAlignment": "Right"
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "Container",
+        "$when": "${count(citations) > 0}",
+        "spacing": "Small",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "**Sources**",
+            "size": "Small",
+            "weight": "Bolder",
+            "spacing": "Small"
+          },
+          {
+            "type": "Container",
+            "$data": "${citations}",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "• ${snippet} — ${source}",
+                "size": "Small",
+                "isSubtle": true,
+                "wrap": true,
+                "spacing": "None"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+
+    "actions": [
+      {
+        "type": "Action.Submit",
+        "title": "✓ Approve",
+        "style": "positive",
+        "data": {
+          "action": "approve",
+          "auditId": "${auditId}",
+          "conversationId": "${conversationId}"
+        }
+      },
+      {
+        "type": "Action.ShowCard",
+        "title": "✎ Edit",
+        "card": {
+          "type": "AdaptiveCard",
+          "body": [
+            {
+              "type": "Input.Text",
+              "id": "editedReply",
+              "placeholder": "Edit the draft before sending...",
+              "value": "${draftReply}",
+              "isMultiline": true,
+              "style": "text"
+            }
+          ],
+          "actions": [
+            {
+              "type": "Action.Submit",
+              "title": "Send edited version",
+              "style": "positive",
+              "data": {
+                "action": "edit",
+                "auditId": "${auditId}",
+                "conversationId": "${conversationId}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "Action.Submit",
+        "title": "✗ Reject",
+        "style": "destructive",
+        "data": {
+          "action": "reject",
+          "auditId": "${auditId}",
+          "conversationId": "${conversationId}"
+        }
+      }
+    ]
+  },
+
+  "escalation_card": {
+    "_description": "Sent when the agent flags a message as requiring human attention (grievance, mental health, etc.)",
+    "_used_in": "src/cards/escalation.ts -> buildEscalationCard(data)",
+    "_template_data_shape": {
+      "employeeName": "Sarah Chen",
+      "channelName": "#hr",
+      "originalMessage": "I've been having serious issues with my manager...",
+      "category": "Interpersonal conflict",
+      "categoryEmoji": "🤝",
+      "holdingReplySent": true,
+      "holdingReplyText": "I hear you — let me make sure the right person gets this...",
+      "auditId": "12346",
+      "conversationId": "19:abc@thread.v2",
+      "submittedAt": "14:47"
+    },
+
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "Container",
+        "style": "attention",
+        "bleed": true,
+        "items": [
+          {
+            "type": "ColumnSet",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "🔔",
+                    "size": "ExtraLarge"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "**Requires your attention**",
+                    "size": "Large",
+                    "weight": "Bolder",
+                    "color": "Attention"
+                  },
+                  {
+                    "type": "TextBlock",
+                    "text": "Intel Force OS flagged this for human handling.",
+                    "wrap": true,
+                    "isSubtle": true,
+                    "spacing": "None"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "FactSet",
+        "spacing": "Medium",
+        "facts": [
+          { "title": "From", "value": "${employeeName}" },
+          { "title": "Channel", "value": "${channelName}" },
+          { "title": "Time", "value": "${submittedAt}" },
+          { "title": "Category", "value": "${categoryEmoji} ${category}" }
+        ]
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**Original message**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "Container",
+        "style": "emphasis",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "${originalMessage}",
+            "wrap": true
+          }
+        ]
+      },
+
+      {
+        "type": "Container",
+        "$when": "${holdingReplySent}",
+        "spacing": "Medium",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "**What Intel Force OS already did**",
+            "weight": "Bolder"
+          },
+          {
+            "type": "TextBlock",
+            "text": "Sent this gentle holding reply to ${employeeName} so they're not left waiting:",
+            "wrap": true,
+            "isSubtle": true,
+            "size": "Small"
+          },
+          {
+            "type": "Container",
+            "style": "default",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "_\"${holdingReplyText}\"_",
+                "wrap": true,
+                "size": "Small"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+
+    "actions": [
+      {
+        "type": "Action.Submit",
+        "title": "I'll handle this",
+        "style": "positive",
+        "data": {
+          "action": "acknowledge",
+          "auditId": "${auditId}",
+          "conversationId": "${conversationId}"
+        }
+      },
+      {
+        "type": "Action.Submit",
+        "title": "Request backup",
+        "data": {
+          "action": "request_backup",
+          "auditId": "${auditId}",
+          "conversationId": "${conversationId}"
+        }
+      }
+    ]
+  },
+
+  "weekly_report_card": {
+    "_description": "Sent Monday 09:00 via Worker cron to HR Lead DM",
+    "_used_in": "src/cards/report.ts -> buildWeeklyReportCard(data)",
+    "_template_data_shape": {
+      "customerName": "Acme Consulting Ltd",
+      "weekStartDate": "6 May",
+      "weekEndDate": "12 May",
+      "messagesHandled": 47,
+      "approvedAsIs": 32,
+      "approvedAsIsPercent": 68,
+      "edited": 10,
+      "editedPercent": 21,
+      "rejected": 2,
+      "escalated": 3,
+      "avgConfidence": "4.7",
+      "topPatterns": [
+        { "pattern": "Handbook questions", "percent": 63 },
+        { "pattern": "Sickness absence", "percent": 18 },
+        { "pattern": "Holiday requests", "percent": 12 }
+      ],
+      "thisWeekPriority": "Review sickness-policy wording — 3 edits in 2 days suggests the draft isn't landing."
+    },
+
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "Container",
+        "style": "accent",
+        "bleed": true,
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "📊 **Your Intel Force OS week**",
+            "size": "Large",
+            "weight": "Bolder"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${weekStartDate} – ${weekEndDate} · ${customerName}",
+            "isSubtle": true,
+            "spacing": "None"
+          }
+        ]
+      },
+
+      {
+        "type": "ColumnSet",
+        "spacing": "Medium",
+        "columns": [
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${messagesHandled}",
+                "size": "ExtraLarge",
+                "weight": "Bolder",
+                "horizontalAlignment": "Center"
+              },
+              {
+                "type": "TextBlock",
+                "text": "messages handled",
+                "isSubtle": true,
+                "size": "Small",
+                "horizontalAlignment": "Center",
+                "spacing": "None"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${approvedAsIsPercent}%",
+                "size": "ExtraLarge",
+                "weight": "Bolder",
+                "color": "Good",
+                "horizontalAlignment": "Center"
+              },
+              {
+                "type": "TextBlock",
+                "text": "approved as-is",
+                "isSubtle": true,
+                "size": "Small",
+                "horizontalAlignment": "Center",
+                "spacing": "None"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": "${avgConfidence}",
+                "size": "ExtraLarge",
+                "weight": "Bolder",
+                "horizontalAlignment": "Center"
+              },
+              {
+                "type": "TextBlock",
+                "text": "avg quality /5",
+                "isSubtle": true,
+                "size": "Small",
+                "horizontalAlignment": "Center",
+                "spacing": "None"
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**Breakdown**",
+        "weight": "Bolder",
+        "spacing": "Large"
+      },
+      {
+        "type": "FactSet",
+        "facts": [
+          { "title": "Approved as-is", "value": "${approvedAsIs} (${approvedAsIsPercent}%)" },
+          { "title": "Edited before send", "value": "${edited} (${editedPercent}%)" },
+          { "title": "Rejected", "value": "${rejected}" },
+          { "title": "Escalated to you", "value": "${escalated}" }
+        ]
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**What people asked about**",
+        "weight": "Bolder",
+        "spacing": "Large"
+      },
+      {
+        "type": "Container",
+        "$data": "${topPatterns}",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "• ${pattern} — ${percent}%",
+            "wrap": true,
+            "spacing": "None"
+          }
+        ]
+      },
+
+      {
+        "type": "Container",
+        "style": "warning",
+        "spacing": "Large",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "**This week's priority**",
+            "weight": "Bolder"
+          },
+          {
+            "type": "TextBlock",
+            "text": "${thisWeekPriority}",
+            "wrap": true
+          }
+        ]
+      }
+    ],
+
+    "actions": [
+      {
+        "type": "Action.OpenUrl",
+        "title": "View full history",
+        "url": "https://intelforce.ai/app/reports/${customerName}"
+      },
+      {
+        "type": "Action.Submit",
+        "title": "Reply with feedback",
+        "data": {
+          "action": "report_feedback"
+        }
+      }
+    ]
+  },
+
+  "config_card": {
+    "_description": "Self-service configuration card — HR Lead can adjust settings without Maddox",
+    "_used_in": "src/cards/config.ts -> buildConfigCard(data)",
+    "_used_when": "HR Lead types '/config' in bot DM, or clicks Settings in welcome card",
+    "_template_data_shape": {
+      "approvalMode": "all",
+      "sensitivityThreshold": 0.5,
+      "weeklyReportEnabled": true,
+      "weeklyReportTime": "monday_09:00_BST",
+      "companyTone": "Warm and professional; first names OK"
+    },
+
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "TextBlock",
+        "text": "⚙ **Intel Force OS settings**",
+        "size": "Large",
+        "weight": "Bolder"
+      },
+      {
+        "type": "TextBlock",
+        "text": "Adjust how the HR agent behaves for your team.",
+        "isSubtle": true,
+        "wrap": true,
+        "spacing": "None"
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**Approval mode**",
+        "weight": "Bolder",
+        "spacing": "Large"
+      },
+      {
+        "type": "Input.ChoiceSet",
+        "id": "approvalMode",
+        "value": "${approvalMode}",
+        "style": "expanded",
+        "choices": [
+          { "title": "All replies need my approval (recommended)", "value": "all" },
+          { "title": "Only sensitive replies need approval", "value": "sensitive_only" },
+          { "title": "Auto-send everything (not recommended)", "value": "none" }
+        ]
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**Company tone**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "TextBlock",
+        "text": "Describe how you want replies to sound.",
+        "isSubtle": true,
+        "size": "Small",
+        "spacing": "None"
+      },
+      {
+        "type": "Input.Text",
+        "id": "companyTone",
+        "value": "${companyTone}",
+        "isMultiline": true,
+        "placeholder": "e.g. Warm and professional; first names are fine; avoid jargon"
+      },
+
+      {
+        "type": "TextBlock",
+        "text": "**Weekly report**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "Input.Toggle",
+        "id": "weeklyReportEnabled",
+        "title": "Send me a weekly summary",
+        "value": "${string(weeklyReportEnabled)}",
+        "valueOn": "true",
+        "valueOff": "false"
+      }
+    ],
+
+    "actions": [
+      {
+        "type": "Action.Submit",
+        "title": "Save settings",
+        "style": "positive",
+        "data": { "action": "save_config" }
+      },
+      {
+        "type": "Action.Submit",
+        "title": "Cancel",
+        "data": { "action": "cancel_config" }
+      }
+    ]
+  },
+
+  "error_card": {
+    "_description": "Sent when something fails and we need to tell the user gracefully",
+    "_used_in": "src/cards/error.ts -> buildErrorCard(data)",
+    "_template_data_shape": {
+      "errorTitle": "I couldn't process that message",
+      "errorExplanation": "The AI backend is temporarily unavailable. I've flagged this to Maddox and it should be resolved within the hour.",
+      "whatNext": "I'll retry automatically once I'm back up. You don't need to do anything.",
+      "referenceId": "err_abc123"
+    },
+
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "Container",
+        "style": "warning",
+        "bleed": true,
+        "items": [
+          {
+            "type": "ColumnSet",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "auto",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "⚠",
+                    "size": "Large"
+                  }
+                ]
+              },
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "text": "${errorTitle}",
+                    "weight": "Bolder",
+                    "wrap": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TextBlock",
+        "text": "${errorExplanation}",
+        "wrap": true,
+        "spacing": "Medium"
+      },
+      {
+        "type": "TextBlock",
+        "text": "**What happens next**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "TextBlock",
+        "text": "${whatNext}",
+        "wrap": true
+      },
+      {
+        "type": "TextBlock",
+        "text": "Reference: ${referenceId}",
+        "isSubtle": true,
+        "size": "Small",
+        "spacing": "Medium"
+      }
+    ],
+
+    "actions": [
+      {
+        "type": "Action.OpenUrl",
+        "title": "Contact support",
+        "url": "https://intelforce.ai/support?ref=${referenceId}"
+      }
+    ]
+  },
+
+  "welcome_card": {
+    "_description": "First message the bot sends when HR Lead installs Intel Force OS",
+    "_used_in": "src/cards/welcome.ts -> buildWelcomeCard(data)",
+    "_used_when": "conversationUpdate activity fires with bot added to 1:1 chat",
+    "_template_data_shape": {
+      "hrLeadFirstName": "Sarah"
+    },
+
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.5",
+    "body": [
+      {
+        "type": "Container",
+        "style": "accent",
+        "bleed": true,
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": "👋 **Hi ${hrLeadFirstName} — I'm Intel Force OS.**",
+            "size": "Large",
+            "weight": "Bolder",
+            "wrap": true
+          }
+        ]
+      },
+      {
+        "type": "TextBlock",
+        "text": "I'll watch the HR channel you point me at, draft every reply, and flag anything sensitive. **Nothing goes out without you approving it.**",
+        "wrap": true,
+        "spacing": "Medium"
+      },
+      {
+        "type": "TextBlock",
+        "text": "**Here's how I'll show up in your day**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "TextBlock",
+        "text": "• When someone asks an HR question, you'll get a card here with my draft and **Approve / Edit / Reject** buttons.\n\n• Sensitive stuff (grievances, mental health, resignation) gets flagged **in red** so you can't miss it.\n\n• Every Monday at 9am you'll get a summary of last week.",
+        "wrap": true
+      },
+      {
+        "type": "TextBlock",
+        "text": "**Commands I respond to**",
+        "weight": "Bolder",
+        "spacing": "Medium"
+      },
+      {
+        "type": "TextBlock",
+        "text": "• `/status` — what's pending my approval right now\n• `/report` — pull last week's summary on demand\n• `/config` — adjust how I behave\n• `/help` — full command list",
+        "wrap": true
+      }
+    ],
+    "actions": [
+      {
+        "type": "Action.Submit",
+        "title": "Run setup walkthrough",
+        "style": "positive",
+        "data": { "action": "start_setup" }
+      },
+      {
+        "type": "Action.OpenUrl",
+        "title": "Read the quickstart",
+        "url": "https://intelforce.ai/docs/quickstart"
+      }
+    ]
+  },
+
+  "_rendering_notes": {
+    "container_styles": {
+      "default": "Plain — no background",
+      "emphasis": "Subtle grey background — good for quoting user input",
+      "accent": "Branded accent colour background — good for AI-generated content",
+      "good": "Green — positive confirmations",
+      "warning": "Amber — cautions, settings to review",
+      "attention": "Red — escalations, errors"
+    },
+    "text_colors": {
+      "default": "Default",
+      "accent": "Accent",
+      "good": "Good (green)",
+      "warning": "Warning (amber)",
+      "attention": "Attention (red)",
+      "dark": "Dark — high contrast",
+      "light": "Light — reduced contrast"
+    },
+    "sensitivity_color_mapping": {
+      "0.0-0.3": "good (green dot) — safe to auto-respond if approval mode allows",
+      "0.3-0.7": "warning (amber dot) — approval recommended",
+      "0.7-1.0": "attention (red dot) — always escalate, draft is holding-reply-only"
+    },
+    "teams_client_quirks": [
+      "Mobile Teams truncates very long TextBlocks — keep drafts under ~500 chars or the card looks cramped",
+      "Dark mode is automatic in Teams — design against light mode, test against both",
+      "Emoji render reliably across clients (desktop, web, iOS, Android)",
+      "Image URLs must be on validDomains list in manifest, else blocked",
+      "Action.ShowCard is NOT supported in message extensions — only in bot cards (which is what we use)",
+      "Max card size: ~28KB of JSON after serialisation — well within limits for HR content"
+    ]
+  }
+}

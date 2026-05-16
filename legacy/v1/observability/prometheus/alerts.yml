@@ -1,0 +1,63 @@
+groups:
+  - name: intel-force-os-alerts
+    interval: 1m
+    rules:
+
+      # ─── Escalation alerts ──────────────────────────────────────────────────
+
+      - alert: HighOpenEscalations
+        expr: intelforce_open_escalations_total > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of open escalations ({{ $value }})"
+          description: "More than 10 escalations are open across the platform."
+
+      - alert: CriticalEscalation
+        expr: intelforce_escalation_severity{severity="CRITICAL"} > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical escalation raised"
+          description: "A CRITICAL escalation has been raised for tenant {{ $labels.tenant_id }}."
+
+      # ─── Worker health ───────────────────────────────────────────────────────
+
+      - alert: WorkerErrorRateHigh
+        expr: rate(intelforce_worker_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Worker error rate elevated ({{ $value | humanizePercentage }})"
+
+      # ─── Cost budget ─────────────────────────────────────────────────────────
+
+      - alert: TenantBudgetExceeded
+        expr: intelforce_tenant_spend_gbp / intelforce_tenant_budget_gbp > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tenant {{ $labels.tenant_id }} at {{ $value | humanizePercentage }} of budget"
+
+      # ─── Database ────────────────────────────────────────────────────────────
+
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Postgres is down"
+          description: "The Postgres cluster is unreachable."
+
+      - alert: PostgresReplicationLag
+        expr: pg_replication_lag_seconds > 30
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres replication lag {{ $value }}s"

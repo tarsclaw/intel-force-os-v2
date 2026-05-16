@@ -1,0 +1,53 @@
+# Vector configuration — ships logs to Loki
+# Per docs/phase-3-platform/observability/observability-spec.md
+
+[sources.docker_logs]
+  type = "docker_logs"
+  # Capture logs from all Intel Force OS containers
+  include_containers = [
+    "intelforce-*",
+    "intel-force-*",
+  ]
+
+[sources.syslog]
+  type = "file"
+  include = ["/var/log/syslog"]
+  read_from = "beginning"
+
+# ─── Transform: add standard labels ──────────────────────────────────────────
+
+[transforms.add_labels]
+  type = "remap"
+  inputs = ["docker_logs"]
+  source = '''
+    # Extract tenant_id from structured log fields if present
+    .labels.environment = get_env_var!("ENVIRONMENT", default: "production")
+    .labels.product = "intel-force-os"
+
+    if exists(.tenant_id) {
+      .labels.tenant_id = string!(.tenant_id)
+    }
+    if exists(.agent) {
+      .labels.agent = string!(.agent)
+    }
+
+    # Redact potential secrets from log lines
+    .message = replace(string!(.message), r'Bearer [A-Za-z0-9\-_.]+', "Bearer [REDACTED]")
+    .message = replace(.message, r'sk_live_[A-Za-z0-9_]+', "sk_live_[REDACTED]")
+    .message = replace(.message, r'intel_live_[A-Za-z0-9_]+', "intel_live_[REDACTED]")
+  '''
+
+# ─── Sink: Loki ──────────────────────────────────────────────────────────────
+
+[sinks.loki]
+  type = "loki"
+  inputs = ["add_labels"]
+  endpoint = "http://loki:3100"
+  encoding.codec = "json"
+
+  [sinks.loki.labels]
+    environment = "{{ labels.environment }}"
+    product = "intel-force-os"
+    tenant_id = "{{ labels.tenant_id }}"
+    agent = "{{ labels.agent }}"
+    source = "{{ source_type }}"

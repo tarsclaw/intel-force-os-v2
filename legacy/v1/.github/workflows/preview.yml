@@ -1,0 +1,59 @@
+name: Preview Deploy
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: deploy-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Typecheck → Test → Preview Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Deploy preview Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: deploy --env preview
+
+      - name: Post preview URL to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## Preview deployed ✅',
+                '',
+                'Health check: https://intel-force-os-bot-preview.${{ secrets.CF_ACCOUNT_ID }}.workers.dev/health',
+                '',
+                '_This preview deploys to the `preview` Worker environment and uses the preview KV/D1 bindings._',
+              ].join('\n')
+            })

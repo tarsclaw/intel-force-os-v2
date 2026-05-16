@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/repurposer/v1.0.0.json",
+  "title": "Repurposer — Tenant Configuration",
+  "type": "object",
+  "required": ["client", "vault", "platforms"],
+  "additionalProperties": false,
+  "properties": {
+    "client": { "$ref": "common-client.json" },
+    "vault": {
+      "type": "object",
+      "properties": {
+        "social_output_path": { "type": "string", "default": "/vault/content/social" },
+        "email_output_path": { "type": "string", "default": "/vault/content/email" },
+        "short_form_retrieval_tag": { "type": "string", "default": "short-form-high-performing" }
+      }
+    },
+    "platforms": {
+      "type": "object",
+      "description": "Which platforms to produce derivatives for per long-form",
+      "properties": {
+        "linkedin": { "type": "boolean", "default": true },
+        "instagram": { "type": "boolean", "default": true },
+        "twitter": { "type": "boolean", "default": false },
+        "email": { "type": "boolean", "default": true },
+        "include_thread_when_applicable": { "type": "boolean", "default": false }
+      }
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "min_source_word_count": { "type": "integer", "default": 600 },
+        "platform_voice_overrides_path": { "type": "string", "default": "/vault/brand/platform-voice-overrides.md" }
+      }
+    }
+  }
+}

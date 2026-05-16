@@ -1,0 +1,65 @@
+# Universal banned phrases — enforced by hh_check_banned_phrases on every agent output.
+# Case-insensitive. One phrase per line. Lines starting with # are comments.
+#
+# These are "AI tells" — phrases so strongly associated with generic AI writing
+# that they undermine any claim to voice-matched output. Client-specific bans
+# live in /vault/brand/voice-profile.md §5 and are checked separately.
+
+# --- Opening clichés ---
+In today's fast-paced world
+In the ever-evolving landscape
+In the digital age
+Now more than ever
+In an increasingly competitive market
+
+# --- Buzzwords ---
+cutting-edge solution
+revolutionise your
+revolutionize your
+game-changing
+synergis
+leverage our
+leverage the power of
+best-in-class
+state-of-the-art
+next-generation
+industry-leading
+world-class
+
+# --- Filler phrases ---
+It's worth noting that
+It's important to note that
+It should be mentioned that
+That being said
+At the end of the day
+Let's dive in
+Let's get started
+Buckle up
+
+# --- Overused AI sign-offs ---
+We are excited to
+Thank you for the opportunity
+Don't hesitate to reach out
+Feel free to reach out
+Please don't hesitate
+
+# --- Marketing vomit ---
+Unleash the power of
+Unlock the potential
+Elevate your
+Transform your business
+Empower your team
+Supercharge your
+Accelerate your journey
+
+# --- Specific AI tics ---
+delve into
+tapestry of
+realm of
+landscape of
+intricate
+multifaceted
+comprehensive overview
+holistic approach
+paradigm shift
+thought leader

@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://intelforce.ai/schemas/agents/hr-agent/v1.0.0.json",
+  "title": "HR Agent — Tenant Configuration",
+  "description": "Per-tenant configuration collected during onboarding to provision the Intel Force OS HR agent.",
+  "type": "object",
+  "required": ["client", "hr_lead", "behaviour", "handbook", "notifications"],
+  "additionalProperties": false,
+  "properties": {
+
+    "client": {
+      "type": "object",
+      "required": ["tenant_id", "name", "domain"],
+      "properties": {
+        "tenant_id":      { "type": "string", "description": "Microsoft 365 tenant GUID" },
+        "name":           { "type": "string", "description": "Company trading name" },
+        "domain":         { "type": "string", "description": "Primary email domain, e.g. acme.com" },
+        "industry":       { "type": "string", "description": "Industry sector (for tone calibration)" },
+        "employee_count": { "type": "integer", "description": "Approximate headcount" },
+        "timezone":       { "type": "string", "default": "Europe/London" }
+      }
+    },
+
+    "hr_lead": {
+      "type": "object",
+      "required": ["aad_object_id", "email"],
+      "properties": {
+        "aad_object_id":        { "type": "string", "description": "Entra ID object ID of the HR Lead" },
+        "email":                { "type": "string", "format": "email" },
+        "backup_aad_object_id": { "type": "string", "description": "Backup HR Lead for escalation routing" }
+      }
+    },
+
+    "behaviour": {
+      "type": "object",
+      "required": ["approval_mode", "sensitivity_threshold", "company_tone"],
+      "properties": {
+        "approval_mode": {
+          "type": "string",
+          "enum": ["all", "sensitive_only", "none"],
+          "default": "all",
+          "description": "all: every draft requires approval. sensitive_only: only score >= threshold. none: auto-send (not recommended)."
+        },
+        "sensitivity_threshold": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.7,
+          "description": "Queries at or above this score are escalated to the HR Lead without a draft."
+        },
+        "company_tone": {
+          "type": "string",
+          "description": "Free text description of the company's communication style. Passed directly to the agent prompt.",
+          "examples": ["Warm and professional. First names are fine. Avoid corporate jargon."]
+        },
+        "channels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Teams channel IDs the bot should respond in. Leave empty to respond everywhere."
+        },
+        "weekly_report_enabled": { "type": "boolean", "default": true },
+        "weekly_report_time":    { "type": "string", "default": "monday_09:00_BST" }
+      }
+    },
+
+    "handbook": {
+      "type": "object",
+      "required": ["kv_key"],
+      "properties": {
+        "kv_key": {
+          "type": "string",
+          "description": "Cloudflare KV key where the handbook text is stored, e.g. handbook_text:{tenant_id}",
+          "pattern": "^handbook_text:"
+        }
+      }
+    },
+
+    "notifications": {
+      "type": "object",
+      "properties": {
+        "escalation_email": {
+          "type": "string",
+          "format": "email",
+          "description": "Fallback email for escalations if Teams is unavailable"
+        }
+      }
+    },
+
+    "compliance": {
+      "type": "object",
+      "properties": {
+        "audit_retention_days": {
+          "type": "integer",
+          "default": 2555,
+          "description": "Days to retain audit log entries (2555 = 7 years, per standard HR record-keeping)"
+        },
+        "pii_redaction_enabled": { "type": "boolean", "default": true }
+      }
+    },
+
+    "subscription": {
+      "type": "object",
+      "required": ["tier", "status"],
+      "properties": {
+        "tier":   { "type": "string", "enum": ["founding", "starter", "growth", "scale", "enterprise"] },
+        "status": { "type": "string", "enum": ["active", "suspended", "cancelled"] }
+      }
+    }
+  }
+}

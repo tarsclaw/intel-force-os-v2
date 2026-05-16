@@ -1,0 +1,32 @@
+{
+  "fixture_name": "01-nightly-sweep",
+  "description": "Routine nightly run for the Meadow Lane Dental tenant after a busy day. Agent should produce a daily rollup, index new files, flag one SOP past its verify deadline, and note an archive candidate.",
+  "trigger_source": "scheduled-cron",
+  "triggered_at": "2026-06-12T04:00:00Z",
+  "tenant_snapshot": {
+    "vault_total_files": 284,
+    "disk_usage_mb": 47,
+    "plan_allowance_mb": 20000,
+    "disk_pct": 0.2,
+    "pgvector_rows_current": 1742
+  },
+  "recent_changes_24h": [
+    "NEW /vault/clients/_prospects/2026-06-11-prospect-list.md (lead-hunter@1.0.0)",
+    "NEW /vault/content/long-form/2026-06-11-how-we-measure-a-good-month.md (content-creator@1.0.0)",
+    "NEW /vault/content/social/2026-06-11-how-we-measure-a-good-month-linkedin.md (repurposer@1.0.0)",
+    "NEW /vault/content/social/2026-06-11-how-we-measure-a-good-month-instagram.md (repurposer@1.0.0)",
+    "NEW /vault/content/email/2026-06-11-how-we-measure-a-good-month-email.md (repurposer@1.0.0)",
+    "MODIFIED /vault/clients/meadowlane-dental/00-context.md (human edit — Priya added two notes about patient preferences)",
+    "NEW /vault/clients/willowfamilydentistry/proposals/2026-06-11-willowfamilydentistry-v1.md (proposal-builder@1.0.0)",
+    "NEW /vault/clients/willowfamilydentistry/00-context.md (client-onboarder@1.0.0 — after Won stage move yesterday)"
+  ],
+  "expected_behaviour": {
+    "indexes_7_new_files": true,
+    "re_indexes_1_modified_file": true,
+    "flags_sop_past_verify": "04-voice-receptionist-emergency-escalation (verified 2026-03-10, 90-day deadline passed)",
+    "notes_archive_candidate": "/vault/clients/_prospects/2026-03-13-prospect-list.md (91 days old, no retrieval hits)",
+    "writes_daily_rollup": "/vault/daily/2026-06-12.md",
+    "writes_findings": "/outbox/librarian/2026-06-12-findings.md",
+    "expected_escalations": "none"
+  }
+}

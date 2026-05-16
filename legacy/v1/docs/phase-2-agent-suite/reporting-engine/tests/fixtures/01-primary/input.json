@@ -1,0 +1,26 @@
+{
+  "fixture_name": "01-meadowlane-dental-month-1",
+  "description": "First monthly report for Meadow Lane Dental after their Growth-tier engagement started 2026-05-02. Report covers period 2026-05-02 to 2026-05-31. Client tenure ~30 days (just over threshold). Agent should produce a clean first-month report with deliverables mapped to commitments, early KPI movement, and honest framing of baseline-establishment phase.",
+  "trigger_source": "monthly-cron",
+  "triggered_at": "2026-06-01T06:00:00Z",
+  "client_slug": "meadowlane-dental",
+  "report_type": "monthly",
+  "period_start": "2026-05-02",
+  "period_end": "2026-05-31",
+  "hubspot_metrics": "Enquiries (from ads + organic): 78 (baseline was 80 for April). Booked consultations: 34 (baseline 26). Enquiry→consultation conversion: 43.6% (baseline 32.5%). Deal value booked: £14,200 (baseline £9,800).",
+  "ga4_metrics": "Sessions: 4,241 (up from 3,986). Long-form page views (first piece published 2026-05-22): 412. Average time on long-form page: 3:42. Contact page conversions: 52 (baseline 48).",
+  "stripe_metrics": "Not configured for this tenant (dental practice, not SaaS).",
+  "data_source_status": {
+    "hubspot": "full",
+    "ga4": "full",
+    "stripe": "not_configured",
+    "vault": "full"
+  },
+  "expected_behaviour": {
+    "maps_commitments_to_delivery": true,
+    "flags_month_1_baseline_phase": true,
+    "reports_specific_numbers_not_hedged": true,
+    "mentions_improvement_but_with_sample_size_caveat": true,
+    "expected_escalations": "none — good month, no underperformance"
+  }
+}
