@@ -1,88 +1,110 @@
-# Intel Force OS v2 (cortextOS-based)
+# Intel Force OS v2 — Claude Code Instructions
 
-**Loaded by Claude Code at the start of every session. Read first.**
+**Loaded by Claude Code at the start of every session. Read this first, then the master brief.**
 
----
+## Reading order — do this at the start of every session
 
-## What this codebase is
+1. **This file** (you are here)
+2. **`docs/build-brief/00-MASTER-BRIEF.md`** — the operative one-stop brief, in full
+3. **`docs/specs/PRODUCT-SPEC.md`** — what we are building (§0–§4 and §10 minimum)
+4. **`docs/specs/ULTRAPLAN.md`** — how, in what order (§1, §3, §4, §9, §11 minimum)
+5. **`.agents/current-priorities.md`** — what we're doing today
 
-The v2 of Intel Force OS, built on top of **cortextOS** (`github.com/grandamenium/cortextos`) — an agentic harness for persistent 24/7 Claude Code agents. The product layer (dashboard, agents, governance, brand) is lifted selectively from Intel Force OS v1. The memory subsystem replaces cortextOS's stock `mmrag.py` knowledge base with an Obsidian-style wiki + graphify second brain.
+The build pack at `docs/_archive-build-pack/` is historical reference only. The master brief wins on every conflict.
 
-**Stage:** scaffold + build pack only. Phase 0 has not started.
+## What this is
 
----
+Recruitment-operations product for UK agencies, built on cortextOS. Multi-tenant. 18 agents at full strength, 6 in v1.0. Obsidian-style wiki + graph second brain replaces the stock cortextOS knowledge base behind the four `bus/kb-*.sh` shell entrypoints (master brief §5).
 
-## Canonical paths (this machine)
+## Instance scoping — CRITICAL
+
+This repo runs against a fully isolated IFOS cortextOS instance. It is NOT the founder's personal cortextOS install. Two separate binaries, two separate state dirs, two separate daemons.
+
+| Resource | IFOS value | Personal install (DO NOT TOUCH) |
+|---|---|---|
+| Runtime source | `~/code/cortex-os-ifos/` | `~/cortextos/` |
+| Binary on PATH | `cortextos-ifos` | `cortextos` |
+| `CTX_INSTANCE_ID` | `ifos-v2` | `default` |
+| `CTX_ROOT` | `~/.cortextos/ifos-v2/` | `~/.cortextos/default/` |
+| Dashboard port | `3100` | `3000` |
+| PM2 process prefix | `ifos-*` (when created) | `cortextos-*` |
+
+The env vars come from `.envrc` in the repo root. Verify with `echo $CTX_INSTANCE_ID` — must print `ifos-v2`. If it doesn't, source `.envrc` again before running any cortextos-related command.
+
+**Never run `cortextos` (without `-ifos`) inside this repo. That command targets the personal install. Use `cortextos-ifos` or the `ifosctl` alias.**
+
+There is a safety wrapper `ifosctl-install` that always passes `--instance ifos-v2` to the install command, because cortextOS v0.1.1 has a bug where `install` ignores `CTX_INSTANCE_ID` (see `.agents/learnings/00-cortextos-quirks.md` item 1).
+
+## The five rules — NON-NEGOTIABLE
+
+1. Output before architecture
+2. Schema before code
+3. Reuse before build
+4. Quality gates before features
+5. Honest signal before optimistic projection
+
+Full statement of each rule is in `docs/build-brief/00-MASTER-BRIEF.md` §1.
+
+## The four boundaries
+
+1. **Submodule boundary** — never edit `packages/harness/cortextos/*` except the four `bus/kb-*.sh` files we shadow via `packages/brain/bus-overrides/`. The submodule is a reference pin, not the runtime.
+2. **Adapter boundary** — never reference Composio or AgentMail in `agent.md`, `tools.yaml`, vault files, or fixtures.
+3. **Vault/Postgres split** — markdown in vault, structured state in Postgres, pgvector indexes over both.
+4. **Brain-replacement boundary** — only the four `bus/kb-*.sh` shadow points, nothing else in cortextOS gets touched.
+
+Full detail in master brief §3.
+
+## Canonical paths
 
 | What | Path |
 |---|---|
-| **v2 codebase (this one)** | `/Users/madsadmin/code/CortexOS/` |
-| **The build pack** | `/Users/madsadmin/code/CortexOS/docs/build-pack/` |
-| **v1 codebase** (alive, do not modify) | `/Users/madsadmin/code/intel-force-os/` |
-| **cortextOS upstream** (read-only reference) | `/Users/madsadmin/code/cortex-os-upstream/` |
-| **v1 marketing site** (alive, do not modify) | `/Users/madsadmin/Projects/proposal-video-generator/Intelforce Website/` |
-
-## Canonical remotes (GitHub, private)
-
-| Repo | URL | Purpose |
-|---|---|---|
-| **v2 (this)** | https://github.com/tarsclaw/intel-force-os-v2 | The new build. Build pack + scaffolds. |
-| **v1 (reference)** | https://github.com/tarsclaw/intel-force-os | Source of inheritance. Read-only from v2's perspective. |
-| **cortextOS upstream** | https://github.com/grandamenium/cortextos | Public. Vendor into `packages/harness/cortextos/` at a pinned SHA. |
-
----
-
-## Where to start
-
-Read in order:
-
-1. `docs/build-pack/README.md` — orientation
-2. `docs/build-pack/01-RECOMMENDATION.md` — the strategic call
-3. `docs/build-pack/02-PRODUCT-VISION.md` — what v2 is
-4. `docs/build-pack/09-CLAUDE-CODE-UTILITY.md` — how to leverage Claude Code for this build
-5. `docs/build-pack/03-ARCHITECTURE.md` — stack + monorepo + cortextOS integration
-6. `docs/build-pack/04-DATA-MODEL.md` — Prisma + graph + vault
-7. `docs/build-pack/05-MIGRATION-MAP.md` — what lifts from v1, where
-8. `docs/build-pack/06-BUILD-PLAN.md` — phased slices
-9. `docs/build-pack/07-V1-INHERITED-CONTEXT.md` — inherited product knowledge
-10. `docs/build-pack/08-OPEN-DECISIONS.md` — what the founder must decide before Phase 0
-
-The pack is the only context required. v1 and cortextOS source are available for grep when the pack points at them.
-
----
-
-## Conventions (will be enforced as the codebase grows)
-
-- TypeScript strict everywhere
-- pnpm workspaces
-- One phase at a time. One slice at a time.
-- Commit per slice with conventional-commit prefix.
-- Codex review at every phase boundary (see build-pack §09 §10 and §06).
-
----
-
-## Never (red lines)
-
-- Don't modify `packages/harness/cortextos/*` except the four `bus/kb-*.sh` overrides documented in `docs/build-pack/05-MIGRATION-MAP.md` §2.2
-- Don't modify v1 at `/Users/madsadmin/code/intel-force-os/`
-- Don't modify cortextOS upstream at `/Users/madsadmin/code/cortex-os-upstream/`
-- Don't add features without a corresponding slice in `docs/build-pack/06-BUILD-PLAN.md`
-- Don't skip Codex ratification at phase boundaries
-- Don't relitigate inherited product context (`docs/build-pack/07-V1-INHERITED-CONTEXT.md` is canon)
-
----
+| IFOS product repo (this) | `~/code/CortexOS/` |
+| IFOS cortextOS runtime | `~/code/cortex-os-ifos/` |
+| cortextOS reference pin (submodule) | `~/code/CortexOS/packages/harness/cortextos/` |
+| v1 codebase (alive, no modify) | `~/code/intel-force-os/` |
 
 ## Current state
 
-**Phase:** pre-Phase-0. Founder must resolve `docs/build-pack/08-OPEN-DECISIONS.md` §§2, 3, 4, 6, 7, 8 before Phase 0 can start.
+**Phase:** pre-Phase-0. The Week 0 checklist (master brief §6) must clear before any agent code.
+**Today:** see `.agents/current-priorities.md`.
 
-**Next slice:** Phase 0 §P0.S1 — monorepo scaffold (`docs/build-pack/06-BUILD-PLAN.md`).
+## Session-start ritual — DO THIS EVERY SESSION
 
----
+1. Read this file
+2. Verify `.envrc` is loaded: `echo $CTX_INSTANCE_ID` must print `ifos-v2`. If it doesn't, stop and tell the founder.
+3. Read `docs/build-brief/00-MASTER-BRIEF.md` §1, §3, §6, §8, §10 in full
+4. Confirm in your response:
+   a. You can list the five rules
+   b. You understand the four boundaries
+   c. You understand the agent bundle v2 pattern (6 files + 3 fixtures)
+   d. You understand the Codex ratification loop
+   e. You know the IFOS binary is `cortextos-ifos`, NOT `cortextos`
+5. Read `.agents/current-priorities.md`
+6. Propose today's concrete plan
+7. **Wait for the founder to confirm before writing any code.**
+
+## Session-end ritual — DO THIS BEFORE EVERY COMMIT
+
+1. Update `.agents/current-priorities.md` — what shipped, what's stuck, what changed
+2. Update `docs/RISK-REGISTER.md` if anything new emerged
+3. List anything queued for Codex ratification
+4. Commit with a conventional-commit message
 
 ## On being stuck
 
-1. Check `docs/build-pack/08-OPEN-DECISIONS.md` — is this an open decision?
-2. Check `docs/build-pack/05-MIGRATION-MAP.md` — is there a v1 file that solves this?
-3. Check `~/.claude/skills/wiki-brain/SKILL.md` and `~/.claude/skills/graphify/SKILL.md` if the question is brain-related
-4. Ask the founder. Don't guess.
+1. Re-read the relevant master brief section
+2. Check `.agents/learnings/` for prior solutions — start with `00-cortextos-quirks.md`
+3. Check `docs/decisions/` for prior decisions on the same question
+4. Ask the founder. Do not guess.
+
+## Red lines — never
+
+- Don't modify `packages/harness/cortextos/*` except the four `bus/kb-*.sh` shadow points
+- Don't run `cortextos` (without `-ifos`) inside this repo — that's the personal install
+- Don't modify `~/cortextos/` or `~/.cortextos/default/` — those are the personal install
+- Don't run `cortextos-ifos install` without `--instance ifos-v2` (or via the `ifosctl-install` wrapper)
+- Don't modify v1 at `~/code/intel-force-os/`
+- Don't add features without a corresponding slice in master brief §6 or §8
+- Don't skip Codex ratification for any artefact listed in master brief §10.5
+- Don't relitigate the master brief without writing the disagreement to `docs/decisions/`
+- Don't write agent code until Week 0 is cleared (master brief §6 Day 7 test passes five-of-five)
