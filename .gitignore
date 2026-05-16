@@ -24,3 +24,4 @@ out/
 **/.env.local
 **/.env.*.local
 legacy/**/.env*
+.envrc

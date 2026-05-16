@@ -1,0 +1,8 @@
+# Template — copy to .envrc and adjust paths for your machine.
+export CTX_INSTANCE_ID="ifos-v2"
+export CTX_ROOT="$HOME/.cortextos/ifos-v2"
+export IFOS_HARNESS_ROOT="$HOME/code/cortex-os-ifos"
+export IFOS_REPO_ROOT="$HOME/code/CortexOS"
+export IFOS_DASHBOARD_PORT="3100"
+export IFOS_HUD_PORT="3101"
+alias ifosctl="cortextos-ifos"
