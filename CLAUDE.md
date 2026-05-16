@@ -22,6 +22,14 @@ The v2 of Intel Force OS, built on top of **cortextOS** (`github.com/grandameniu
 | **cortextOS upstream** (read-only reference) | `/Users/madsadmin/code/cortex-os-upstream/` |
 | **v1 marketing site** (alive, do not modify) | `/Users/madsadmin/Projects/proposal-video-generator/Intelforce Website/` |
 
+## Canonical remotes (GitHub, private)
+
+| Repo | URL | Purpose |
+|---|---|---|
+| **v2 (this)** | https://github.com/tarsclaw/intel-force-os-v2 | The new build. Build pack + scaffolds. |
+| **v1 (reference)** | https://github.com/tarsclaw/intel-force-os | Source of inheritance. Read-only from v2's perspective. |
+| **cortextOS upstream** | https://github.com/grandamenium/cortextos | Public. Vendor into `packages/harness/cortextos/` at a pinned SHA. |
+
 ---
 
 ## Where to start
