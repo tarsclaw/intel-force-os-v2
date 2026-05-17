@@ -1,7 +1,8 @@
 # Current priorities
 
 **Week:** Week 0 (pre-build)
-**Today's task:** Day 4 — Hetzner UK VPS + Postgres 16 + LUKS + RLS isolation test per master brief §6 Day 4 (with **four** consolidated tightenings — see Open)
+**Today's task:** Day 5 — auto-send safety policy + v1.0 kill criterion per master brief §6 Day 5 (with Day-2 + Day-3 carry-forwards — see Open)
+**Most recent close:** Day 4 — Hetzner NBG1 VPS + LUKS + Postgres 16 + RLS gate passed (executed 2026-05-17, see Shipped)
 
 ## This week's gate
 
@@ -10,15 +11,17 @@ Clear all seven days of master brief §6 by Sunday. Five-of-five yeses on the
 
 ## Open
 
-- [ ] Day 4: Hetzner UK VPS + Postgres 16 + LUKS + RLS isolation test per master brief §6 Day 4. **Four consolidated tightenings** per `sequencing-target.md` §6.5 + `vault-concurrency.md` §7 Bucket 3:
-  - **Postgres table list:** `tenants`, `entities`, `entity_links`, `decision_log`, `tenant_eval_sets`, `tenant_adapters` (split from `entity_graph` per ADR-002 Edit 3)
-  - **`_secrets.env` vault provisioning** in `provision-tenant.sh` skeleton per ADR-003 design §3.3 spec gap §2.1-C (mode `0600`, owned by `ifos-tenant-{slug}`)
-  - **`decision_log.phase` enum extension** per `sequencing-target.md` §5-A: `ALTER TABLE decision_log ADD CONSTRAINT decision_log_phase_check CHECK (phase IN ('trigger', 'output', 'action', 'gating_failed', 'agent_handoff'))`
-  - **`entities.version` column** per `vault-concurrency.md` §3.1 + §7 Bucket 3 (NEW): `ALTER TABLE entities ADD COLUMN version INT NOT NULL DEFAULT 0` — required for Postgres optimistic-concurrency mechanism per `wiki/lib/concurrency.ts` Week-1-2 implementation
-  - **RLS test:** two synthetic tenant roles attempt to read each other's data; kernel-stops-cross-tenant test passes per master brief §6 Day 4 line 479
 - [ ] Day 5: auto-send safety policy + kill criterion. **Day 2 carry-forward:** Concierge's Bullhorn Note auto-send is the sensitive surface (per `bullhorn-integration-path.md` §4.1 + §6.3). **Day 3 carry-forward:** v1.0 kill criterion must reference `sequencing-target.md` §6.6 three failure conditions (Diagnostic doesn't render W3; Janitor Bullhorn auth fails W5; 2× scope-cut activations)
 - [ ] Day 6: vertical schema v0.1 (`docs/verticals/recruitment/vertical-schema.yaml`) — 8 core entities per master brief §6 Day 6 line 490
 - [ ] Day 7: single-sentence test review + first Codex ratification run
+
+## Operational debts from Day 4 (non-blocking, retrieve when convenient)
+
+Three founder actions deferred from Day 4 close. None block Day 5-7 work. **One is high-priority** (LUKS new-passphrase retrieval before next reboot).
+
+- **(high-priority)** **LUKS new-passphrase retrieval** — `sudo cat /root/.new_luks_passphrase.tmp` → overwrite leaked value in 1Password "IFOS LUKS passphrase" → `sudo rm /root/.new_luks_passphrase.tmp`. **Must be done before next reboot** — without 1Password update, `ifos-unlock` invocations fail because old passphrase already invalidated by Day-4 §11 rotation. Outside `/vault` so recoverable from locked state.
+- **ifos_app password retrieval** — `sudo cat /vault/.ifos_app_password.tmp` → save to 1Password "IFOS Postgres ifos_app — production" → `sudo rm`. Not compromised (generated on VPS via Path D, never entered chat context). Any time before agent code starts referencing the password.
+- **Hetzner Console snapshot** — Take Snapshot of `ifos-v2-prod-01` labelled `day-4-clean-verified-2026-05-17`. Not blocking — Hetzner weekly auto-backups already enabled. Founder click action.
 
 ## Founder commercial conversations queued (Sunday/Monday)
 
@@ -28,7 +31,48 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Bullhorn developer support** (via `developer.bullhorn.com` portal contact or partnerships rep) — Sub-decision B questions: auth-code flow specifics, sandbox / dev tenant model, per-entity OAuth scope granularity (§3.1-B), refresh-token rotation atomicity. ETA: Monday outreach
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
-## Shipped today (Days 1, 1-evening, 2, 3, 3-evening — all 2026-05-16)
+## Shipped
+
+### Day 4 (2026-05-17) — Hetzner VPS + LUKS + Postgres 16 + RLS gate passed
+
+Single execution session, runbook-driven. All 9 sections complete; §7 RLS isolation gate passed all 5 conditions; 22 of 22 §9 automated checks passed.
+
+**Infrastructure landed:**
+
+- Hetzner Cloud VPS `ifos-v2-prod-01` at 178.105.87.24, **Nuremberg (NBG1) — FSN1 unavailable at provisioning, equivalent Schrems II EU zone**. CX22 (2 vCPU, 4 GB RAM, 38.1 GB OS disk) + 50 GB encrypted Block Storage volume `ifos-v2-data-01`.
+- Ubuntu 24.04.4 LTS kernel 6.8.0-117-generic (apt upgrade triggered reboot for kernel update; clean 25s downtime).
+- SSH hardening: ed25519 key auth only, root login disabled, password auth disabled, `AllowUsers maddox`, UFW (deny in / allow 22+80+443 IPv4+IPv6), fail2ban sshd jail (5 retries / 10 min / 1 h ban).
+- LUKS2 volume `/dev/mapper/ifos_data` — aes-xts-plain64, 512-bit key, argon2id KDF, `noauto` per §0.4 Option β. Three bind mounts: `/mnt/ifos_data`, `/vault`, `/var/lib/postgresql`. `ifos-unlock` script at `/usr/local/bin/` (Postgres-tolerant conditional per §4.7 deviation 12).
+- Postgres 16.14 + pgvector 0.8.2 on the LUKS volume; data directory on `/dev/mapper/ifos_data`; service `is-enabled: disabled` at boot (LUKS-noauto conflict per §5.2 deviation 14); `ifos-unlock` starts it post-mount.
+- pg_dump nightly cron at 02:30 UTC, 14-day retention, manual test passed (26K dump with 83 TOC entries).
+- `/vault` git repo baseline with expanded `.gitignore` (secrets + `*.tmp` + vault state paths).
+
+**Schema landed — all 4 tightenings:**
+
+1. **Tightening 1** (ADR-002 Edit 3): `entity_graph` split into `entities` + `entity_links` — verified at `\d entities` + `\d entity_links`, separate tables, foreign-keyed to `tenants` with cascade.
+2. **Tightening 2** (ADR-003 §2.1-C): `provision-tenant.sh` installed at `/usr/local/bin/` (1521 bytes, mode 0755, syntax-OK) with `_secrets.env` skeleton (mode 0600 owned by `ifos-tenant-{slug}`).
+3. **Tightening 3** (`sequencing-target.md` §5-A): `decision_log_phase_check CHECK (phase = ANY (ARRAY['trigger', 'output', 'action', 'gating_failed', 'agent_handoff']))` — exactly 5 authoritative values, no speculative additions.
+4. **Tightening 4** (`vault-concurrency.md` §3.1): `entities.version INT NOT NULL DEFAULT 0` — verified at `\d entities`. Postgres optimistic-concurrency mechanism unblocked for Week-1-2 `wiki/lib/concurrency.ts`.
+
+**RLS gate (the load-bearing security property) PASSED all 5 conditions:**
+
+- Default-deny: no-context query returns 0 ✓
+- Own-tenant: INSERT + SELECT count = 1 ✓
+- Cross-tenant isolation: switched context returns 0 ✓
+- WITH CHECK adversarial: INSERT claiming foreign tenant_slug → `ERROR: new row violates row-level security policy` ✓
+- Post-test integrity: own-tenant data unaffected = 1 ✓
+
+Test ran as `ifos_app` over TCP+scram-sha-256 (NOT as postgres superuser which bypasses RLS). RLS + FORCE + `tenant_isolation` policy (USING + WITH CHECK) on all 5 data tables: `entities`, `entity_links`, `decision_log`, `tenant_eval_sets`, `tenant_adapters`.
+
+**Path B closure (LUKS rotation):** Founder authorised Path B (passphrase via SSH stdin) for §4.8 ifos-unlock end-to-end test, exposing the passphrase to chat context. Mitigation executed post-§9: `cryptsetup luksChangeKey` with VPS-generated new passphrase + `--test-passphrase` verification confirming OLD rejected, NEW accepted. Leaked passphrase in transcript is cryptographically invalid. New passphrase at `/root/.new_luks_passphrase.tmp` pending founder retrieval.
+
+**State files updated (this commit):**
+
+- `docs/runbooks/day-4-provisioning.md` — frontmatter `status: Executed`, `executed_against_ipv4`, `execution_outcome` populated; full §12 execution log (20 deviations + 8 v1.1 revisions catalogued)
+- `docs/RISK-REGISTER.md` — Risk #7 edit count 8 → 9 (Hetzner NBG1 wording); new Risk #8 LUKS manual unlock single-point-of-failure (Low/Medium-High, v1.2+ TPM/key-server mitigation); 2026-05-17 log entry
+- `.agents/current-priorities.md` — Day 4 → Shipped; Open updated to Day 5-7; operational debts section added
+
+### Days 1, 1-evening, 2, 3, 3-evening (all 2026-05-16)
 
 ### Day 1 main session (commit e0e223f)
 
@@ -89,20 +133,13 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 
 **Day 3 evening (this commit) added Week-1-2 prerequisites:** `wiki/lib/concurrency.ts` implementation against `vault-concurrency.md` spec; `entities.version` column on Day 4 (4th tightening).
 
-## Day 4 tightening (this week)
+## Day 4 tightening (landed 2026-05-17, see Shipped)
 
-**Four consolidated tightenings** in one Day-4 Postgres provisioning task:
-
-1. **Postgres table rename** `entity_graph` → `entities` + `entity_links` per ADR-002 Edit 3 + `second-brain-design.md` Spec gap 2.4-B
-2. **`_secrets.env` vault skeleton** in `provision-tenant.sh` per ADR-003 design Spec gap §2.1-C
-3. **`decision_log.phase` enum extension** to include `gating_failed` + `agent_handoff` per `sequencing-target.md` §5-A
-4. **`entities.version` column** (NEW Day 3 evening) per `vault-concurrency.md` §3.1: `ALTER TABLE entities ADD COLUMN version INT NOT NULL DEFAULT 0` — required for Postgres optimistic-concurrency mechanism
-
-All four land in Day 4 Postgres provisioning; one atomic provisioning task.
+All four consolidated tightenings applied in §6 + §7 of Day 4 execution. Verified at `\dt` + `\d entities` + `\d decision_log` + `ls -la /usr/local/bin/provision-tenant.sh` + RLS gate pass.
 
 ## Atomic master-brief correction commit (deferred to end of Week 0 / early Week 1)
 
-**Eight-edit manifest** — unchanged from Day 3 close (`vault-concurrency.md` is reference synthesis; surfaces no new master-brief drifts):
+**Nine-edit manifest** — Day-4 execution added Edit 9 (Hetzner NBG1 wording per runbook §0.1 + §12 deviation 3):
 
 1. **ADR-001** — Master brief §2.4 row 3: `chokidar watcher` → `FastChecker poll loop`
 2. **ADR-001** — Ultraplan §3.2: 4-agent pipeline latency reframe to "3-5 seconds end-to-end"
@@ -112,14 +149,15 @@ All four land in Day 4 Postgres provisioning; one atomic provisioning task.
 6. **Bullhorn decision §6.6** — Master brief §6 Day 2 line 466: OAuth wording (auth-code-against-IFOS-dev-tenant; client_credentials foreclosed)
 7. **Sequencing decision §6.8** — Master brief §6 Day 3 line 471: path convention `.agents/decisions/` → `docs/decisions/`
 8. **Brain UI scope §4.5** — Master brief §6 Day 3 line 472: three-drift bundled rewrite (path + `kb-*` shadow → `wiki-*` parallel + `/brain` today-view as v1.0 → as v1.1)
+9. **Hetzner location (NEW Day 4 2026-05-17)** — Master brief §6 Day 4 line 477 + §10.4: "Hetzner UK" → "Hetzner FSN1 or NBG1; both acceptable Hetzner eu-central locations". Verified during Day-4 execution: Hetzner has no UK data centre; NBG1 used because FSN1 was unavailable at provisioning time. Source: Day-4 runbook §0.1 + §12 deviation 3.
 
-Commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 + ADR-003 + Bullhorn + Day 3 spec drifts`. Single Codex ratification on Day 7.
+Commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 + ADR-003 + Bullhorn + Day 3 spec drifts + Hetzner-NBG1`. Single Codex ratification on Day 7.
 
-**Not in this commit (lands separately):** all four Day-4 Postgres provisioning tightenings — entity_graph split + `_secrets.env` skeleton + `decision_log.phase` enum extension + `entities.version` column.
+**Day-4 Postgres provisioning tightenings landed in §6 of Day-4 execution (separate commit) — not part of the master-brief reconciliation commit.**
 
 ## Queued for Codex ratification (Day 7)
 
-Per master brief §10.6 first ratification run — Day 3 evening added one item, now ~13:
+Per master brief §10.6 first ratification run — Day 4 added items 11 + 12, now 15:
 
 1. `docs/architecture/cortexos-primitive-status.md` (the audit document)
 2. `docs/decisions/ADR-001-bus-dispatcher-poll-not-chokidar.md` (Accepted Option A)
@@ -131,13 +169,15 @@ Per master brief §10.6 first ratification run — Day 3 evening added one item,
 8. `docs/decisions/sequencing-target.md` (Accepted Option Alpha)
 9. `docs/decisions/brain-ui-scope.md` (Proposed pending v1.1 phase)
 10. **`docs/architecture/vault-concurrency.md`** (Reference) — NEW Day 3 evening
-11. The atomic master-brief correction commit (8-edit manifest, end of Week 0 / early Week 1)
-12. The Day 4 Postgres provisioning artefact (4 consolidated tightenings)
-13. Plus the remaining Week 0 artefacts (Day 5 auto-send safety policy + kill criterion; Day 6 vertical schema v0.1)
+11. **`docs/runbooks/day-4-provisioning.md`** (Reference status pre-execution; Executed status post-execution) — NEW Day 4 morning
+12. **Day 4 close commit** — runbook §12 deviation log (20 deviations + 8 v1.1 revisions) + RISK-REGISTER #8 LUKS-unlock-SPOF + state-file updates — NEW Day 4 evening 2026-05-17
+13. The atomic master-brief correction commit (9-edit manifest, end of Week 0 / early Week 1)
+14. The Day 4 Postgres provisioning artefact (4 consolidated tightenings landed in §6 of Day-4 close commit)
+15. Plus the remaining Week 0 artefacts (Day 5 auto-send safety policy + kill criterion; Day 6 vertical schema v0.1)
 
 ## Stuck
 
-(nothing — Day 3 evening closed cleanly; Sub-decisions A and B Status: Proposed in `bullhorn-integration-path.md` is the intended state pending Sunday/Monday commercial verification)
+(nothing — Day 4 closed cleanly with 22/22 verification + RLS gate pass; Sub-decisions A and B Status: Proposed in `bullhorn-integration-path.md` is the intended state pending Sunday/Monday commercial verification; three operational debts from Day 4 listed above are non-blocking founder-convenience items)
 
 ## Notes
 
@@ -147,5 +187,8 @@ Per master brief §10.6 first ratification run — Day 3 evening added one item,
 - **Day 3 ratification**: master brief §8.2 sequence ratified verbatim — Diagnostic W3-4 → Janitor W5 → Scribe W6 → Cash Conductor W7-8 (Hire-#1-anchored) → Sourcing Scout W9 → Concierge W10-13
 - **Day 3 finding**: line 472 has three drifts (path + `kb-*` shadow + v1.0/v1.1 placement) bundled into single 8th atomic-correction edit
 - **Day 3 evening finding**: `vault-concurrency.md` surfaces 4th Day-4 tightening (`entities.version` column required for Postgres optimistic-concurrency). Without it, `wiki/lib/concurrency.ts` in Week 1-2 references a column that doesn't exist
-- Day 4 carry-forward: four consolidated Postgres tightenings (entity_graph split + `_secrets.env` skeleton + `decision_log.phase` enum extension + `entities.version` column) all land in one provisioning task
+- Day 4 carry-forward: ~~four consolidated Postgres tightenings~~ **LANDED 2026-05-17** in §6 of Day-4 execution (see Shipped)
 - Day 5 carry-forward: v1.0 kill criterion must reference Day 3 §6.6 three failure conditions + Day 2 §4.1 Concierge Bullhorn Note auto-send sensitivity
+- **Day 4 finding (2026-05-17):** Hetzner has no UK data centre — NBG1 used as equivalent. Surfaced as 9th atomic-correction edit. Functionally equivalent: same Hetzner eu-central zone, Schrems II EU jurisdiction, ~25-30ms UK latency.
+- **Day 4 LUKS rotation pattern (2026-05-17):** Path B exposure (LUKS passphrase entered chat for ifos-unlock end-to-end test) closed via `cryptsetup luksChangeKey` with VPS-generated new passphrase + `--test-passphrase` verification. Pattern documented in runbook §12 deviation 20. v1.1 runbook revision: investigate paste-once-and-cache helper that doesn't require chat exposure. Lesson: Path A protocol cost (~90s of founder time per interactive step) is the right trade-off vs Path B (chat exposure + post-hoc rotation).
+- **Day 4 Path D pattern (2026-05-17):** New protocol for VPS-side credential generation that never enters chat context. Used for ifos_app password in §5.4: `openssl rand -base64 24` on VPS → `/vault/.ifos_app_password.tmp` (LUKS-encrypted, mode 0600) → `CREATE ROLE` via psql stdin heredoc → founder retrieves at convenience. Reusable for future password generation operations.

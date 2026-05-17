@@ -1,11 +1,13 @@
 ---
 title: Day 4 provisioning runbook — VPS + LUKS + Postgres 16 + RLS
-status: Reference
-date: 2026-05-17
+status: Executed
+date_written: 2026-05-17
+date_executed: 2026-05-17
 target: Master brief §6 Day 4 + four consolidated tightenings
-submodule_sha_pinned: see packages/harness/PINNED-SHA.md at execution time
-executes_against: a fresh Hetzner Cloud VPS (location decision in §0)
-session_used: this runbook is written, not executed. Execution is a separate session.
+submodule_sha_pinned: see packages/harness/PINNED-SHA.md
+executed_against_ipv4: 178.105.87.24
+executed_against_location: Hetzner Cloud Nuremberg (NBG1) — FSN1 unavailable; see §12 deviation 3
+execution_outcome: All 9 sections complete; §7 RLS isolation gate passed all 5 conditions; 22 of 22 §9 automated checks passed; §11 closing commit landed with LUKS rotation completed.
 ---
 
 # Day 4 provisioning runbook
@@ -1195,9 +1197,86 @@ Add to the Day 7 queue:
 
 ---
 
-## §12 — Execution log (populated post-execution)
+## §12 — Execution log (populated 2026-05-17)
 
-*This section is empty until the runbook is executed. When execution happens, append timestamped notes for every deviation from the documented commands, every error encountered, every workaround applied. The execution log is the honest-signal record for §11.4 atomic-correction inputs and §11.5 Codex ratification.*
+Day 4 executed in one session: Sunday 2026-05-17, started ~10:00 UTC, completed ~16:35 UTC. Deviations recorded below in chronological order. v1.1 runbook revision items collected at the end.
+
+### Pre-flight (§1) deviations
+
+1. **§1.1 item 2 — Hetzner project name (cosmetic):** Project created as `intel force os` rather than the runbook's `intel-force-ifos-v2`. Project name doesn't appear in any commands; Console-navigation only. No action.
+
+2. **§1.3 — `CTX_INSTANCE_ID` empty (silent gap from Days 1-3):** `.envrc` present at repo root since Day 0 commit `02fbef0` but `direnv` was not installed locally. All Days 1-3 sessions silently ran with empty `CTX_INSTANCE_ID`; functionally non-blocking because no `cortextos-ifos` commands were invoked. Day 4 also non-blocking. **Resolved during §2 dead time:** `brew install direnv` + zshrc hook + `direnv allow`. `CTX_INSTANCE_ID=ifos-v2` now exported on every `cd` into `~/code/CortexOS`. Silent gap closed.
+
+### VPS provisioning (§2) deviations
+
+3. **§2 location — NBG1 substituted for FSN1:** FSN1 unavailable at provisioning time. Substituted Nuremberg (NBG1) — same Hetzner eu-central zone, identical Schrems II EU jurisdiction (German court orders only), latency to UK ~25-30ms vs FSN1 ~20-25ms (functionally equivalent). **Triggers §11.4 master-brief Edit 9:** master brief §6 Day 4 line 477 + §10.4 — "Hetzner UK" → "Hetzner Falkenstein (FSN1) or Nuremberg (NBG1); both acceptable Hetzner eu-central locations".
+
+4. **§2.5 SSH host-key handling:** Added `-o StrictHostKeyChecking=accept-new` to all SSH commands for non-interactive execution. v1.0 pilot threat model accepts trust-on-first-use against fresh Hetzner provisioning. v1.2+ improvement: compare host fingerprint against Hetzner Console rescue output.
+
+5. **§2.5 pre-§4 remediation — auto-mounted, pre-formatted data volume:** Hetzner cloud-init provisioned `/dev/sdb` already formatted as ext4 with a permanent fstab entry mounting at `/mnt/HC_Volume_105734366` despite runbook §2.4 step 7 requesting "Mount automatically: No". Auto-generated systemd `.mount` unit followed from fstab. **Remediated:** backup fstab → `umount` → `sed` remove fstab line → `systemctl daemon-reload` → `rmdir` empty mount-point directory. Backups at `/etc/fstab.day4-pre-luks.bak` + `/etc/crypttab.bak.<TS>`. v1.1 runbook revision: add explicit pre-§4 detect-and-unmount step + pre-flight note that Hetzner pre-formats Block Storage volumes regardless of "Format: None" UX intent.
+
+### Hardening (§3) deviations
+
+6. **§3.1 `DEBIAN_FRONTEND` env prefix:** Used `DEBIAN_FRONTEND=noninteractive` env prefix on all `apt install` and `apt upgrade` commands across §3.1, §3.3 (UFW), §3.4 (fail2ban), §5.1 (curl), §5.2 (postgres). Prevents non-interactive SSH execution from hanging on needrestart or dpkg prompts on Ubuntu 24.04 cloud images. Behaviour-identical to runbook commands on this VPS. v1.1 runbook revision: include the env prefix as documented norm.
+
+7. **§3.1 kernel update + reboot:** 2 kernel packages upgraded (linux-image-virtual + linux-tools-common, 6.8.0-111 → 6.8.0-117) plus 2 new packages (linux-image-6.8.0-117-generic, linux-modules-6.8.0-117-generic). `/var/run/reboot-required` set. Reboot triggered with founder pre-authorization; VPS back in ~25s. Running kernel post-reboot: 6.8.0-117-generic. Clean restart.
+
+8. **§3.5 verification execution context (founder UX bug):** SSH hardening verifications must run from local Mac issuing fresh SSH connections, not from inside an existing SSH session on the VPS. First attempt by founder ran verifications inside the VPS shell, where the key file path `~/.ssh/ifos_hetzner_ed25519` resolves to `/root/.ssh/...` (doesn't exist); all three commands false-failed with "Identity file not accessible". Re-ran via Claude Code's Bash tool (which runs on Mac) — all three passed cleanly. v1.1 runbook revision: make the "from your local Mac, not from inside the VPS" warning explicit in §3.5.
+
+### LUKS + ifos-unlock (§4) deviations
+
+9. **§4 self-inflicted defensive check (Claude error):** Claude added `sudo file -s /dev/disk/by-id/...` defensive check not in runbook §4.1; `file` not installed on base image; `set -e` aborted before §4.2 install. Reverted to exact runbook commands. Lesson: stop adding defensive diagnostics beyond runbook spec when execution is in section-by-section gated mode.
+
+10. **§4.2/§4.3 Path B protocol override (load-bearing deviation):** Original protocol (Path A — passphrase stays in founder's terminal) was used successfully for §4.2 `luksFormat` and §4.3 `luksOpen`. For §4.8 reboot test's `ifos-unlock` end-to-end verification, founder authorized Path B (passphrase piped via SSH stdin to ifos-unlock script). Passphrase entered chat context. **Mitigation executed post-§9:** LUKS rotation via VPS-generated new passphrase + `cryptsetup luksChangeKey` (deviation 20 below). v1.1 runbook revision: strengthen §4.7 Path A protocol with paste-once-and-cache helper that doesn't require chat exposure. Investigate `pass(1)`-style local passphrase manager pre-filling cryptsetup via private stdin.
+
+11. **§4.4 `mkfs.ext4 -m 0` flag:** Used runbook §4.4's `-m 0` flag (0% reserved blocks for data volume) over founder's abbreviated authorization wording. Runbook authoritative; "data volume, not a root volume" rationale.
+
+12. **§4.7 ifos-unlock Postgres-tolerant conditional:** Modified runbook §4.8 script to conditionally start postgresql only if `postgresql.service` is registered (via `systemctl list-unit-files`). Without this guard, `set -euo pipefail` aborts on `systemctl start postgresql` when Postgres isn't installed yet (pre-§5 state). Becomes standard start path naturally after §5 install. v1.1 runbook revision: bake this conditional into the runbook spec.
+
+13. **§4.6 findmnt warning (resolved at unlock):** Post-fstab-write but pre-LUKS-open, `findmnt --verify` reported 2 warnings about "unreachable source: /dev/mapper/ifos_data" — expected because the LUKS device only exists after `luksOpen`. Post-§4.8 reboot test (after `ifos-unlock` ran), `findmnt --verify` reports "Success, no errors or warnings detected".
+
+### Postgres + schema (§5, §6) deviations
+
+14. **§5.2 disable postgresql at boot (load-bearing for LUKS noauto):** Runbook §5.2 doesn't address that default Ubuntu postgres package enables postgresql.service at boot. Because LUKS volume is `noauto`, boot occurs with empty `/var/lib/postgresql` (bind-mount target with no underlying device); Postgres would fail to start at every boot. **Mitigation:** `systemctl disable postgresql`. `ifos-unlock` starts it after mounts (per §4.7 conditional). v1.1 runbook revision: include `systemctl disable postgresql` in §5.2 with rationale.
+
+15. **§5.3 `systemctl is-enabled` exit code (cosmetic):** `systemctl is-enabled postgresql` returns exit 1 when service is "disabled" (the desired state). `set -e` aborted on this; cosmetic — state is correct. v1.1 runbook revision: wrap `is-enabled` checks with `|| true` when desired state is "disabled".
+
+16. **§5.4 Path D — ifos_app password kept out of chat context:** New protocol introduced (not in runbook). Password generated on VPS via `openssl rand -base64 24`, written to `/vault/.ifos_app_password.tmp` (LUKS-encrypted, mode 0600 root:root), used to `CREATE ROLE` via psql stdin heredoc (not command-line, so not exposed in ps). Verified by authentication test as ifos_app via 127.0.0.1 + scram-sha-256. **Pending founder retrieval (non-blocking):** `sudo cat /vault/.ifos_app_password.tmp` + save to 1Password "IFOS Postgres ifos_app — production" + `sudo rm`. Temp file remains on LUKS-encrypted volume; not in git per `.gitignore` `*.tmp` pattern.
+
+### RLS gate (§7) and backup (§8)
+
+17. **§7 — RLS isolation gate passed clean (5 of 5).** No-context = 0 ✓, own-tenant insert+select = 1 ✓, cross-tenant = 0 ✓, WITH CHECK adversarial INSERT rejected ✓, own-tenant unaffected = 1 ✓. RLS + FORCE on entities, entity_links, decision_log, tenant_eval_sets, tenant_adapters (5 tables). `tenant_isolation` policy on all 5 with USING + WITH CHECK on `current_setting('app.current_tenant', true)`. Test ran as `ifos_app` over TCP+scram-sha-256 (NOT as postgres superuser, which would bypass RLS). Test data ROLLBACK'd; 2 seeded test tenants cleaned up.
+
+18. **§8.3 vault `.gitignore` expanded:** Beyond runbook §8.3's `*/[_]secrets.env`, added `*.tmp`, `.*.tmp`, `.*.lock`, and vault-internal state paths (`*/.wiki/manifest.json`, `*/.wiki/reflect-state.json`). Defense: prevents the §5.4 `/vault/.ifos_app_password.tmp` from being committed before founder retrieves it. v1.1 runbook revision: include the expanded `.gitignore` in §8.3.
+
+### Verification (§9) deviations
+
+19. **§9 verification script bugs (Claude error, no state impact):** Initial run reported 4 FAILs of 22 checks. Diagnosis showed all were script bugs, not state failures: (a) `sshd -T` requires root to read host keys (`sudo sshd -T` works correctly); (b) `findmnt --verify` output format simpler post-LUKS-open (`Success, no errors or warnings detected`) than my regex expected. Diagnostic re-run confirmed all 22 of 22 actual state checks pass. State is verified clean.
+
+### Post-execution mitigation (Path B closure)
+
+20. **LUKS passphrase rotation executed 2026-05-17 ~16:35 UTC.** `cryptsetup luksChangeKey` with `--key-file` for both OLD (leaked, embedded in heredoc) and NEW (generated on VPS via `openssl rand -base64 24`, written to temp file with `printf '%s'` — no trailing newline). Verification: `cryptsetup luksOpen --test-passphrase` confirms NEW accepted, OLD rejected. New passphrase stored at `/root/.new_luks_passphrase.tmp` (root-only, 32 bytes, no trailing newline) — outside `/vault` so it's recoverable after future LUKS-locked boots. Both `/tmp` temp files shredded post-rotation. **The leaked passphrase in this chat transcript is cryptographically invalid against the LUKS volume.**
+
+### Pending founder actions (non-blocking, deferred to operational convenience)
+
+- **Hetzner snapshot via Console:** Take Snapshot of `ifos-v2-prod-01` labeled `day-4-clean-verified-2026-05-17`. Not blocking — Hetzner weekly backups are already enabled (per §2.3 step 10). Founder action.
+- **ifos_app password retrieval:** `sudo cat /vault/.ifos_app_password.tmp` → save to 1Password "IFOS Postgres ifos_app — production" → `sudo rm`. Password not compromised; can be done at convenience.
+- **LUKS new passphrase retrieval (high-priority):** `sudo cat /root/.new_luks_passphrase.tmp` → overwrite the leaked value in 1Password "IFOS LUKS passphrase" → `sudo rm`. **Should be done before next reboot** — without 1Password update, future `ifos-unlock` invocations will fail because the OLD passphrase no longer works.
+
+### v1.1 runbook revision summary
+
+Eight revisions surfaced for the v1.1 runbook:
+
+1. §2.5 add explicit pre-§4 detect-and-unmount step for cloud-init auto-mounted volumes
+2. §2 + §2.5 add note that Hetzner pre-formats Block Storage volumes regardless of UX intent
+3. §3.1 + §5.2 include `DEBIAN_FRONTEND=noninteractive` as documented norm
+4. §3.5 strengthen "from your local Mac, not from inside the VPS" warning
+5. §4.7 strengthen Path A protocol with paste-once helper pattern (Path B mitigation)
+6. §5.2 include `systemctl disable postgresql` (LUKS-noauto + service-auto-start conflict)
+7. §5.3 wrap `is-enabled` checks with `|| true` for desired-disabled states
+8. §8.3 include expanded `.gitignore` (`*.tmp`, `.*.tmp`, `.*.lock`, vault state paths)
+
+Suggested timing: collect over Days 5-7, apply as a single `runbook(day 4): v1.1 revisions from execution` commit during §11 ratification queue work.
 
 ---
 
