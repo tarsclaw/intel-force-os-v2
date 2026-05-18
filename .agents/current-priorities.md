@@ -1,8 +1,8 @@
 # Current priorities
 
 **Week:** Week 0 (pre-build)
-**Today's task:** Day 5 — auto-send safety policy + v1.0 kill criterion per master brief §6 Day 5 (with Day-2 + Day-3 carry-forwards — see Open)
-**Most recent close:** Day 4 — Hetzner NBG1 VPS + LUKS + Postgres 16 + RLS gate passed (executed 2026-05-17, see Shipped)
+**Today's task:** Day 6 — vertical schema v0.1 (`docs/verticals/recruitment/vertical-schema.yaml`) per master brief §6 Day 6 line 490
+**Most recent close:** Day 5 — auto-send safety policy + v1.0 kill criterion (shipped 2026-05-18, see Shipped) + live Postgres schema migration (decision_log.phase enum 5→6 values)
 
 ## This week's gate
 
@@ -11,17 +11,17 @@ Clear all seven days of master brief §6 by Sunday. Five-of-five yeses on the
 
 ## Open
 
-- [ ] Day 5: auto-send safety policy + kill criterion. **Day 2 carry-forward:** Concierge's Bullhorn Note auto-send is the sensitive surface (per `bullhorn-integration-path.md` §4.1 + §6.3). **Day 3 carry-forward:** v1.0 kill criterion must reference `sequencing-target.md` §6.6 three failure conditions (Diagnostic doesn't render W3; Janitor Bullhorn auth fails W5; 2× scope-cut activations)
 - [ ] Day 6: vertical schema v0.1 (`docs/verticals/recruitment/vertical-schema.yaml`) — 8 core entities per master brief §6 Day 6 line 490
 - [ ] Day 7: single-sentence test review + first Codex ratification run
+- [ ] **Week 1-2 must-fill** (per `v1.0-kill-criterion.md` §3.4): External advisor name + engagement letter before first pilot LOI signs. Slot reserved for future tie-break needs in commercial decisions or post-pilot scale.
 
-## Operational debts from Day 4 (non-blocking, retrieve when convenient)
+## Operational debts from Day 4 — CLOSED 2026-05-18 Monday morning
 
-Three founder actions deferred from Day 4 close. None block Day 5-7 work. **One is high-priority** (LUKS new-passphrase retrieval before next reboot).
+All three Day-4 operational debts retrieved + cleaned up before Day-5 work began:
 
-- **(high-priority)** **LUKS new-passphrase retrieval** — `sudo cat /root/.new_luks_passphrase.tmp` → overwrite leaked value in 1Password "IFOS LUKS passphrase" → `sudo rm /root/.new_luks_passphrase.tmp`. **Must be done before next reboot** — without 1Password update, `ifos-unlock` invocations fail because old passphrase already invalidated by Day-4 §11 rotation. Outside `/vault` so recoverable from locked state.
-- **ifos_app password retrieval** — `sudo cat /vault/.ifos_app_password.tmp` → save to 1Password "IFOS Postgres ifos_app — production" → `sudo rm`. Not compromised (generated on VPS via Path D, never entered chat context). Any time before agent code starts referencing the password.
-- **Hetzner Console snapshot** — Take Snapshot of `ifos-v2-prod-01` labelled `day-4-clean-verified-2026-05-17`. Not blocking — Hetzner weekly auto-backups already enabled. Founder click action.
+- ✅ **LUKS new-passphrase retrieval** — saved to 1Password "IFOS LUKS passphrase" (slot 1 post-rotation); temp file `/root/.new_luks_passphrase.tmp` deleted; verified gone.
+- ✅ **ifos_app password retrieval** — saved to 1Password "IFOS Postgres ifos_app — production"; temp file `/vault/.ifos_app_password.tmp` deleted; verified gone.
+- ⏸ **Hetzner Console snapshot** — still pending; non-blocking (Hetzner weekly auto-backups enabled). Founder convenience action; carry forward indefinitely.
 
 ## Founder commercial conversations queued (Sunday/Monday)
 
@@ -32,6 +32,47 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 5 (2026-05-18) — Auto-send safety policy + v1.0 kill criterion + live schema migration
+
+Three-prompt pattern executed cleanly (grounding → drafting → revisions → commit). Founder review batched at end of drafting; web-Claude second pair. Five autosend amendments + eight kill-criterion amendments applied in batch revision pass.
+
+**Artefacts landed (both Status: Proposed pending Codex Day-7 ratification):**
+
+- **`docs/decisions/autosend-safety-policy.md`** (658 lines, 11 sections):
+  - 4-tier traffic light (green/yellow/orange/red) with v1.0-ships-green+red-only phasing
+  - 29 action_types across 6 v1.0 agents
+  - Concierge `bullhorn_note_customer_visible` canonical orange per `bullhorn-integration-path.md` §4.1 + §6.3
+  - `hh_decision_action` integration pseudocode (bash, ~60 lines) — 7 helper functions specified for Week-1 prereq 3 implementation
+  - 3 new `ESC_AUTOSEND_*` codes with full payload spec following renderer §4 template
+  - Pilot-agreement liability §10 placeholder text + 5 open legal questions flagged (legal review required before first pilot LOI)
+  - Per-tenant override §8: elevation only; red is absolute floor; `blocked_recipients` additive
+  - 11 open questions catalogued (Q1-Q10 + Day-5 founder decisions on Q3/Q5/Q6)
+
+- **`docs/decisions/v1.0-kill-criterion.md`** (401 lines, 6 sections):
+  - 10 binary triggers with measurable thresholds + owner + action
+  - **Trigger 1 (DESIGN-PARTNER-BY-WEEK-2):** fires end-of-day 2026-06-03 (Wednesday) if no signed LOI — PAUSE state, founder pivots to acquisition full-time
+  - **Triggers 2-4** fold `sequencing-target.md` §6.6 three failure conditions verbatim (Diagnostic W3 KILL, Janitor Bullhorn W5 PIVOT, 2× scope-cut PAUSE)
+  - **Trigger 8 (Gate-B revenue uplift):** master brief canonical — <£20k/year/tenant after 3 pilots → KILL
+  - **Trigger 9 (cortextOS primitive failure):** tightened from 4 weeks to 2 weeks per founder decision
+  - **§3 authority restructure:** founder SOLO on product domain; Jack informed-not-deciding within 24h; crossover scenarios named for commercial-touching product decisions; external advisor deferred to Week 1-2 must-fill
+  - **§3.5 emergency authority:** Founder unilateral PAUSE within 1h + KILL within 4h for Trigger 10 PII; ICO 72h clock cannot be delayed
+
+**State files updated this commit:**
+
+- `docs/RISK-REGISTER.md` — Risk #3 escalated Medium → High; tripwire now references kill criterion Trigger 1 + concrete trigger date 2026-06-03
+- `.agents/current-priorities.md` — Day 5 → Shipped; Day 4 operational debts closed (LUKS + ifos_app retrieved); Week 1-2 must-fill (external advisor) added to Open; Codex queue 15 → 17; atomic-correction manifest 9 → 11
+
+**Live Postgres schema migration executed on `ifos-v2-prod-01`:**
+
+```sql
+ALTER TABLE decision_log DROP CONSTRAINT decision_log_phase_check;
+ALTER TABLE decision_log
+ADD CONSTRAINT decision_log_phase_check
+CHECK (phase IN ('trigger', 'output', 'action', 'gating_failed', 'agent_handoff', 'render'));
+```
+
+Verified with `\d decision_log`: constraint now accepts 6 phase values. Functional test passed (phase='render' INSERT succeeded; phase='bogus' INSERT correctly violated constraint). Resolves a Day-4 enum-drift surfaced by Day-5 reading of `agent-bundle-renderer-design.md` §4 — `ESC_RENDERER_FAILED` writes with `phase='render'` and would have failed the Day-4 schema. **Spec deviation logged:** founder spec said "psql as ifos_app" — `ALTER TABLE`/`DROP CONSTRAINT` require table-owner privileges, executed via `sudo -u postgres psql` instead.
 
 ### Day 4 (2026-05-17) — Hetzner VPS + LUKS + Postgres 16 + RLS gate passed
 
@@ -150,14 +191,16 @@ All four consolidated tightenings applied in §6 + §7 of Day 4 execution. Verif
 7. **Sequencing decision §6.8** — Master brief §6 Day 3 line 471: path convention `.agents/decisions/` → `docs/decisions/`
 8. **Brain UI scope §4.5** — Master brief §6 Day 3 line 472: three-drift bundled rewrite (path + `kb-*` shadow → `wiki-*` parallel + `/brain` today-view as v1.0 → as v1.1)
 9. **Hetzner location (NEW Day 4 2026-05-17)** — Master brief §6 Day 4 line 477 + §10.4: "Hetzner UK" → "Hetzner FSN1 or NBG1; both acceptable Hetzner eu-central locations". Verified during Day-4 execution: Hetzner has no UK data centre; NBG1 used because FSN1 was unavailable at provisioning time. Source: Day-4 runbook §0.1 + §12 deviation 3.
+10. **Day-5 path drift (NEW Day 5 2026-05-18)** — Master brief §6 Day 5 lines 484-485: paths `docs/auto-send-safety-policy.md` and `docs/v1-kill-criterion.md` → `docs/decisions/autosend-safety-policy.md` and `docs/decisions/v1.0-kill-criterion.md` per repo convention since Day 0 (matching ADR-001/-002/-003 + bullhorn + sequencing-target + brain-ui-scope). Source: Day-5 autosend policy header + kill criterion header.
+11. **decision_log.phase enum expansion (NEW Day 5 2026-05-18)** — Day-4 runbook §6.4 + executed migration on `ifos-v2-prod-01`: phase enum expanded from 5 values to 6 (added `'render'` for renderer audit per `ESC_RENDERER_FAILED` contract in `agent-bundle-renderer-design.md` §4). Live SQL migration committed alongside this manifest entry; runbook v1.1 revision note attached.
 
-Commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 + ADR-003 + Bullhorn + Day 3 spec drifts + Hetzner-NBG1`. Single Codex ratification on Day 7.
+Commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 + ADR-003 + Bullhorn + Day 3 spec drifts + Hetzner-NBG1 + Day-5 path drift + decision_log.phase render`. Single Codex ratification on Day 7.
 
 **Day-4 Postgres provisioning tightenings landed in §6 of Day-4 execution (separate commit) — not part of the master-brief reconciliation commit.**
 
 ## Queued for Codex ratification (Day 7)
 
-Per master brief §10.6 first ratification run — Day 4 added items 11 + 12, now 15:
+Per master brief §10.6 first ratification run — Day 5 added items 16 + 17, now 17:
 
 1. `docs/architecture/cortexos-primitive-status.md` (the audit document)
 2. `docs/decisions/ADR-001-bus-dispatcher-poll-not-chokidar.md` (Accepted Option A)
@@ -171,9 +214,11 @@ Per master brief §10.6 first ratification run — Day 4 added items 11 + 12, no
 10. **`docs/architecture/vault-concurrency.md`** (Reference) — NEW Day 3 evening
 11. **`docs/runbooks/day-4-provisioning.md`** (Reference status pre-execution; Executed status post-execution) — NEW Day 4 morning
 12. **Day 4 close commit** — runbook §12 deviation log (20 deviations + 8 v1.1 revisions) + RISK-REGISTER #8 LUKS-unlock-SPOF + state-file updates — NEW Day 4 evening 2026-05-17
-13. The atomic master-brief correction commit (9-edit manifest, end of Week 0 / early Week 1)
+13. The atomic master-brief correction commit (11-edit manifest, end of Week 0 / early Week 1)
 14. The Day 4 Postgres provisioning artefact (4 consolidated tightenings landed in §6 of Day-4 close commit)
-15. Plus the remaining Week 0 artefacts (Day 5 auto-send safety policy + kill criterion; Day 6 vertical schema v0.1)
+15. Plus the remaining Week 0 artefacts (Day 6 vertical schema v0.1; Day 7 single-sentence test review)
+16. **`docs/decisions/autosend-safety-policy.md`** (Status: Proposed) — NEW Day 5 morning 2026-05-18
+17. **`docs/decisions/v1.0-kill-criterion.md`** (Status: Proposed) — NEW Day 5 morning 2026-05-18 + Day-5 close commit (includes live Postgres schema migration; Risk #3 escalation; state-file updates)
 
 ## Stuck
 
