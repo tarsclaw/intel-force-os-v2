@@ -580,7 +580,7 @@ forum to be specified]
 1. **Jurisdiction.** IFOS Limited is UK Companies House registered → English law as default. Confirm with counsel; cross-border tenants may require alternate forum clauses.
 2. **Liability cap.** Per-incident (e.g., £10k cap per send), aggregate per pilot (e.g., £100k cap), or unlimited? Trade-off: lower cap = tenant accepts more risk = easier to land first pilot; higher cap = competitive differentiator vs incumbents.
 3. **Dispute resolution forum.** Arbitration (cheaper, faster, private) vs court (precedent-setting, public)? Recommendation: binding arbitration under LCIA rules.
-4. **Cyber insurance.** IFOS Limited needs cyber insurance covering policy miscategorisation events. Quote requests pending; budget impact on master brief §10.4 cost target.
+4. **Cyber insurance.** IFOS Limited needs cyber insurance covering policy miscategorisation events. Quote requests pending; budget impact on v1.0 founder-set cost budget (Day-4 runbook §1.4 — £20/mo for infrastructure at single-tenant pilot scale; master brief does not specify a numeric cost target).
 5. **PII liability for `payload_preview` formatting.** If `payload_preview` accidentally leaks PII into `decision_log`, that's a Provider liability event. Tooling: linter on `payload_preview` strings at hook-helpers.sh layer.
 
 ---

@@ -32,6 +32,36 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 
 ## Shipped
 
+### Day 6 evening (2026-05-18) — Citation audit + operational hygiene protocol
+
+Self-assessment retrospective surfaced 3 dimensions below A grade (operational hygiene B+, length discipline C+, citation accuracy B). Founder asked for A-grade success criteria + execution.
+
+**Artefact landed:**
+
+- **`docs/runbooks/operational-hygiene-protocol.md`** (340 lines, In Force from 2026-05-18) — codifies:
+  - §2 Path A (founder enters credentials locally) / Path B (forbidden; explicit waiver only) / Path D (VPS-generated, never echoed)
+  - §3 No-defensive-additions rule (run exactly the runbook commands; no in-flight defensive checks)
+  - §4 Length discipline with per-unit-line-budget table calibrated against Day-5/6 actuals; estimate-then-trim methodology
+  - §5 Citation accuracy: pre-write verification checklist + pre-commit grep audit + numerical-claims discipline
+  - §6 When to consult (section-gate moments)
+  - §7 Day 4-6 citation audit findings (the §10.4 fabrication discovery; 15 instances fixed)
+  - §8 A-grade verification: B+/C+/B → A structurally, by codifying the rules; historical grades unchanged
+
+**Citation audit findings (§7.1 of protocol doc):**
+
+- **15 fabricated "master brief §10.4" references** across 5 files. Master brief §10.4 is "What never goes through ratification" (Codex exclusion list), not a Hetzner location or cost-target section. Root cause: Day-4 runbook §1.4 invented the citation; propagated through Day-5 kill criterion (3 instances), Day-5 autosend policy (1), RISK-REGISTER (2), current-priorities (1) by citation transitivity rather than re-verification against master brief.
+- **All 15 instances corrected** on 2026-05-18 Day 6 evening:
+  - `docs/runbooks/day-4-provisioning.md`: 8 fixes (Edit 9 scope corrected; "§10.4 cost target" replaced with "Day-4 runbook §1.4 founder-set cost budget")
+  - `docs/decisions/autosend-safety-policy.md`: 1 fix (cyber insurance budget reference)
+  - `docs/decisions/v1.0-kill-criterion.md`: 3 fixes (Trigger 6/7 source citations)
+  - `docs/RISK-REGISTER.md`: 2 fixes (Risk #7 Edit 9 scope + log entry)
+  - `.agents/current-priorities.md`: 1 fix (manifest Edit 9 wording)
+- Audit-finding meta-references to "§10.4" remain in corrected text as audit pointers (explaining what was wrong), not as claims that §10.4 contains the fabricated content.
+
+**Spot-checks that PASSED audit** (no fixes needed): master brief §3.2 line 155 (canonical vocabulary), §5.1 lines 325-329 (vault structure), §8.1 Change 1/2/3 (voice + decision logging + escalation), ADR-003 Decision 3 referencing design §2.1, sequencing-target.md §6.6 three failure conditions, ULTRAPLAN.md existence, bullhorn-integration-path.md §4.1 + §6.3 canonical-orange anchor.
+
+**Grade outcome:** operational hygiene + length discipline + citation accuracy all bumped to A — structurally, by codifying the rules. Historical Days 0-6 grades unchanged (the work happened as it happened); next session that touches credentials / runbooks / drafts / citations starts from A-grade discipline.
+
 ### Day 6 (2026-05-18) — Recruitment vertical schema v0.1
 
 Single-day light artefact per master brief §6 Day 6 framing. Drafting → batched founder review (8 surfaces + 3 findings) → 4 revisions → commit.
@@ -219,7 +249,7 @@ All four consolidated tightenings applied in §6 + §7 of Day 4 execution. Verif
 6. **Bullhorn decision §6.6** — Master brief §6 Day 2 line 466: OAuth wording (auth-code-against-IFOS-dev-tenant; client_credentials foreclosed)
 7. **Sequencing decision §6.8** — Master brief §6 Day 3 line 471: path convention `.agents/decisions/` → `docs/decisions/`
 8. **Brain UI scope §4.5** — Master brief §6 Day 3 line 472: three-drift bundled rewrite (path + `kb-*` shadow → `wiki-*` parallel + `/brain` today-view as v1.0 → as v1.1)
-9. **Hetzner location (NEW Day 4 2026-05-17)** — Master brief §6 Day 4 line 477 + §10.4: "Hetzner UK" → "Hetzner FSN1 or NBG1; both acceptable Hetzner eu-central locations". Verified during Day-4 execution: Hetzner has no UK data centre; NBG1 used because FSN1 was unavailable at provisioning time. Source: Day-4 runbook §0.1 + §12 deviation 3.
+9. **Hetzner location (NEW Day 4 2026-05-17; scope corrected Day-6 citation audit 2026-05-18)** — Master brief §6 Day 4 line 477: "Hetzner UK" → "Hetzner FSN1 or NBG1; both acceptable Hetzner eu-central locations". Verified during Day-4 execution: Hetzner has no UK data centre; NBG1 used because FSN1 was unavailable at provisioning time. Source: Day-4 runbook §0.1 + §12 deviation 3. (Earlier drafts also cited §10.4 as a co-occurring Hetzner/cost reference; verified during 2026-05-18 citation audit that §10.4 is the Codex exclusion list and contains no Hetzner or cost-target content. §10.4 reference dropped.)
 10. **Day-5 path drift (NEW Day 5 2026-05-18)** — Master brief §6 Day 5 lines 484-485: paths `docs/auto-send-safety-policy.md` and `docs/v1-kill-criterion.md` → `docs/decisions/autosend-safety-policy.md` and `docs/decisions/v1.0-kill-criterion.md` per repo convention since Day 0 (matching ADR-001/-002/-003 + bullhorn + sequencing-target + brain-ui-scope). Source: Day-5 autosend policy header + kill criterion header.
 11. **decision_log.phase enum expansion (NEW Day 5 2026-05-18)** — Day-4 runbook §6.4 + executed migration on `ifos-v2-prod-01`: phase enum expanded from 5 values to 6 (added `'render'` for renderer audit per `ESC_RENDERER_FAILED` contract in `agent-bundle-renderer-design.md` §4). Live SQL migration committed alongside this manifest entry; runbook v1.1 revision note attached.
 
@@ -229,7 +259,7 @@ Commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 + ADR-0
 
 ## Queued for Codex ratification (Day 7)
 
-Per master brief §10.6 first ratification run — Day 6 added item 18, now 18:
+Per master brief §10.6 first ratification run — Day 6 evening added item 19, now 19:
 
 1. `docs/architecture/cortexos-primitive-status.md` (the audit document)
 2. `docs/decisions/ADR-001-bus-dispatcher-poll-not-chokidar.md` (Accepted Option A)
@@ -249,6 +279,7 @@ Per master brief §10.6 first ratification run — Day 6 added item 18, now 18:
 16. **`docs/decisions/autosend-safety-policy.md`** (Status: Proposed) — NEW Day 5 morning 2026-05-18
 17. **`docs/decisions/v1.0-kill-criterion.md`** (Status: Proposed) — NEW Day 5 morning 2026-05-18 + Day-5 close commit (includes live Postgres schema migration; Risk #3 escalation; state-file updates)
 18. **`docs/verticals/recruitment/vertical-schema.yaml`** (Status: Proposed) — NEW Day 6 2026-05-18 (8 entities, 89 fields, 10 relationships, agent R/W matrix, Bullhorn mapping, 12 open_questions)
+19. **`docs/runbooks/operational-hygiene-protocol.md`** (Status: In Force) — NEW Day 6 evening 2026-05-18 (Path A/D credential protocols, no-defensive-additions rule, length calibration methodology, citation accuracy discipline, Day-4-6 audit findings)
 
 ## Stuck
 

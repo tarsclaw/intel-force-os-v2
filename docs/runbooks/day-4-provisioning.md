@@ -35,9 +35,9 @@ This runbook is the **reviewable plan** for Day 4 of Week 0 per master brief §6
 
 Six issues require founder decision **before** this runbook is executed. Three are master-brief drifts; three are infrastructure choices the brief does not specify.
 
-### §0.1 — DRIFT: Hetzner has no UK data centre (master brief §6 Day 4 line 477 + §10.4)
+### §0.1 — DRIFT: Hetzner has no UK data centre (master brief §6 Day 4 line 477)
 
-**Master brief asserts:** "Hetzner UK VPS provisioned" (§6 Day 4) and "Hetzner UK location" (§10.4).
+**Master brief asserts (line 477 verbatim):** "Hetzner UK VPS provisioned, LUKS-encrypted volume mounted at `/vault/`". This is the single Hetzner reference in the master brief. §10 (Codex ratification loop) does not mention Hetzner or cost targets — earlier drafts of this runbook cited "master brief §10.4" for cost target and Hetzner location; both fabricated. Corrected in citation-audit pass 2026-05-18.
 
 **Reality (verified 2026-05-17):** Hetzner Cloud locations are Falkenstein DE (FSN1), Nuremberg DE (NBG1), Helsinki FI (HEL1), Ashburn US (ASH), Hillsboro US (HIL), Singapore (SIN). **No UK data centre exists.** There is no UK region planned on the Hetzner roadmap as of writing.
 
@@ -48,12 +48,12 @@ Six issues require founder decision **before** this runbook is executed. Three a
 | GDPR-compliance | ✅ EU data residency, Schrems II–compliant adequacy decision | UK reseller (Mythic Beasts, Bytemark), AWS eu-west-2 London, Linode London |
 | Latency to UK | ~20–30ms typical (verified via thirdparty pingdom data) | ~5–10ms typical for UK-located |
 | Cost (CX22-equivalent) | ~€5/mo ≈ £4.30/mo | Mythic Beasts MS75 ~£15/mo, AWS t4g.small ~£12/mo |
-| £20/mo target (§10.4) | ✅ well under | ✅ within budget |
+| £20/mo target (Day-4 runbook §1.4 founder-set budget; not specified in master brief) | ✅ well under | ✅ within budget |
 | Pilot contract data residency | Acceptable for UK pilots in 95%+ contracts (EU data residency is standard pilot acceptance) | Required only if pilot contract specifies UK-only |
 
 **Decision required:** Does pilot #1's contract or expressed preference require UK-only data residency? If unknown, the runbook proceeds with FSN1 and flags as a v1.1 commercial-conversation question. The Day 3 design-partner conversation 2 (per `current-priorities.md` lines 28-30) should clarify before execution.
 
-**Master-brief correction:** add to the atomic-correction commit manifest (currently 8 edits at end of Week 0). Proposed Edit 9: §6 Day 4 line 477 + §10.4 — "Hetzner UK" → "Hetzner Falkenstein (FSN1) with Schrems II EU data residency"; flag UK-residency as a commercial-conversation gate.
+**Master-brief correction:** add to the atomic-correction commit manifest (currently 8 edits at end of Week 0). Proposed Edit 9: master brief §6 Day 4 line 477 — "Hetzner UK" → "Hetzner Falkenstein (FSN1) or Nuremberg (NBG1); both acceptable Hetzner eu-central locations"; flag UK-residency as a commercial-conversation gate. (Earlier drafts also referenced "§10.4" as a separate location-naming surface; verified that §10.4 — "What never goes through ratification" — contains no Hetzner or cost-target content. §10.4 component dropped.)
 
 ### §0.2 — DRIFT: master brief §6 Day 4 table list says `entity_graph`, ADR-002 Edit 3 split this to `entities` + `entity_links`
 
@@ -168,14 +168,14 @@ echo "CTX_INSTANCE_ID=$CTX_INSTANCE_ID"
 | Field | Value | Rationale |
 |---|---|---|
 | Location | FSN1 (Falkenstein DE) | §0.1 |
-| Instance type | CX22 (2 vCPU, 4 GB RAM, 40 GB NVMe) | Fits v1.0 pilot scale per master brief §10.4 cost target |
+| Instance type | CX22 (2 vCPU, 4 GB RAM, 40 GB NVMe) | Fits v1.0 pilot scale per founder-set budget in this section §1.4; master brief does not specify a numeric cost target |
 | OS image | Ubuntu 24.04 LTS | LTS for predictable security patches through 2029 |
 | Additional volume | 50 GB Hetzner Block Storage, region = FSN1 | LUKS-encrypted per §4 |
 | SSH key | `ifos-prod` (the one uploaded in §1.1) | Disables password authentication implicitly |
 | Networking | Public IPv4 + IPv6 | UFW restricts to 22/80/443; private network not required for v1.0 single-server |
 | Hostname | `ifos-v2-prod-01` | Convention: `{instance}-{env}-{nn}` |
 
-Estimated monthly cost: ~€5/mo VPS + ~€2.40/mo (50 GB volume at €0.0476/GB/mo) ≈ €7.40/mo ≈ £6.40/mo. Well under the £20 master brief §10.4 target.
+Estimated monthly cost: ~€5/mo VPS + ~€2.40/mo (50 GB volume at €0.0476/GB/mo) ≈ €7.40/mo ≈ £6.40/mo. Well under the £20/mo founder-set budget for v1.0 pilot scale (this section §1.4; master brief does not specify a numeric cost target).
 
 ---
 
@@ -1184,7 +1184,7 @@ These updates do NOT happen as part of the runbook commit. They happen after the
 
 ### §11.4 — Atomic master-brief correction commit manifest
 
-- Add Edit 9: master brief §6 Day 4 line 477 + §10.4 — "Hetzner UK" → "Hetzner Falkenstein (FSN1) with Schrems II EU data residency"; document UK-residency as commercial-conversation gate
+- Add Edit 9: master brief §6 Day 4 line 477 — "Hetzner UK" → "Hetzner Falkenstein (FSN1) or Nuremberg (NBG1); both acceptable Hetzner eu-central locations"; document UK-residency as commercial-conversation gate. (§10.4 reference dropped per 2026-05-18 citation audit; §10.4 is Codex exclusion list, not a Hetzner or cost-target section.)
 - Total manifest grows from 8 edits to 9
 - Still single Codex ratification on Day 7 (or end-of-Week-0)
 
@@ -1209,7 +1209,7 @@ Day 4 executed in one session: Sunday 2026-05-17, started ~10:00 UTC, completed 
 
 ### VPS provisioning (§2) deviations
 
-3. **§2 location — NBG1 substituted for FSN1:** FSN1 unavailable at provisioning time. Substituted Nuremberg (NBG1) — same Hetzner eu-central zone, identical Schrems II EU jurisdiction (German court orders only), latency to UK ~25-30ms vs FSN1 ~20-25ms (functionally equivalent). **Triggers §11.4 master-brief Edit 9:** master brief §6 Day 4 line 477 + §10.4 — "Hetzner UK" → "Hetzner Falkenstein (FSN1) or Nuremberg (NBG1); both acceptable Hetzner eu-central locations".
+3. **§2 location — NBG1 substituted for FSN1:** FSN1 unavailable at provisioning time. Substituted Nuremberg (NBG1) — same Hetzner eu-central zone, identical Schrems II EU jurisdiction (German court orders only), latency to UK ~25-30ms vs FSN1 ~20-25ms (functionally equivalent). **Triggers §11.4 master-brief Edit 9:** master brief §6 Day 4 line 477 — "Hetzner UK" → "Hetzner Falkenstein (FSN1) or Nuremberg (NBG1); both acceptable Hetzner eu-central locations". (Earlier drafts of Edit 9 also referenced master brief §10.4; verified during 2026-05-18 citation audit that §10.4 is the Codex exclusion list, not a Hetzner or cost-target section. §10.4 component dropped.)
 
 4. **§2.5 SSH host-key handling:** Added `-o StrictHostKeyChecking=accept-new` to all SSH commands for non-interactive execution. v1.0 pilot threat model accepts trust-on-first-use against fresh Hetzner provisioning. v1.2+ improvement: compare host fingerprint against Hetzner Console rescue output.
 
