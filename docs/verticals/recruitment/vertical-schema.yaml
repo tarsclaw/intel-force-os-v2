@@ -1,0 +1,899 @@
+# IFOS recruitment vertical schema v0.1
+# ============================================================================
+# Layered above the Day-4 generic primitives:
+#   - entities (id, tenant_slug, entity_type, entity_id, data JSONB, version, ...)
+#   - entity_links (..., source_entity_type, source_entity_id, target_entity_type, target_entity_id, link_type, ...)
+#   - decision_log (..., agent_name, phase, payload JSONB, ...)
+# This file specifies the recruitment-domain entity_type + link_type slugs
+# and the JSON Schema shape of entities.data per entity_type.
+#
+# Source: master brief §6 Day 6 line 490 (8 core entities)
+#       + bullhorn-integration-path.md §4.1 (per-agent endpoint requirements)
+#       + autosend-safety-policy.md §3 (action_type references)
+#       + Day-4 runbook §6.3 (canonical Postgres schema)
+#       + Day-5 v1.0-kill-criterion.md (Trigger 1 acquisition-by-2026-06-03)
+# ============================================================================
+
+vertical: recruitment
+version: v0.1
+status: Proposed
+date: 2026-05-18
+author: founder (Maddox), Day-6 draft via Claude Code
+codex_ratification_queue_position: 18
+
+non_goals:
+  - System agent names (e.g., `_renderer` per ADR-003 + Day-5 schema migration) are NOT entity_types in this schema. They appear in `decision_log.agent_name` only. This schema covers tenant-domain entities; system-internal agents are out of scope.
+  - cortextOS substrate entities (PM2 process records, file-bus messages, approval gate entries) are NOT modelled here. They live in cortextOS's own state per master brief §2.4.
+  - Vault-internal artefacts (markdown pages, frontmatter, wiki-links) are NOT entity_types. The vault is the source of truth for narrative content; this schema is the source of truth for structured state. See master brief §3.3 vault/Postgres split.
+
+# ============================================================================
+# §1 — Entity definitions
+# ============================================================================
+# Each entity below specifies:
+#   - description: 1-2 sentence definition in the IFOS canonical vocabulary
+#   - bullhorn_source: the Bullhorn entity (and any status filter) this maps from
+#   - v1_0_agent_access: agents from master brief §8.2 that touch this entity in v1.0
+#   - canonical_fields: minimal v1.0 working set (10-20 fields per master brief §6 Day 6 "Every field" intent, scoped to v1.0 agent reach per Q3 decision)
+#   - notes: anything entity-specific worth flagging
+#
+# Field types follow JSON Schema conventions: type = string | integer | number | boolean | array | object | (ISO 8601) timestamp / date
+# `required: true` means the entity cannot be persisted without this field set; `required: false` means nullable.
+# `source: Bullhorn.<Entity>.<field>` means sourced from Bullhorn at ingest;
+# `source: IFOS-derived` means computed/written by IFOS code (e.g., voice_classifier_score).
+# ============================================================================
+
+entities:
+
+  # --------------------------------------------------------------------------
+  candidate:
+    description: |
+      An individual person being considered for permanent placement. The most heavily-touched entity in v1.0 — every agent except Diagnostic and Cash Conductor reads or writes Candidate state.
+    bullhorn_source: Bullhorn.Candidate (where status != 'contractor'; see entity `contractor` for the contractor sub-case)
+    v1_0_agent_access:
+      - Janitor (R+W — sweep + normalisation + dedup-merge proposals per bullhorn §4.1 A2)
+      - Scribe (R+W — field updates from call transcripts per bullhorn §4.1 A3)
+      - Sourcing Scout (R — passive matching per bullhorn §4.1 A5)
+      - Concierge (R+W — lifecycle state per bullhorn §4.1 A6)
+    canonical_fields:
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.Candidate.id
+        notes: Adapter-layer primary key for Bullhorn round-trip. Stable across ingests.
+      first_name:
+        type: string
+        required: true
+        source: Bullhorn.Candidate.firstName
+      last_name:
+        type: string
+        required: true
+        source: Bullhorn.Candidate.lastName
+      email:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.email
+        notes: May be nullable for candidates added via LinkedIn lookup pre-contact. Subject to autosend-safety-policy.md §7 payload_preview PII rules — `payload_preview` must mask.
+      phone:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.phone
+      mobile:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.mobile
+      status:
+        type: string
+        required: true
+        source: Bullhorn.Candidate.status
+        enum: [active, archived, do_not_contact, placed, contractor_promoted]
+        notes: 'contractor_promoted' = candidate whose status flipped to contractor; row gets duplicated as entity_type='contractor' via adapter layer.
+      owner_user_id:
+        type: integer
+        required: false
+        source: Bullhorn.Candidate.owner.id
+        notes: Bullhorn user (consultant) who owns this candidate record.
+      date_added_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.Candidate.dateAdded
+      date_last_modified_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.Candidate.dateLastModified
+      current_role:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.occupation
+      current_employer:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.companyName
+      desired_role:
+        type: string
+        required: false
+        source: IFOS-derived (Scribe extracts from call transcripts per bullhorn §4.1 A3)
+      salary_expectation_min:
+        type: number
+        required: false
+        source: IFOS-derived (Scribe extraction; GBP annual)
+      salary_expectation_max:
+        type: number
+        required: false
+        source: IFOS-derived (GBP annual)
+      location:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.address.city
+        notes: Free-text city/region for v0.1. Structured location pending v1.1.
+      willing_to_relocate:
+        type: boolean
+        required: false
+        source: IFOS-derived (Scribe extracts per Ultraplan §8.1 A3)
+      notice_period_weeks:
+        type: integer
+        required: false
+        source: IFOS-derived (Scribe extracts)
+      source:
+        type: string
+        required: false
+        enum: [linkedin, referral, bullhorn_existing, direct_application, sourcing_scout, other]
+        source: IFOS-derived (set by Sourcing Scout at first-touch)
+      voice_classifier_score:
+        type: number
+        required: false
+        source: IFOS-derived (Concierge voice classifier per Ultraplan §8.1 A6 Gate A; range [0, 1])
+        notes: Concierge gate threshold ≥ 0.75 per bullhorn §4.1.
+    notes:
+      - PII handling — fields email, phone, mobile, location are PII per UK GDPR Art. 4(1). Autosend-policy.md §7 `payload_preview` rules apply.
+      - The full Bullhorn Candidate field set has 50+ fields plus customText1-25; v0.1 covers the minimal working set. Full enumeration TBD per bullhorn-integration-path.md §4.1 Spec gap §4.1-A at Week 3-4 Janitor build.
+
+  # --------------------------------------------------------------------------
+  contractor:
+    description: |
+      A person engaged on contract or temporary terms (vs. permanent placement). Distinct entity_type per Day-6 founder Q1 decision — separated from `candidate` for query clarity, IR35 first-class, and autosend policy distinguishing contractor vs candidate action_types.
+    bullhorn_source: Bullhorn.Candidate where status='contractor' (or equivalent — Bullhorn's status taxonomy varies; adapter layer translates)
+    v1_0_agent_access:
+      - Janitor (R+W — status normalisation; ensures Bullhorn Candidate.status='contractor' maps cleanly to IFOS entity_type='contractor' per bullhorn §4.1 A2)
+      - Scribe (R+W — same as candidate; contractor calls produce same Note pattern)
+      - Sourcing Scout (R — passive matching includes contractor pool per Ultraplan §8.1 A5)
+      - Concierge (R+W — lifecycle state; week-1/month-1 check-ins differ for contractors per Product Spec §2.2 R7)
+    canonical_fields:
+      # Inherits candidate fields conceptually; below are the additional contractor-specific fields.
+      # Full implementation: adapter layer materialises both candidate-overlap fields AND contractor-specific fields in entities.data.
+      # Schema notes: see candidate canonical_fields for the shared base set.
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.Candidate.id
+        notes: Same Bullhorn record as the candidate version; IFOS entity_id differs (`contractor:` prefix) to distinguish.
+      first_name:
+        type: string
+        required: true
+        source: Bullhorn.Candidate.firstName
+      last_name:
+        type: string
+        required: true
+        source: Bullhorn.Candidate.lastName
+      email:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.email
+      mobile:
+        type: string
+        required: false
+        source: Bullhorn.Candidate.mobile
+      ir35_status:
+        type: string
+        required: true
+        enum: [inside_ir35, outside_ir35, undetermined, exempt_small_business]
+        source: IFOS-derived (Concierge captures from intake call; v2.0 T4 IR35 agent owns)
+        notes: Pilot-agreement liability per autosend-policy.md §10 — incorrect IR35 classification is a tenant liability event. T4 IR35 agent (v2.0) is the canonical owner.
+      day_rate_min:
+        type: number
+        required: false
+        source: IFOS-derived (Scribe extracts from call; GBP per day)
+      day_rate_max:
+        type: number
+        required: false
+        source: IFOS-derived (GBP per day)
+      umbrella_company:
+        type: string
+        required: false
+        source: IFOS-derived (Concierge captures; v1.1+ may promote to entity_type='umbrella_company' if multi-contractor patterns emerge)
+        notes: v0.1 free-text. v1.1 entity-promotion candidate if Concierge surfaces shared-umbrella-company queries.
+      availability_weeks:
+        type: integer
+        required: false
+        source: IFOS-derived (when can contractor start, in weeks from now)
+      current_engagement_end_date:
+        type: date
+        required: false
+        source: IFOS-derived
+        notes: When contractor's current placement ends; Concierge schedules follow-up communications around this date.
+    notes:
+      - IR35 classification is regulatory-bearing; v0.1 captures the field but T4 IR35 agent (v2.0 per master brief §9) is the canonical reasoner.
+      - Contractor lifecycle differs from candidate — relevant to Concierge nurture cadence per Product Spec §2.2 R7 (week-1 check-in for permanent; weekly check-in for contractor through engagement).
+      - Adapter layer responsibility: if Bullhorn.Candidate.status changes to/from 'contractor', adapter materialises both entity_type rows in entities table with appropriate entity_links for placement continuity.
+
+  # --------------------------------------------------------------------------
+  client:
+    description: |
+      A company that hires through the recruitment agency. Master brief canonical vocabulary at §3.2 line 155 ("candidate, placement, brief") implicitly assumes client as the holder of briefs. Bullhorn calls this `ClientCorporation`.
+    bullhorn_source: Bullhorn.ClientCorporation
+    v1_0_agent_access:
+      - Janitor (R+W — orphan-link sweep + normalisation per bullhorn §4.1 A2)
+      - Sourcing Scout (R — target-firm context per bullhorn §4.1 A5)
+      - Concierge (R — relationship context per bullhorn §4.1 A6)
+    canonical_fields:
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.ClientCorporation.id
+      name:
+        type: string
+        required: true
+        source: Bullhorn.ClientCorporation.name
+      industry:
+        type: string
+        required: false
+        source: Bullhorn.ClientCorporation.industryList
+        notes: Bullhorn stores as multi-value; v0.1 flattens to primary industry only.
+      size_employees:
+        type: string
+        required: false
+        enum: [1-10, 11-50, 51-200, 201-500, 501-1000, 1001-5000, 5000+]
+        source: Bullhorn.ClientCorporation.numEmployees (bucketed)
+      website:
+        type: string
+        required: false
+        source: Bullhorn.ClientCorporation.companyURL
+      companies_house_number:
+        type: string
+        required: false
+        source: IFOS-derived (Diagnostic enriches from Companies House per master brief §3.2 first-party MCP list)
+        notes: UK statutory identifier; key for Diagnostic agent's public-footprint enrichment per Ultraplan §8.1 A1.
+      status:
+        type: string
+        required: true
+        enum: [active, dormant, churned, prospect]
+        source: IFOS-derived (Janitor maintains)
+      account_owner_user_id:
+        type: integer
+        required: false
+        source: Bullhorn.ClientCorporation.owner.id
+      preferred_terms:
+        type: string
+        required: false
+        source: IFOS-derived (commercial framework; free text for v0.1; structured for v1.1+)
+      date_added_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.ClientCorporation.dateAdded
+      hq_city:
+        type: string
+        required: false
+        source: Bullhorn.ClientCorporation.address.city
+    notes:
+      - Client is read-heavy for v1.0 agents (Sourcing Scout context, Concierge relationship state); write access is Janitor-only.
+      - Companies House enrichment is Diagnostic agent's domain; the field is set by Diagnostic at first-pass.
+
+  # --------------------------------------------------------------------------
+  contact:
+    description: |
+      A person at a client company. Decision-makers, hiring managers, HR, procurement. Bullhorn calls this `ClientContact`. v1.0 representation is thin (10 fields); v1.1 Triage agent expands decision-authority modelling.
+    bullhorn_source: Bullhorn.ClientContact
+    v1_0_agent_access:
+      - Concierge (R — decision-maker context per bullhorn §4.1 A6; thin in v1.0)
+      - (v1.1+) Inbound Triage — R+W expansion per master brief §9
+    canonical_fields:
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.ClientContact.id
+      first_name:
+        type: string
+        required: true
+        source: Bullhorn.ClientContact.firstName
+      last_name:
+        type: string
+        required: true
+        source: Bullhorn.ClientContact.lastName
+      email:
+        type: string
+        required: false
+        source: Bullhorn.ClientContact.email
+      phone:
+        type: string
+        required: false
+        source: Bullhorn.ClientContact.phone
+      title:
+        type: string
+        required: false
+        source: Bullhorn.ClientContact.title
+        notes: Job title at client.
+      decision_authority:
+        type: string
+        required: false
+        enum: [yes, no, influencer, blocker, unknown]
+        source: IFOS-derived (founder captures during intake; thin v0.1, expanded v1.1)
+        notes: v0.1 is essentially a tag for Concierge addressee-resolution gating; v1.1 Triage agent owns expansion (sub-fields for decision-domain, budget authority, etc.).
+      preferred_contact_method:
+        type: string
+        required: false
+        enum: [email, phone, telegram, whatsapp, linkedin]
+        source: IFOS-derived
+      date_added_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.ClientContact.dateAdded
+      do_not_contact:
+        type: boolean
+        required: true
+        source: IFOS-derived (Concierge addressee-resolution gate per bullhorn §4.1 A6)
+        notes: Hard gate for autosend orange-tier actions; default false; set true on opt-out.
+    notes:
+      - v1.0 is intentionally thin — only the fields Concierge addressee-resolution needs for orange-tier sends.
+      - v1.1 Triage expands: structured decision-authority (budget tier, decision domain, escalation chain), engagement history aggregate, preferred-channel sentiment.
+
+  # --------------------------------------------------------------------------
+  brief:
+    description: |
+      A role being recruited for. Master brief canonical vocabulary uses `brief`; §6 Day 6 line 490 lists "Role/Brief" — `brief` is the canonical entity_type slug; `role` is documented alias. Bullhorn calls this `JobOrder`.
+    bullhorn_source: Bullhorn.JobOrder
+    aliases: [role]
+    v1_0_agent_access:
+      - Janitor (R — status drift sweep per bullhorn §4.1 A2)
+      - Scribe (R — write-context resolution per bullhorn §4.1 A3)
+      - Sourcing Scout (R — active brief context per bullhorn §4.1 A5)
+      - Concierge (R — linked-brief context per bullhorn §4.1 A6)
+    canonical_fields:
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.JobOrder.id
+      title:
+        type: string
+        required: true
+        source: Bullhorn.JobOrder.title
+        notes: Role title as advertised; not internal IFOS-codified.
+      description:
+        type: string
+        required: false
+        source: Bullhorn.JobOrder.publicDescription
+        notes: Free-text JD body. Subject to autosend-policy.md §7 — payload_preview must summarise, not embed full JD.
+      role_type:
+        type: string
+        required: true
+        enum: [permanent, contract, temp, retained_search]
+        source: Bullhorn.JobOrder.employmentType (with mapping)
+      salary_min:
+        type: number
+        required: false
+        source: Bullhorn.JobOrder.salary
+        notes: GBP annual for permanent roles.
+      salary_max:
+        type: number
+        required: false
+        source: Bullhorn.JobOrder.salaryUnit (range parsing)
+      day_rate_min:
+        type: number
+        required: false
+        source: IFOS-derived (extracted from JD; GBP per day for contract roles)
+      day_rate_max:
+        type: number
+        required: false
+        source: IFOS-derived
+      location:
+        type: string
+        required: false
+        source: Bullhorn.JobOrder.address.city
+      remote_policy:
+        type: string
+        required: false
+        enum: [full_remote, hybrid_2_days_office, hybrid_3_days_office, on_site, flexible]
+        source: IFOS-derived (extracted from JD)
+      required_skills:
+        type: array
+        items: string
+        required: false
+        source: IFOS-derived (extracted from JD; v0.1 free strings; v1.1+ canonicalised skill taxonomy)
+      start_date_target:
+        type: date
+        required: false
+        source: IFOS-derived
+      urgency:
+        type: string
+        required: false
+        enum: [hot, warm, cold]
+        source: IFOS-derived (Concierge maintains based on client check-in cadence)
+      status:
+        type: string
+        required: true
+        enum: [open, on_hold, filled, closed_lost, closed_won, cancelled]
+        source: Bullhorn.JobOrder.status (with mapping)
+      date_added_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.JobOrder.dateAdded
+      date_last_modified_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.JobOrder.dateLastModified
+    notes:
+      - Brief is the most-read entity by Sourcing Scout (matches against candidates) and Concierge (lifecycle communications reference active brief). Janitor sweeps for status drift.
+      - v0.1 skills as free strings; v1.1 introduces a canonical skill taxonomy (out of scope here; ADR-006 candidate).
+
+  # --------------------------------------------------------------------------
+  placement:
+    description: |
+      A candidate placed into a client role. The commercial transaction unit — fees accrue per placement, lifecycle events (week-1, month-1, etc.) fire per placement per Product Spec §2.2 R7.
+    bullhorn_source: Bullhorn.Placement
+    v1_0_agent_access:
+      - Janitor (R — sweep for stale/orphan placements per bullhorn §4.1 A2)
+      - Scribe (R+W — note links per bullhorn §4.1 A3)
+      - Concierge (R+W — lifecycle stage maintenance per bullhorn §4.1 A6)
+    canonical_fields:
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.Placement.id
+      start_date:
+        type: date
+        required: true
+        source: Bullhorn.Placement.dateBegin
+      end_date:
+        type: date
+        required: false
+        source: Bullhorn.Placement.dateEnd
+        notes: Nullable for permanent placements; required for contract.
+      status:
+        type: string
+        required: true
+        enum: [active, completed, terminated, never_started]
+        source: Bullhorn.Placement.status (with mapping)
+      placement_type:
+        type: string
+        required: true
+        enum: [permanent, contract, temp, retained]
+        source: Bullhorn.Placement.employmentType (with mapping)
+      fee_amount:
+        type: number
+        required: false
+        source: Bullhorn.Placement.fee
+        notes: GBP. For permanent placements typically % of candidate_salary_at_placement; for contract typically per-day margin.
+      fee_percent:
+        type: number
+        required: false
+        source: Bullhorn.Placement.feeArrangement (parsed)
+        notes: For permanent; 15-25% typical UK range.
+      candidate_salary_at_placement:
+        type: number
+        required: false
+        source: Bullhorn.Placement.salary
+        notes: GBP annual at start. Sets the baseline for fee_amount = salary × fee_percent.
+      lifecycle_stage:
+        type: string
+        required: true
+        enum: [pre_start, week_1, month_1, month_3, month_6, month_12, month_24, completed]
+        source: IFOS-derived (Concierge maintains per Product Spec §2.2 R7 lifecycle cadence)
+        notes: Drives Concierge nurture-event firing.
+      termination_reason:
+        type: string
+        required: false
+        source: IFOS-derived (free text for v0.1; v1.1+ structured)
+      date_added_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.Placement.dateAdded
+    notes:
+      - Placement is the canonical commercial unit. Kill criterion §2 Trigger 8 (Gate B revenue uplift <£20k/year/tenant) is computed from placement.fee_amount aggregates.
+      - Lifecycle_stage drives Concierge's most-frequent autosend action (orange-tier `bullhorn_note_customer_visible` per autosend-policy §3 canonical orange).
+
+  # --------------------------------------------------------------------------
+  opportunity:
+    description: |
+      A candidate-brief pairing in the submission/screening/interview/offer pipeline. Pre-placement state. v1.1+ exercised; v1.0 minimal.
+    bullhorn_source: Bullhorn.JobSubmission (or Bullhorn.Opportunity — tenant-config dependent; some tenants use one, some both)
+    v1_0_agent_access: []  # Not exercised in v1.0 per bullhorn §4.1
+    v1_1_plus_agent_access:
+      - (v1.1) Inbound Triage — read for routing inbound candidate enquiries to active opportunities
+      - (v1.1) Brief Decoder — write submission events
+    canonical_fields:
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.JobSubmission.id
+      status:
+        type: string
+        required: true
+        enum: [submitted, screening, interview_scheduled, interview_completed, offer_pending, offer_accepted, rejected_by_client, rejected_by_candidate, withdrawn]
+        source: Bullhorn.JobSubmission.status (with mapping)
+      stage_history:
+        type: array
+        items: object
+        required: false
+        source: IFOS-derived (event log; one entry per status transition)
+        notes: |
+          Each entry: {stage, timestamp, transitioned_by_user_id, notes}.
+          v0.1 captures shape; v1.1+ exercises.
+      date_submitted:
+        type: timestamp
+        required: true
+        source: Bullhorn.JobSubmission.dateAdded
+      date_last_modified_at:
+        type: timestamp
+        required: true
+        source: Bullhorn.JobSubmission.dateLastModified
+    notes:
+      - v1.0 schema captures shape for forward-compatibility but no v1.0 agent reads or writes Opportunity.
+      - v1.1 Brief Decoder + Inbound Triage agents exercise. Schema may revise based on v1.1 build needs.
+
+  # --------------------------------------------------------------------------
+  timesheet:
+    description: |
+      A contractor's weekly hours record. v2.0 entity — exercised by T2 Timesheet agent + T6 Pay & Bill agent per master brief §9. v0.1 captures placeholder shape only.
+    bullhorn_source: Bullhorn.Timesheet (Bullhorn has a Timesheet entity; tenant-config dependent)
+    v1_0_agent_access: []  # Not exercised in v1.0
+    v2_0_agent_access:
+      - T2 Timesheet — R+W
+      - T6 Pay & Bill — R
+    canonical_fields:
+      bullhorn_id:
+        type: integer
+        required: true
+        source: Bullhorn.Timesheet.id
+      week_starting:
+        type: date
+        required: true
+        source: Bullhorn.Timesheet.weekStartDate
+      hours_worked:
+        type: number
+        required: true
+        source: Bullhorn.Timesheet.totalHours
+      approved_by_client:
+        type: boolean
+        required: true
+        source: Bullhorn.Timesheet.status (parsed)
+      approved_by_contractor:
+        type: boolean
+        required: true
+        source: IFOS-derived (T2 confirms; v2.0)
+      date_submitted:
+        type: timestamp
+        required: true
+        source: Bullhorn.Timesheet.dateAdded
+    notes:
+      - v0.1 placeholder. T2 + T6 builds in v2.0 verify field set against real Bullhorn data.
+      - Field set will expand significantly in v2.0 (pay rate, bill rate, agency margin, umbrella deductions, etc.).
+
+# ============================================================================
+# §2 — Relationship definitions (entity_links.link_type values)
+# ============================================================================
+# Each relationship has:
+#   - source → target entity_types
+#   - cardinality: 1:1 | 1:N (one source, many targets) | M:N
+#   - description in IFOS canonical vocabulary
+#   - v1.0 vs v1.1+ exercise notes
+# ============================================================================
+
+relationships:
+
+  candidate_placed_in_role:
+    source: candidate
+    target: placement
+    cardinality: M:N
+    description: A candidate may have multiple placements over time (different clients, different roles). A placement has exactly one candidate.
+    notes: |
+      Despite "M:N" cardinality, practically 1:N from placement → candidate (each placement has one candidate; each candidate has 0..N placements). Modelled as M:N for query symmetry.
+    v1_0_exercise: Janitor + Concierge use this link extensively for candidate placement history.
+
+  placement_for_brief:
+    source: placement
+    target: brief
+    cardinality: N:1
+    description: Each placement fills exactly one brief; a brief may have multiple placements over time (replacement hires, multiple seats).
+    v1_0_exercise: Concierge reads to anchor lifecycle communications; Scribe reads for write-context resolution.
+
+  brief_from_client:
+    source: brief
+    target: client
+    cardinality: N:1
+    description: Each brief is owned by exactly one client (the hiring company).
+    v1_0_exercise: All 4 Bullhorn-touching v1.0 agents.
+
+  brief_decision_maker:
+    source: brief
+    target: contact
+    cardinality: N:1
+    description: Each brief has a designated decision-maker contact at the client (the hiring manager).
+    v0_1_limitation: |
+      v0.1 captures the PRIMARY decision-maker only. Real-world recruiting often has multiple decision-makers per brief (hiring manager + HR + occasionally CTO/CFO/CEO). The N:1 cardinality is the simplifying v0.1 assumption. Multi-decision-maker panels deferred to v1.1 Triage per Q10 — when v1.1 lands, brief_decision_maker may flip to M:N with role-in-panel metadata (chair, technical-evaluator, hr-lead, budget-approver, etc.) on entity_links.metadata.
+    v1_0_exercise: Concierge reads for addressee-resolution per bullhorn §4.1 A6 Voice gate; addressee = primary decision-maker contact.
+    v1_1_plus_notes: v1.1 Inbound Triage expands to multi-contact panel modelling per Q10.
+
+  contact_works_for_client:
+    source: contact
+    target: client
+    cardinality: N:1
+    description: Each contact works at one client (the simplifying v0.1 assumption — multi-employer contacts deferred to v1.1+).
+    v1_0_exercise: Concierge addressee context.
+
+  candidate_engaged_with_contact:
+    source: candidate
+    target: contact
+    cardinality: M:N
+    description: Candidates engage with multiple contacts during the interview process (panel interviews, multiple stakeholders). Captures the relationship for autosend-policy `payload_preview` addressee verification.
+    v1_0_exercise: Concierge reads for outbound-message addressee correctness; thin in v1.0.
+
+  candidate_referred_by_contact:
+    source: candidate
+    target: contact
+    cardinality: N:1
+    description: Some candidates are referred by a contact (a candidate's previous manager, peer, etc., who is in the IFOS contact registry).
+    v1_0_exercise: Sourcing Scout captures at first-touch when relevant; not heavily exercised in v1.0.
+
+  opportunity_for_brief:
+    source: opportunity
+    target: brief
+    cardinality: N:1
+    description: An opportunity is a candidate's progression toward a specific brief.
+    v1_0_exercise: None (Opportunity entity not v1.0-exercised).
+    v1_1_plus_notes: Brief Decoder + Inbound Triage primary readers.
+
+  opportunity_about_candidate:
+    source: opportunity
+    target: candidate
+    cardinality: N:1
+    description: Each opportunity is about exactly one candidate; a candidate may have multiple opportunities (different briefs).
+    v1_0_exercise: None.
+
+  timesheet_for_placement:
+    source: timesheet
+    target: placement
+    cardinality: N:1
+    description: Each timesheet relates to one (contract) placement; a placement has 0..N timesheets over its duration.
+    v1_0_exercise: None (Timesheet entity v2.0).
+    v2_0_notes: T2 Timesheet + T6 Pay & Bill primary readers/writers.
+
+# ============================================================================
+# §3 — Agent × Entity R/W matrix
+# ============================================================================
+# Source-of-truth for who-touches-what across v1.0 agents.
+# Cross-referenced to bullhorn-integration-path.md §4.1 + autosend-safety-policy.md §3.
+# ============================================================================
+
+agent_access_matrix:
+
+  Diagnostic:
+    candidate: none
+    contractor: none
+    client: none  # Diagnostic enriches client public-footprint at Companies House but writes to a separate IFOS-internal diagnostic_report artefact, not to client entity directly
+    contact: none
+    brief: none
+    placement: none
+    opportunity: none
+    timesheet: none
+    notes: Diagnostic runs against public footprint per Ultraplan §8.1 A1 line 489. No Bullhorn-entity reads or writes.
+
+  Janitor:
+    candidate: R+W   # full sweep + normalisation + dedup proposals
+    contractor: R+W  # status normalisation
+    client: R+W      # orphan-link sweep + normalisation
+    contact: R       # read-only (Concierge owns writes)
+    brief: R         # status drift sweep
+    placement: R     # orphan / stale-tag sweep
+    opportunity: none
+    timesheet: none
+
+  Scribe:
+    candidate: R+W   # field updates from call transcripts (salary expectation, willing to relocate, etc.)
+    contractor: R+W  # contractor calls same pattern
+    client: none     # Scribe reads candidate's link to client via brief but doesn't write to client
+    contact: none
+    brief: R         # write-context resolution
+    placement: R+W   # note links on placed-candidate calls
+    opportunity: none
+    timesheet: none
+
+  Cash_Conductor:
+    candidate: none  # No Bullhorn touch — Xero + Open Banking only
+    contractor: none
+    client: none
+    contact: none
+    brief: none
+    placement: none  # Reads placement.fee_amount aggregates but via Xero invoice records, not via Bullhorn placement entity
+    opportunity: none
+    timesheet: none
+
+  Sourcing_Scout:
+    candidate: R     # passive matching
+    contractor: R    # contractor pool
+    client: R        # target-firm context
+    contact: none    # thin v1.0
+    brief: R         # active brief context for matching
+    placement: none
+    opportunity: none
+    timesheet: none
+
+  Concierge:
+    candidate: R+W   # lifecycle state on every event
+    contractor: R+W  # lifecycle state, contractor-specific cadence
+    client: R        # relationship context
+    contact: R       # decision-maker resolution for orange-tier sends
+    brief: R         # linked-brief context
+    placement: R+W   # lifecycle stage maintenance (week_1, month_1, etc.)
+    opportunity: none
+    timesheet: none
+
+# ============================================================================
+# §4 — Bullhorn mapping
+# ============================================================================
+# Per-entity Bullhorn source + field-level mapping notes.
+# Verifies against real Bullhorn data at Week 3-4 Janitor build per bullhorn §4.1 Spec gap §4.1-A.
+# ============================================================================
+
+bullhorn_mapping:
+
+  candidate:
+    bullhorn_entity: Bullhorn.Candidate
+    primary_key: id
+    status_filter: status != 'contractor'
+    field_mapping_density: v0.1 covers 18 fields; full Bullhorn field-density TBD pending Week 3-4 Janitor verification per bullhorn-integration-path.md §4.1 Spec gap §4.1-A.
+
+  contractor:
+    bullhorn_entity: Bullhorn.Candidate
+    primary_key: id
+    status_filter: status='contractor'
+    field_mapping_density: v0.1 covers 10 fields (candidate-overlap subset + IR35 contractor-specific fields); full Bullhorn field-density TBD pending Week 3-4 Janitor verification per bullhorn §4.1 Spec gap §4.1-A.
+    notes: Adapter layer materialises both `candidate` and `contractor` entity_type rows from the same Bullhorn.Candidate record when status flips. See entity-level notes.
+
+  client:
+    bullhorn_entity: Bullhorn.ClientCorporation
+    primary_key: id
+    field_mapping_density: v0.1 covers 11 fields; full Bullhorn field-density TBD pending Week 3-4 Janitor verification per bullhorn §4.1 Spec gap §4.1-A.
+    notes: Companies House number is IFOS-derived from Diagnostic enrichment, not Bullhorn-sourced.
+
+  contact:
+    bullhorn_entity: Bullhorn.ClientContact
+    primary_key: id
+    field_mapping_density: v0.1 covers 10 fields; full Bullhorn field-density TBD pending Week 3-4 Janitor verification per bullhorn §4.1 Spec gap §4.1-A. v1.1 Triage expands contact-side coverage.
+
+  brief:
+    bullhorn_entity: Bullhorn.JobOrder
+    primary_key: id
+    field_mapping_density: v0.1 covers 17 fields; full Bullhorn field-density TBD pending Week 3-4 Janitor verification per bullhorn §4.1 Spec gap §4.1-A. Note Bullhorn customText1-25 fields are tenant-specific and require per-tenant adapter mapping not standard schema work.
+    notes: Skills extraction (required_skills, nice_to_have_skills arrays) is IFOS-derived from JD body, not Bullhorn-sourced (Bullhorn does not consistently structure skill fields across tenants).
+
+  placement:
+    bullhorn_entity: Bullhorn.Placement
+    primary_key: id
+    field_mapping_density: v0.1 covers 11 fields; full Bullhorn field-density TBD pending Week 3-4 Janitor verification per bullhorn §4.1 Spec gap §4.1-A.
+    notes: lifecycle_stage is IFOS-derived (Concierge maintains); Bullhorn does not natively store IFOS's nurture-cadence stages.
+
+  opportunity:
+    bullhorn_entity: Bullhorn.JobSubmission (or Bullhorn.Opportunity depending on tenant configuration)
+    primary_key: id
+    field_mapping_density: v0.1 covers 5 fields (placeholder shape); full Bullhorn field-density TBD pending v1.1 Brief Decoder / Inbound Triage build.
+    notes: Tenant-config dependent — some Bullhorn tenants use JobSubmission, some use Opportunity, some both. Adapter layer resolves at ingest.
+
+  timesheet:
+    bullhorn_entity: Bullhorn.Timesheet
+    primary_key: id
+    field_mapping_density: v0.1 covers 7 fields (placeholder shape); full Bullhorn field-density TBD pending v2.0 T2 Timesheet + T6 Pay & Bill builds.
+
+# ============================================================================
+# §5 — Open questions
+# ============================================================================
+# Resolved (RESOLVED) items: baked into v0.1 per Day-6 founder decisions.
+# Deferred (DEFERRED) items: scope-bounded with named revisit triggers.
+# ============================================================================
+
+open_questions:
+
+  Q1_contractor_entity_type:
+    status: RESOLVED (Day 6 founder decision)
+    decision: Contractor is a separate entity_type from candidate. Adapter layer maps Bullhorn.Candidate (status='contractor') → IFOS entity_type='contractor' at ingest.
+    rationale: Autosend policy distinguishes contractor vs candidate action_types; kill criterion + pilot liability treat contractor data differently (IR35, contractor-specific residency); type-first-class beats status-flag-filtered for queryability. Adapter overhead is minimal single conditional.
+
+  Q2_note_handling:
+    status: DEFERRED to v1.1
+    v0_1_decision: Bullhorn Notes ingest into `decision_log.payload` with `payload.note_content`, `payload.bullhorn_note_id`, `payload.note_external_visibility` (boolean). Not a top-level entity_type in v0.1.
+    revisit_trigger: If Janitor build at Week 3-4 needs per-note structured querying (e.g., "all notes Concierge wrote about candidate X in last 90 days"), promote Note to entity_type='note' in v1.1; adapter layer handles migration.
+    rationale: Notes operationally ARE the audit trail (autosend-policy.md §7 confirms); decision_log has RLS + tier metadata + payload_hash for audit; avoid dual-storage problem at v1.0; cheap to promote later if needed.
+
+  Q3_full_bullhorn_field_set:
+    status: DEFERRED to Week 3-4
+    v0_1_decision: v0.1 ships minimal v1.0 working set (~10-20 fields per entity) covering what the 6 v1.0 agents actually touch per bullhorn §4.1.
+    revisit_trigger: Janitor build at Week 3-4 verifies against real Bullhorn data per bullhorn-integration-path.md §4.1 Spec gap §4.1-A and surfaces full required set.
+    rationale: Premature schema lockdown is the failure mode; minimum-shape approach lets pilot data guide expansion.
+
+  Q4_system_agents_not_entities:
+    status: RESOLVED (Day 6 founder decision)
+    decision: System agent names like `_renderer` are NOT entity_types in this schema. They appear in `decision_log.agent_name` only (per ADR-003 + Day-5 schema migration `phase='render'`).
+    rationale: Vertical schema covers tenant-domain entities only. System-internal agents (renderer, validators, ingest pipeline) live in decision_log audit but are not first-class business entities.
+
+  Q5_contact_decision_authority_granularity:
+    status: DEFERRED to v1.1
+    v0_1_decision: contact.decision_authority is a single-enum field [yes, no, influencer, blocker, unknown] in v0.1.
+    revisit_trigger: v1.1 Inbound Triage agent build per master brief §9 expands decision-authority modelling.
+    v1_1_plus_expansion: Sub-fields for decision-domain (technical/budget/strategic), authority tier (final/recommend/influence/observer), engagement history aggregate, preferred-channel sentiment.
+
+  Q6_timesheet_field_set:
+    status: DEFERRED to v2.0
+    v0_1_decision: Timesheet entity has placeholder 7-field shape (id, week_starting, hours_worked, approved_by_client, approved_by_contractor, date_submitted, primary key).
+    revisit_trigger: v2.0 T2 Timesheet agent build verifies against real Bullhorn data and expands.
+    rationale: T2 + T6 builds are v2.0 per master brief §9; full schema requires pay/bill modelling not yet designed.
+
+  Q7_umbrella_company_promotion:
+    status: DEFERRED to v1.1
+    surfaced_during_drafting: 2026-05-18 Day 6
+    v0_1_decision: contractor.umbrella_company is free-text field in v0.1.
+    revisit_trigger: If Concierge surfaces multi-contractor patterns where the same umbrella company serves multiple IFOS-tracked contractors (e.g., "all contractors at Acme Umbrella who terminate placements within 90 days"), promote umbrella_company to entity_type='umbrella_company' in v1.1.
+
+  Q8_skill_taxonomy:
+    status: DEFERRED to v1.1 / ADR-006
+    surfaced_during_drafting: 2026-05-18 Day 6
+    v0_1_decision: brief.required_skills + brief.nice_to_have_skills are free-string arrays in v0.1.
+    revisit_trigger: Skill-matching accuracy from Sourcing Scout's first 4 tenant-weeks of operation; if free-text matching produces <60% precision, canonical skill taxonomy lands as v1.1.
+    rationale: Skill canonicalisation is well-trodden ground (ESCO taxonomy, O*NET, LinkedIn Skills API) but pulling a taxonomy in v0.1 is over-engineering for the first 3 pilots.
+
+  Q9_multi_client_contact:
+    status: DEFERRED to v1.1
+    surfaced_during_drafting: 2026-05-18 Day 6
+    v0_1_decision: contact_works_for_client is N:1 (each contact at exactly one client). Contacts who change employer get a new contact entity per IFOS.
+    revisit_trigger: If pilot tenants surface frequent contact-employer-changes (>5% of contacts change employer over 90 days), revise to M:N (contact_history) with current-employer flag.
+    rationale: M:N relationship adds query complexity; N:1 is the simplifying v0.1 assumption.
+
+  Q10_panel_hiring_modelling:
+    status: DEFERRED to v1.1
+    surfaced_during_drafting: 2026-05-18 Day 6
+    v0_1_decision: brief_decision_maker is N:1 (each brief has one primary decision-maker contact in v0.1).
+    revisit_trigger: v1.1 Inbound Triage expands to panel modelling — multiple decision-maker contacts per brief with role-in-panel (chair, technical-evaluator, hr-lead, etc.).
+    rationale: v1.0 Concierge addressee-resolution uses primary-decision-maker; panel modelling adds value when v1.1 Triage handles inbound brief queries from multiple stakeholders.
+
+  Q11_lifecycle_stage_enum_migration:
+    status: DEFERRED with explicit migration trigger
+    surfaced_during_review: 2026-05-18 Day 6 founder review (S4)
+    v0_1_decision: placement.lifecycle_stage enum is hardcoded to Product Spec §2.2 R7 values (pre_start, week_1, month_1, month_3, month_6, month_12, month_24, completed).
+    revisit_trigger: Any Product Spec revision touching R7 nurture cadence (e.g., adding week_2 checkpoint, removing month_24, splitting month_12 into quarterly checkpoints) requires schema migration. Migration steps — (1) ALTER TABLE add new enum value(s) to entities.data JSONB validator; (2) backfill existing placement rows if semantic change (e.g., week_1 → week_1_check_in renaming); (3) Concierge nurture-event firing logic updated to match new cadence.
+    rationale: Hardcoded enum is the lowest-friction v0.1 choice; alternative (lifecycle_stage as free-form string) loses query-time validation. Tradeoff: schema-migration-on-change vs runtime-validation-loss. v1.0 picks former.
+
+  Q12_source_field_schema:
+    status: DEFERRED to v1.0 Codex ratification
+    surfaced_during_review: 2026-05-18 Day 6 founder review (S2)
+    v0_1_decision: canonical_fields.<name>.source values are free-text strings in v0.1. Two patterns used: (a) entity.field paths like `Bullhorn.Candidate.firstName`; (b) free-text with citation like `IFOS-derived (Scribe extracts from call transcripts per bullhorn §4.1 A3)`.
+    revisit_trigger: Codex Day-7 ratification reviews whether stricter source-field schema would improve machine-parseability. If accepted, v1.0 introduces structured source object — e.g., `source: {origin: bullhorn | ifos_derived, bullhorn_field?: <entity.field>, ifos_agent?: <agent_name>, citation?: <doc-ref>}`.
+    rationale: Mixed-format is readable for v0.1; stricter is Codex review work. Machine-parseability matters if Week-1 prereq 3 (`_shared/hook-helpers.sh`) consumes source provenance for audit; if not consumed programmatically, free-text is fine.
+
+# ============================================================================
+# §6 — Versioning + scope progression
+# ============================================================================
+
+versioning:
+
+  v0_1:
+    status: This document — Proposed
+    date: 2026-05-18 (Day 6 of Week 0)
+    scope: |
+      Structural cut. 8 entities + 10 relationships + agent-access matrix + Bullhorn mapping. Minimal field sets (10-20 per entity). 10 open questions catalogued (Q1, Q4 resolved; Q2, Q3, Q5-Q10 deferred with named triggers).
+    next_action: Codex Day-7 ratification queue position 18.
+
+  v1_0:
+    expected_date: post Week 3-4 (after Janitor build verifies against real Bullhorn data)
+    scope: |
+      Codex-ratified version. Field sets expanded per Janitor's real-Bullhorn-data findings (Q3 trigger). Possibly Note entity promoted to entity_type if Janitor surfaces query patterns (Q2 trigger). 2-3 revisions expected from v0.1.
+    target: Week-4-end (~2026-06-21 if Week 1 starts 2026-05-21 per Day-5 kill criterion §2 Trigger 1 calendar).
+
+  v1_1:
+    expected_date: post first-pilot operations (Q4 2026 if pilot lands per master brief §6 Day 7 question 1)
+    scope: |
+      Triage expansion (Q5 contact decision-authority granularity, Q10 panel hiring). Skill taxonomy decision (Q8). Multi-client contact decision (Q9). Umbrella company entity promotion candidate (Q7). Opportunity entity exercise begins.
+
+  v2_0:
+    expected_date: 2027+ per master brief §9 build sequence
+    scope: |
+      Timesheet entity exercised (Q6). T2 Timesheet agent + T6 Pay & Bill agent operational. Pay/bill modelling lands. IR35 v2.0 reasoning via T4 agent.
+
+# ============================================================================
+# End of vertical-schema.yaml v0.1
+# ============================================================================

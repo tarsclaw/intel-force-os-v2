@@ -1,8 +1,8 @@
 # Current priorities
 
 **Week:** Week 0 (pre-build)
-**Today's task:** Day 6 — vertical schema v0.1 (`docs/verticals/recruitment/vertical-schema.yaml`) per master brief §6 Day 6 line 490
-**Most recent close:** Day 5 — auto-send safety policy + v1.0 kill criterion (shipped 2026-05-18, see Shipped) + live Postgres schema migration (decision_log.phase enum 5→6 values)
+**Today's task:** Day 7 — single-sentence test review + first Codex ratification run per master brief §6 Day 7 lines 492-505
+**Most recent close:** Day 6 — recruitment vertical schema v0.1 (shipped 2026-05-18, see Shipped) — 8 entities, 89 canonical fields, 10 relationships, agent R/W matrix, Bullhorn mapping, 12 open_questions
 
 ## This week's gate
 
@@ -11,8 +11,7 @@ Clear all seven days of master brief §6 by Sunday. Five-of-five yeses on the
 
 ## Open
 
-- [ ] Day 6: vertical schema v0.1 (`docs/verticals/recruitment/vertical-schema.yaml`) — 8 core entities per master brief §6 Day 6 line 490
-- [ ] Day 7: single-sentence test review + first Codex ratification run
+- [ ] Day 7: single-sentence test review + first Codex ratification run per master brief §6 Day 7 lines 492-505 (5 yes/no questions; Week 0 closure depends on 5 yeses; design-partner question 1 is currently NO per Risk #3)
 - [ ] **Week 1-2 must-fill** (per `v1.0-kill-criterion.md` §3.4): External advisor name + engagement letter before first pilot LOI signs. Slot reserved for future tie-break needs in commercial decisions or post-pilot scale.
 
 ## Operational debts from Day 4 — CLOSED 2026-05-18 Monday morning
@@ -32,6 +31,36 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 6 (2026-05-18) — Recruitment vertical schema v0.1
+
+Single-day light artefact per master brief §6 Day 6 framing. Drafting → batched founder review (8 surfaces + 3 findings) → 4 revisions → commit.
+
+**Artefact landed (Status: Proposed pending Codex Day-7 ratification):**
+
+- **`docs/verticals/recruitment/vertical-schema.yaml`** (894 lines, YAML with JSON-Schema-compatible field types):
+  - 8 core entities per master brief §6 Day 6 line 490: `candidate`, `contractor`, `client`, `contact`, `brief` (with `role` alias), `placement`, `opportunity`, `timesheet`
+  - 89 canonical fields across 8 entities (minimal v1.0 working set)
+  - 10 relationships (entity_links.link_type values): candidate↔placement, placement→brief, brief→client, brief→primary_contact, contact→client, candidate↔contact, candidate→referrer_contact, opportunity→brief, opportunity→candidate, timesheet→placement
+  - Agent × Entity R/W matrix across all 6 v1.0 agents (Diagnostic, Janitor, Scribe, Cash Conductor, Sourcing Scout, Concierge) — cross-referenced to `bullhorn-integration-path.md` §4.1 + `autosend-safety-policy.md` §3
+  - Bullhorn mapping per entity with explicit "field-density TBD pending Week 3-4 Janitor verification per §4.1 Spec gap §4.1-A" flag
+  - 12 open questions: Q1 (contractor entity_type) + Q4 (system agents non-entity) RESOLVED inline; Q2/Q3/Q5-Q12 DEFERRED with named revisit triggers
+
+**Design decisions baked in per founder review:**
+
+- **Contractor as separate entity_type** (not status flag on candidate) — adapter layer maps Bullhorn.Candidate (status='contractor') → IFOS entity_type='contractor'. Rationale: autosend policy distinguishes contractor vs candidate action_types; IR35 first-class; queryability beats status-flag filtering
+- **Note as decision_log payload** for v0.1 (not separate entity_type) — promotion trigger named (Janitor Week 3-4 query patterns); avoids dual-storage problem
+- **Field enumeration minimal v1.0** — full Bullhorn field-density TBD per Week 3-4 Janitor verification; Day 6 establishes structure, not lockdown
+- **System agents (e.g., `_renderer`) NOT entity_types** — appear in `decision_log.agent_name` only; vertical schema is tenant-domain only
+- **`brief` as canonical slug** with `role` documented alias (matches master brief §3.2 + §5.1 + §9 canonical vocabulary)
+- **Explicit field repetition for contractor** (vs YAML `extends` inheritance) — JSON Schema tooling compatibility prioritised over DRY
+- **Both per-entity `v1_0_agent_access` AND §3 agent_access_matrix** — intentional readability trade-off; cross-check verified
+
+**Length:** 894 lines (vs 300-500 estimate). Master brief "every field, every relationship, every data source" framing justifies depth. v0.1 intentionally over-specifies; Week 3-4 Janitor verification likely trims based on real Bullhorn data.
+
+**State files updated this commit:**
+
+- `.agents/current-priorities.md` — Day 6 → Shipped; Day 7 → today's task; Codex queue 17 → 18
 
 ### Day 5 (2026-05-18) — Auto-send safety policy + v1.0 kill criterion + live schema migration
 
@@ -200,7 +229,7 @@ Commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 + ADR-0
 
 ## Queued for Codex ratification (Day 7)
 
-Per master brief §10.6 first ratification run — Day 5 added items 16 + 17, now 17:
+Per master brief §10.6 first ratification run — Day 6 added item 18, now 18:
 
 1. `docs/architecture/cortexos-primitive-status.md` (the audit document)
 2. `docs/decisions/ADR-001-bus-dispatcher-poll-not-chokidar.md` (Accepted Option A)
@@ -219,6 +248,7 @@ Per master brief §10.6 first ratification run — Day 5 added items 16 + 17, no
 15. Plus the remaining Week 0 artefacts (Day 6 vertical schema v0.1; Day 7 single-sentence test review)
 16. **`docs/decisions/autosend-safety-policy.md`** (Status: Proposed) — NEW Day 5 morning 2026-05-18
 17. **`docs/decisions/v1.0-kill-criterion.md`** (Status: Proposed) — NEW Day 5 morning 2026-05-18 + Day-5 close commit (includes live Postgres schema migration; Risk #3 escalation; state-file updates)
+18. **`docs/verticals/recruitment/vertical-schema.yaml`** (Status: Proposed) — NEW Day 6 2026-05-18 (8 entities, 89 fields, 10 relationships, agent R/W matrix, Bullhorn mapping, 12 open_questions)
 
 ## Stuck
 
