@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** Phase 2 — `packages/agent-renderer/` scaffold per ADR-003 (TypeScript Node + tsup + vitest + commander); ends with `cortextos-ifos render-agent test-agent --tenant migration-test` working against test fixture. ~3 days.
+**Today's task:** Phase 3 — `agents/_shared/hook-helpers.sh` + `agents/_shared/autosend-policy.yaml` + `agents/_shared/README.md`. Closes gap #4 (autosend runtime YAML). ~3 days.
 **Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Week-1 product-code slice (5 phases, ~10 days)
-**Most recent close:** Phase 1 (Day 8, 2026-05-20) — renderer prereqs + ESC catalogue landed at `a279226`. 10 files, +813 lines; first product-code commit. Closes 3 of 11 Day-7-honest-read gaps (#2 preamble, #3 common schemas, #6 ESC catalogue).
+**Most recent close:** Phase 2 (Day 8, 2026-05-20) — `packages/agent-renderer/` scaffold landed at `3c16d35`. 31 files, +3,378 lines; first runtime code. 30/30 unit tests pass; end-to-end render verified (10 files, ~23ms); Risk #1 stress test 10/10 stable; goals.json drift-check NO DRIFT; cortextOS `discoverAgents()` smoke ✓. Two observations flagged for Codex (CLI-name divergence → ADR-004; phantom `_shared` listing in upstream `list-agents`).
 
 ## This week's gate
 
@@ -23,10 +23,15 @@ Single-sentence test result 3 of 5 YES (Q1 NO + Q3 NO + Q2/Q4/Q5 YES). Week 0 ex
 ### Active 5-phase plan (`bubbly-snuggling-lantern.md`)
 
 - [x] **Phase 1** — Renderer prereqs (claude-md-preamble.md + 8 common-*.json) + ESC catalogue. Landed Day 8 `a279226`. Closes gaps #2, #3, #6.
-- [ ] **Phase 2** — `packages/agent-renderer/` scaffold (TypeScript Node). ~3 days. **IN PROGRESS NEXT.**
-- [ ] **Phase 3** — `agents/_shared/hook-helpers.sh` + `autosend-policy.yaml` + README.md. ~3 days. Closes gap #4 (autosend runtime YAML).
+- [x] **Phase 2** — `packages/agent-renderer/` scaffold (TypeScript Node). Landed Day 8 `3c16d35`. First runtime code; 30/30 tests; end-to-end render + discoverAgents() smoke verified.
+- [ ] **Phase 3** — `agents/_shared/hook-helpers.sh` + `autosend-policy.yaml` + README.md. ~3 days. Closes gap #4 (autosend runtime YAML). **IN PROGRESS NEXT.**
 - [ ] **Phase 4** — `vertical-schema.yaml` v0.2 (3 voice entities + 1 pgvector index + 6 fields). ~1 day. Closes gap #1 (voice corpus schema).
 - [ ] **Phase 5** — `agents/_shared/voice-loader.sh` + live Phase-4 migration execution. ~2 days.
+
+### Phase-2 follow-ups queued
+
+- [ ] **ADR-004** (Phase 2 follow-up) — ratify CLI surface: keep standalone `ifos-render-agent` OR build `ifosctl` shim that multiplexes. Founder + Codex review at first ratification round.
+- [ ] **Upstream cortextOS issue** (low priority) — `bus/agents.ts:listAgents()` scans `orgs/<org>/agents/*` without excluding `_shared/`. Phantom listing only; renderer correctness unaffected. Carry-forward to IFOS daemon integration work.
 
 ### Parallel tracks during extension
 
@@ -64,6 +69,31 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 8 (2026-05-20) — Phase 2: packages/agent-renderer scaffold
+
+Commit `3c16d35`. First runtime code in IFOS. 31 files, +3,378 lines.
+
+- `packages/agent-renderer/` complete: 8 TypeScript source files (~700 lines) + 4 vitest files (30 unit tests) + test fixture bundle + tenant vault fixture + package.json (Node ≥20, ESM, tsup/vitest/commander/Ajv/js-yaml deps) + README.md + tsconfig + tsup.config + vitest.config + .gitignore
+- 12-row file map ratified verbatim per agent-bundle-renderer-design.md §2.1
+- Atomic-write protocol per ADR-003 §3.3.4 (tmp/prev/atomic-rename + 2-deep .prev retention)
+- Synthesis pipeline: agent.md→CLAUDE.md (preamble + token substitution + body marker replacement), config.schema.json→config.json (Ajv 2020-12 + 8 common-*.json $refs + {tenant_slug} default resolution), _secrets.env→.env (chmod 0600, filtered by tools.yaml required_env)
+- Preflight: bundle/shared-helpers/tenant-vault/.rendered-by-ifos-renderer marker checks; --force-overwrite-non-rendered override
+- Failure modes: 6 reason codes mapping to ESC_RENDERER_FAILED per agents/_shared/escalation-codes.md §2.4
+
+Acceptance results:
+- `pnpm test`: 30/30 pass, 476ms
+- `pnpm typecheck`: clean
+- End-to-end render: outcome=rendered, 10 files, ~23ms
+- discoverAgents() smoke: cortextos-ifos list-agents sees test-agent in org migration-test ✓
+- Risk #1 stress test: 10/10 renders stable at 22-25ms, zero leaked node procs, .prev rotation retains 2 ✓
+- goals.json drift-check at SHA c21fbfe: NO DRIFT (encoded as unit test)
+
+Codex Day-7 queue grows from 24 to 25 items (renderer scaffold added).
+
+Two observations flagged for Codex Day-7 review:
+- CLI-name divergence from ADR-003 §3.3.1 (`cortextos-ifos render-agent` not implementable without modifying read-only submodule) — Phase 2 ships standalone `ifos-render-agent`; ADR-004 will ratify final surface
+- Upstream `discoverAgents()`/`bus/agents.ts:listAgents()` lists `_shared/` as phantom agent — renderer correctness unaffected; carry-forward for IFOS daemon integration
 
 ### Day 8 (2026-05-20) — Phase 1: renderer prereqs + ESC catalogue
 
