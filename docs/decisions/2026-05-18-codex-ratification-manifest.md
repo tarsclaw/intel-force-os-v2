@@ -37,6 +37,23 @@
 
 ---
 
+## §1.6 — Day-9 architecture+tenancy verification additions (2026-05-20 evening)
+
+Architecture+tenancy slice (commits `5c3fa66` + `c4348aa`) adds 4 new artefacts to the queue. These ratify against `review-architecture-decision.md` skill (with Founder Decision D5 softening for the lifecycle runbook):
+
+| # | Artefact | Path | Ratifies via | Round-1 verdict |
+|---|---|---|---|---|
+| 35 | tenancy-invariants.md | `docs/architecture/tenancy-invariants.md` | review-architecture-decision | Queued for Round 2 |
+| 36 | architecture-cohesion-review.md | `docs/architecture/architecture-cohesion-review.md` | review-architecture-decision (Reference; D5 softening applies) | Queued for Round 2 |
+| 37 | tenant-lifecycle.md | `docs/runbooks/tenant-lifecycle.md` | review-architecture-decision (In Force; D5 softening applies) | Queued for Round 2 |
+| 38 | run-tenancy-audit.sh | `scripts/run-tenancy-audit.sh` | review-architecture-decision (Reference) | Queued for Round 2 |
+
+**Cross-cutting reference:** these 4 artefacts ratify the layered defence model documented across Day-4 §7 (RLS isolation gate) + ADR-002 (parallel brain) + ADR-003 (renderer) + ADR-004 (deviations). They are downstream of, not redundant with, the existing 21+ queue items.
+
+**Queue total: 43 items** at Day-9 evening close.
+
+---
+
 ## §1.5 — Codex Round 1 verdicts (2026-05-20)
 
 First ratification run completed Day 8. Cluster A+B+C reviewed (16 artefacts). Per-artefact verdict + Round-1 disposition:

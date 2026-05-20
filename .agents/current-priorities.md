@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** **Codex Round-1 remediation COMPLETE at commit `2b287d3`.** Next: re-run Codex Round 2 (`bash scripts/run-codex-ratification.sh --cluster A` + B + C) to verify closure. Then live VPS migration (`bash scripts/run-live-migration.sh`) at founder convenience.
-**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Codex Round-1 remediation plan COMPLETE; all 3 phases landed.
-**Most recent close:** Day 8 evening 2026-05-20 — Codex Round-1 remediation. 13 of 14 rejections incorporated at `2b287d3` (16 files, +429 lines). 2 disagreement docs filed (D5 + bullhorn Week-1 gate). 5 founder decisions surfaced in `2026-05-20-codex-round-1-founder-decisions.md` briefing doc. Manifest queue table updated with Round-1 per-artefact verdicts.
+**Today's task:** **Architecture+tenancy verification slice COMPLETE.** All 3 phases landed (`5c3fa66` + `c4348aa` + this commit). Next: founder runs `bash scripts/run-live-migration.sh` + `bash scripts/run-tenancy-audit.sh` to verify 12 invariants against live VPS. Then Diagnostic agent build (W3-4) becomes the next slice with high confidence in the foundation.
+**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Architecture+tenancy plan COMPLETE; 3 phases landed.
+**Most recent close:** Day 9 (2026-05-20 evening) — Architecture+tenancy verification slice. 4 new artefacts: tenancy-invariants.md (12 invariants single source of truth), run-tenancy-audit.sh (multi-tenant adversarial smoke), architecture-cohesion-review.md (8-artefact cohesion review + 14 remediation items), tenant-lifecycle.md (Provision/Operate/Suspend/Offboard/Migrate runbook). 22 backlog items consolidated. Codex Day-7 queue grows from 41 to 43.
 
 ## This week's gate
 
@@ -105,6 +105,36 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 9 (2026-05-20 evening) — Architecture + tenancy verification slice
+
+Three commits: `5c3fa66` (Phase 1) + `c4348aa` (Phase 2) + this commit (Phase 3). 7 files net, ~1,550 lines added.
+
+**Phase 1 — Load-bearing artefacts** (`5c3fa66`):
+- `docs/architecture/tenancy-invariants.md` (~400 lines, Reference) — single source of truth for 12 tenancy invariants T1-T12, consolidating Day-4 §6.3+§7 / ADRs 001-004 / v0.2 supplement / helpers / common-base.json. Each invariant has definition + enforcement + documentation + verification command + acceptance. Meta exception (`tenants` table) documented.
+- `scripts/run-tenancy-audit.sh` (~480 lines, shellcheck clean) — multi-tenant adversarial smoke harness via SSH tunnel + 2 test-tenant fixtures. 12 invariant test cases + cross-cutting attacks. Audit row to decision_log; fallback JSONL.
+- test-tenant-b fixture + tenant-agnostic test-agent README fix.
+
+**Phase 2 — Cohesion review + lifecycle runbook** (`c4348aa`):
+- `docs/architecture/architecture-cohesion-review.md` (~270 lines, Reference) — read all 8 ratified artefacts as a coherent system. 19 delegations verified. 8 implicit assumptions documented (3 catastrophic-if-false, all empirically verified). 5 contradictions surfaced (3 RESOLVED via ADR-004 + Day-8 remediation; 1 RESOLVED via consolidation; 1 OPEN pending D3). 10 gaps + 14 remediation items with severity + path + owner + trigger. 4 boundary adversarial walks — all 4 BOUNDARIES HOLD.
+- `docs/runbooks/tenant-lifecycle.md` (~407 lines, In Force) — 4 lifecycle states + Migrate self-loop. Per-state workflow + acceptance + reference scripts + 8 implementation gaps with named triggers. UK GDPR 90-day legal hold pattern documented.
+- Backlog consolidation in this file: 22 entries (3 HIGH founder-decision-tracked + 11 MEDIUM + 8 LOW).
+
+**Phase 3 — Manifest + state file sync** (this commit):
+- Codex Day-7 manifest §1.6 new section listing 4 architecture+tenancy artefacts as queue items #35-#38
+- current-priorities.md updated with new Shipped section + Open backlog
+- No new risks added (cohesion review surfaces gaps with named paths; no surprises beyond what Risk #10 already captures)
+
+**Verdict from architecture-cohesion-review §9:** foundation is sound for Diagnostic build, conditional on (1) D1+D2+D3 resolve before Concierge W10 + first LOI; (2) Phase 2.2 documentation lands (✓ this commit); (3) Codex Round 2 closes; (4) Live VPS tenancy audit confirms 12 invariants. If all 4 hold: Diagnostic agent build with high confidence.
+
+**Pending founder actions (in priority order):**
+- D5 — decision-doc skill softening (~15 min; unblocks Round 2 closure for cohesion-review + lifecycle docs)
+- D1 — autosend v1.0 tier enforcement (~30 min; Concierge scope)
+- D2 + D3 bundle — external advisor + PII retention (~1h; pre-LOI blockers)
+- D4 — Path B credential policy (no rush)
+- `bash scripts/run-live-migration.sh` (~30 min; Path A founder)
+- `bash scripts/run-tenancy-audit.sh` (~5-10 min; Path A founder)
+- Codex Round 2 re-ratification (~3-4h; founder)
 
 ### Day 8 evening (2026-05-20) — Codex Round-1 remediation: 13 of 14 rejections incorporated
 
