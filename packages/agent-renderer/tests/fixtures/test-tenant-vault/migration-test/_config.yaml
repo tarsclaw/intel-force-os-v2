@@ -1,0 +1,6 @@
+tenant_slug: migration-test
+tenant_legal_name: "Migration Test Tenant Ltd"
+operating_window: "business-hours"
+tier: "boutique"
+voice_threshold: 0.75
+echo_prefix: "[migration-test]"

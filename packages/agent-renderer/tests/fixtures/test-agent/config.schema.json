@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/agents/test-agent.json",
+  "title": "test-agent config",
+  "description": "Minimal config schema for renderer test fixture.",
+  "type": "object",
+  "properties": {
+    "tenant_slug": { "type": "string" },
+    "agent_name": { "const": "test-agent" },
+    "agent_version": { "type": "string", "default": "0.1.0" },
+    "vertical": { "const": "recruitment" },
+    "enabled": { "type": "boolean", "default": true },
+    "runtime": { "const": "claude-code" },
+    "model": { "type": "string", "default": "claude-sonnet-4-6" },
+    "max_session_seconds": { "type": "integer", "default": 255600 },
+    "working_directory": { "type": "string" },
+    "timezone": { "type": "string", "default": "Europe/London" },
+    "max_crashes_per_day": { "type": "integer", "default": 10 },
+    "startup_delay": { "type": "integer", "default": 0 },
+    "ctx_warning_threshold": { "type": "integer", "default": 70 },
+    "ctx_handoff_threshold": { "type": "integer", "default": 80 },
+    "echo_prefix": { "type": "string", "default": "[test-agent]" }
+  },
+  "required": ["tenant_slug", "agent_name", "vertical", "enabled", "runtime", "working_directory"],
+  "additionalProperties": true
+}

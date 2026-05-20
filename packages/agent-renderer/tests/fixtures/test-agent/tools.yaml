@@ -1,0 +1,11 @@
+# test-agent MCP + escalation surface — minimal renderer test fixture.
+
+mcp_servers: []
+
+required_env:
+  - TEST_AGENT_TOKEN
+
+escalation_codes:
+  - ESC_SCHEMA_VIOLATION
+
+autosend_categories: []
