@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-notifications.json",
+  "title": "common-notifications",
+  "description": "Telegram chat IDs + escalation routing per master brief §2.4 primitive 5. Per PRODUCT-SPEC §5.3 line 359.",
+  "type": "object",
+  "properties": {
+    "telegram_polling": {
+      "type": "boolean",
+      "default": true,
+      "description": "Daemon-required for primitive 5 (Telegram approval gate)."
+    },
+    "operator_chat_id": {
+      "type": "string",
+      "description": "Tenant operator Telegram chat ID; receives default-routed escalations. Loaded from _secrets.env at runtime."
+    },
+    "operator_user_id": {
+      "type": "string",
+      "description": "Tenant operator Telegram user ID; constrains who can resolve approval gates."
+    },
+    "approval_surface": {
+      "type": "string",
+      "enum": ["telegram", "email", "ios-app", "ios+telegram"],
+      "default": "telegram",
+      "description": "Primary surface for orange-tier approval gates per autosend-safety-policy §4."
+    },
+    "escalation_routes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "channel": { "type": "string", "enum": ["telegram", "email", "ios-app", "log-only"] },
+          "recipient": { "type": "string" },
+          "timeout_seconds": { "type": "integer", "minimum": 60, "default": 14400 }
+        },
+        "required": ["channel", "recipient"]
+      },
+      "description": "Per-ESC-code routing overrides. Keys = escalation codes from _shared/escalation-codes.md. Values inherit operator_chat_id when absent."
+    },
+    "ifos_oncall_chat_id": {
+      "type": "string",
+      "description": "IFOS-side oncall Telegram chat; receives ESC_AUTOSEND_POLICY_LOOKUP_FAILED + cross-tenant operational alerts."
+    },
+    "default_approval_timeout_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 86400,
+      "default": 14400,
+      "description": "4h default per autosend-safety-policy §5 ESC_AUTOSEND_NEEDS_REVIEW; timeout converts orange-tier to ESC_AUTOSEND_NEEDS_REVIEW row."
+    }
+  },
+  "required": ["telegram_polling", "operator_chat_id", "approval_surface"],
+  "additionalProperties": false
+}

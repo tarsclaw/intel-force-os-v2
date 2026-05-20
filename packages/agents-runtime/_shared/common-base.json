@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-base.json",
+  "title": "common-base",
+  "description": "Shared identity fields every agent config must include. Per ADR-003 §2.1-B + spec gap §2.1-B resolution.",
+  "type": "object",
+  "properties": {
+    "tenant_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+      "description": "Per-tenant slug; matches Postgres RLS role `ifos_tenant_<slug>` per Day-4 §6.5."
+    },
+    "agent_name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$",
+      "description": "Matches bundle directory at agents/<vertical>/<agent_name>/ per master brief §8."
+    },
+    "agent_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver pinned by the bundle's README.md header."
+    },
+    "vertical": {
+      "type": "string",
+      "enum": ["recruitment"],
+      "description": "Vertical adapter pinned at bundle author time. Single value in v1.0."
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Daemon-required per agent-pty.ts. Renderer sets default true."
+    },
+    "runtime": {
+      "type": "string",
+      "const": "claude-code",
+      "description": "Daemon-required. IFOS agents run via Claude Code only."
+    },
+    "model": {
+      "type": "string",
+      "enum": ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+      "description": "Anthropic model ID. Default sonnet for v1.0 6-agent fleet."
+    },
+    "max_session_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 259200,
+      "default": 255600,
+      "description": "Daemon-required per master brief §2.4 primitive 2 (71h rotation)."
+    },
+    "working_directory": {
+      "type": "string",
+      "description": "Absolute path; renderer sets to ${frameworkRoot}/orgs/<tenant_slug>/agents/<agent_name>/."
+    },
+    "timezone": {
+      "type": "string",
+      "default": "Europe/London",
+      "description": "Per master brief §4 UK-first geography."
+    },
+    "max_crashes_per_day": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10
+    },
+    "startup_delay": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "ctx_warning_threshold": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 95,
+      "default": 70
+    },
+    "ctx_handoff_threshold": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 99,
+      "default": 80
+    }
+  },
+  "required": ["tenant_slug", "agent_name", "agent_version", "vertical", "enabled", "runtime", "working_directory"],
+  "additionalProperties": true
+}
