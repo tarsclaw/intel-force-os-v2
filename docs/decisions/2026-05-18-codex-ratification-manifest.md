@@ -37,6 +37,47 @@
 
 ---
 
+## §1.5 — Codex Round 1 verdicts (2026-05-20)
+
+First ratification run completed Day 8. Cluster A+B+C reviewed (16 artefacts). Per-artefact verdict + Round-1 disposition:
+
+| # | Artefact | Round-1 verdict | Round-1 disposition |
+|---|---|---|---|
+| 1 | cortexos-primitive-status.md | REJECTED (2 issues) | Issue 1 (missing Status field) **incorporated** at commit `2b287d3`. Issue 2 (missing Decision/Consequences) **counter-argued** in `codex-disagreement-2026-05-20-decision-doc-shape-on-audits.md`; resolution pending Founder Decision D5. |
+| 2 | ADR-001 | REJECTED (2 issues) | Issue 1 (Decision-subheading format) advisory only; Issue 2 (status drift "review pending") **incorporated** at `2b287d3`. |
+| 3 | ADR-002 | REJECTED (2 issues) | Issue 1 (status drift) + Issue 2 (master-brief-edit disposition) both **incorporated** at `2b287d3` — disposition now cites commit `0e5b2b4`. |
+| 4 | second-brain-design.md | REJECTED (2 issues) | Issue 1 (status enum) + Issue 2 (ESC catalogue cite) both **incorporated** at `2b287d3`. |
+| 5 | agent-bundle-renderer-design.md | REJECTED (3 issues) | Issue 1 (status enum) + Issue 2 (phase='render' drift) + Issue 3 (CLI name drift) all **incorporated** at `2b287d3`. |
+| 6 | ADR-003 | REJECTED (2 issues) | Issue 1 (status drift) + Issue 2 (CLI surface drift) both **incorporated** at `2b287d3` with inline ADR-004 erratum reference. |
+| 7 | bullhorn-integration-path.md | REJECTED (3 issues) | Issue 1 (status enum) + Issue 3 (rate-limit speculation note) **incorporated** at `2b287d3`. Issue 2 (Week-1 gate) **counter-argued** in `codex-disagreement-2026-05-20-bullhorn-week-1-gate.md`; line 95 wording sharpened. |
+| 8 | sequencing-target.md | REJECTED (2 issues) | Issue 1 (status drift) **incorporated** at `2b287d3`. Issue 2 (phase enum cite) implicitly addressed via ADR-004 Decision 7 cross-reference. |
+| 9 | brain-ui-scope.md | **RATIFIED** | Advisory only (v1.1 revisit estimate may need refresh if launch calendar moves). |
+| 10 | vault-concurrency.md | REJECTED (2 issues) | Issue 1 (migration cite for `entities.version`) advisory; Issue 2 (ESC wiring) **incorporated** at `2b287d3` with cross-references to commits `a279226` + `e6e9df1`. |
+| 11 | day-4-provisioning.md | not in Round 1 (Cluster D) | Cluster D ratification deferred per execution plan §9 Option γ. |
+| 12 | Day-4 close commit `98c79b2` | not in Round 1 | Same — Cluster D. |
+| 13 | Atomic-correction commit `0e5b2b4` | not in Round 1 | Same — Cluster F. |
+| 14 | Day-4 Postgres artefact | not in Round 1 | Same. |
+| 15 | placeholder | — | — |
+| 16 | autosend-safety-policy.md | REJECTED (3 issues) | Issues 1+2 (tier contradiction) → **Founder Decision D1** in `2026-05-20-codex-round-1-founder-decisions.md`. Issue 3 (legal placeholder) → **Founder Decision D2 + D3** in same briefing. No inline incorporation; founder picks. |
+| 17 | v1.0-kill-criterion.md | REJECTED (3 issues) | All three (Trigger 1 date / Trigger 2 CLI / Trigger 4 threshold) **incorporated** at `2b287d3`. |
+| 18 | vertical-schema.yaml v0.1 | REJECTED (3 issues) | Issue 1 (voice_classifier_score CHECK) **incorporated** with v0.2 trigger reference. Issue 2 (empty access arrays) **incorporated**. Issue 3 (versioning count) **incorporated**. Plus pre-existing YAML parse errors fixed. |
+| 19 | operational-hygiene-protocol.md | REJECTED (2 issues) | Issue 1 (missing Decision/Consequences) **counter-argued** in disagreement doc; resolution pending Founder Decision D5. Issue 2 (Path B contradiction) **incorporated** at `2b287d3` — Path B language tightened. |
+| 20 | This manifest | not in Round 1 | Recursive ratification deferred per execution plan §10 step 6. |
+| 21 | Day-7 single-sentence test | not in Round 1 | Cluster G. |
+
+**Plus Round-1 ADR-004** (item not in original 21-queue but added Day 8): **RATIFIED**.
+
+**Round-1 totals:** 16 reviewed | **2 RATIFIED** (ADR-004 + brain-ui-scope) | **14 REJECTED** | **13 of 14 incorporated** at commit `2b287d3` | **2 disagreement docs filed** | **5 founder decisions surfaced** (D1-D5).
+
+**Round-2 expected:** re-run Cluster A+B+C after `2b287d3` lands. Expected 14 → 0-2 REJECTED (0-2 being the disagreement-resolution artefacts pending founder D5 verdict).
+
+**New artefacts added to queue post-Round-1** (will be ratified in Round 2 or later):
+- `docs/decisions/codex-disagreement-2026-05-20-decision-doc-shape-on-audits.md`
+- `docs/decisions/codex-disagreement-2026-05-20-bullhorn-week-1-gate.md`
+- `docs/decisions/2026-05-20-codex-round-1-founder-decisions.md`
+
+---
+
 ## §2 — Ratification protocol per master brief §10.3
 
 Verbatim from master brief §10.3 (post-Edit 7 path correction):

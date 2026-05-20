@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** Phase 5 closed — **All 5 phases of the Week-1 product-code slice shipped in one session.** Next product action: manual founder live-VPS migration (Path A creds) per `agents/_shared/README.md §"Phase 5 live migration"`.
-**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — COMPLETE; all 5 phases landed.
-**Most recent close:** Phase 5 (Day 8, 2026-05-20) — `voice-loader.sh` + tests + README landed at `fe56e93`. 3 files, +522 lines. 9/9 voice-loader tests pass; renderer auto-copies; e2e helpers + loader callable through resolved `_shared` symlink. Closes master brief §8.1 Change 1.
+**Today's task:** **Codex Round-1 remediation COMPLETE at commit `2b287d3`.** Next: re-run Codex Round 2 (`bash scripts/run-codex-ratification.sh --cluster A` + B + C) to verify closure. Then live VPS migration (`bash scripts/run-live-migration.sh`) at founder convenience.
+**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Codex Round-1 remediation plan COMPLETE; all 3 phases landed.
+**Most recent close:** Day 8 evening 2026-05-20 — Codex Round-1 remediation. 13 of 14 rejections incorporated at `2b287d3` (16 files, +429 lines). 2 disagreement docs filed (D5 + bullhorn Week-1 gate). 5 founder decisions surfaced in `2026-05-20-codex-round-1-founder-decisions.md` briefing doc. Manifest queue table updated with Round-1 per-artefact verdicts.
 
 ## This week's gate
 
@@ -71,6 +71,51 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 8 evening (2026-05-20) — Codex Round-1 remediation: 13 of 14 rejections incorporated
+
+Commit `2b287d3`. 16 files, +429 lines. Closes 13 of 14 Codex Round-1 rejections from `logs/codex-ratification/manual-run/` first ratification pass (which was 2 RATIFIED + 14 REJECTED of 16 total).
+
+**Bucket 1 — Cosmetic fixes (13 single-line edits across 11 artefacts):**
+- ADR-001/002/003 line 4: "review pending" → "founder decision logged 2026-05-16"
+- agent-bundle-renderer-design + second-brain-design line 4: "Design specification" → "Reference"
+- bullhorn-integration-path line 4: "Mixed" → "Proposed"
+- sequencing-target line 4: "Drafting" → "Accepted (Day 3, 2026-05-16)"
+- cortexos-primitive-status: added "Status: Reference" header
+- v1.0-kill-criterion: Trigger 1 date 2026-06-08 → 2026-06-03 (matches §1)
+- v1.0-kill-criterion: Trigger 4 scope-cut definition clarified
+- vertical-schema.yaml versioning: 10 → 12 questions; empty arrays → "none (v1.1+)"
+- v0.2 supplement: migration block cites rollback SQL file
+
+**Bucket 2 — Drift fixes (ADR-004 back-propagation):**
+- CLI name `cortextos-ifos render-agent` → `ifos-render-agent` across ADR-003 + renderer-design + kill-criterion Trigger 2
+- `phase='render'` → `agent_name='_renderer'` + `phase='gating_failed'|action` across renderer-design + vertical-schema non_goals
+- All drift verified clean (grep returns only intentional historical quotes)
+
+**Bucket 3 — Structural fixes (7 items):**
+- v0.2 supplement: Layering disclosure section + `source: IFOS-derived` on ~30 new fields
+- ADR-002: master-brief-edit disposition cites commit `0e5b2b4`
+- vault-concurrency + second-brain-design: ESC catalogue cross-references (catalogue + wiring shipped Day 8)
+- vertical-schema v0.1: voice_classifier_score trigger reference to v0.2 migration §7
+- operational-hygiene-protocol §2.2: Path B tightened — same-session rotation MANDATORY + verification MANDATORY
+
+**Disagreement docs (2):**
+- `codex-disagreement-2026-05-20-decision-doc-shape-on-audits.md` — counter-argues Codex's Decision/Consequences requirement on audit + runbook artefacts. Proposes skill softening = Founder Decision D5.
+- `codex-disagreement-2026-05-20-bullhorn-week-1-gate.md` — counter-argues Codex over-applying Day-7 Q3 gate to Week-1 prereq code (vs named agent-build slices). Line 95 wording sharpened.
+
+**Founder briefing doc (1):**
+- `2026-05-20-codex-round-1-founder-decisions.md` — 5 founder decisions surfaced (D1-D5):
+  - D1: autosend v1.0 tier enforcement (Concierge W10-13 scope)
+  - D2: External advisor identification (pre-LOI blocker)
+  - D3: v0.2 recent_edit PII retention (bundles with D2 for legal review)
+  - D4: Path B credential policy (low-rush; current state adequate)
+  - D5: Decision-doc skill softening (quickest; unblocks Round 2)
+
+**Incidental fixes:** vertical-schema.yaml v0.1 had pre-existing YAML parse errors (line 89 quote-colon conflict; lines 863-871 embedded colons) — both fixed inline; v0.1 + v0.2 both parse clean now.
+
+**Codex Day-7 manifest:** updated with per-artefact Round-1 verdict + disposition (new §1.5 section in `docs/decisions/2026-05-18-codex-ratification-manifest.md`).
+
+**Next:** re-run Cluster A+B+C ratification (Round 2). Expected 14 REJECTED → 0-2 REJECTED.
 
 ### Day 8 (2026-05-20) — Phases 3-5: hook-helpers + autosend policy + vertical-schema v0.2 + voice-loader
 
