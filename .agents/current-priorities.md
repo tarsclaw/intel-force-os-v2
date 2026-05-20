@@ -44,6 +44,40 @@ Single-sentence test result 3 of 5 YES (Q1 NO + Q3 NO + Q2/Q4/Q5 YES). Week 0 ex
 
 - [ ] **Design-partner outreach.** The SINGLE Q1 unblocker for Week 1 named-agent-build slices. Co-founder Jack owns. Without this, kill criterion Trigger 1 fires 2026-06-03 (14 days from 2026-05-20).
 
+### Architecture + tenancy backlog (surfaced by Day-9 audit; tracked + ordered)
+
+The Day-9 architecture-cohesion-review surfaced 14 remediation items (R1-R14 in `docs/architecture/architecture-cohesion-review.md` §8). The tenant-lifecycle runbook surfaced 8 implementation gaps (L1-L8 in `docs/runbooks/tenant-lifecycle.md` §8). Consolidated:
+
+**HIGH severity (already founder-decision-tracked):**
+- [ ] **R1 = D2**: External advisor identification — pre-LOI blocker per kill-criterion §3.4
+- [ ] **R2 = D1**: Autosend v1.0 tier enforcement — pre-Concierge W10 blocker
+- [ ] **R3 = D3**: PII retention in recent_edit (bundles with D2) — pre-first-LOI blocker (Risk #10)
+
+**MEDIUM severity (code-side):**
+- [ ] **R4**: Re-rendering active agent (PM2 + cortextOS coordination) — documented in tenant-lifecycle.md §3; verify at first Diagnostic re-render in W3
+- [ ] **R5**: validate.sh invocation contract — name explicitly in Diagnostic agent.md preamble at W3 build
+- [ ] **R6**: tenants.metadata JSONB shape — documented in tenant-lifecycle.md §2; implementation at first real tenant onboarding
+- [ ] **R7**: Voice corpus refresh cadence — new ADR-006 at Concierge W10 build OR addendum to v0.2 supplement at v1.0 schema close
+- [ ] **R8**: Adapter + brain-replacement boundary automation — `review-agent-bundle.md` Codex skill at Diagnostic W3
+- [ ] **R13**: bus-overrides location for kb shadow points — Brain UI Week-10+ design ADR
+- [ ] **L1**: scripts/provision-tenant.sh — written at first real tenant LOI signed
+- [ ] **L3**: scripts/run-tenancy-audit.sh --tenant <slug> argument — Phase-2-extension or v1.1+ multi-tenant audit
+- [ ] **L5**: Brain UI v1.1 tenant-admin UI — Brain UI W11-13 build slice
+- [ ] **L6**: Migration runner multi-tenant loop — v1.1+ tooling
+- [ ] **L8**: ifosctl reindex-voice ergonomic command — v1.1+ when first tenant requests re-index
+
+**LOW severity (lazy spec, named trigger):**
+- [ ] **R9**: Bullhorn OAuth refresh timing under load — Janitor W5 stress test
+- [ ] **R10**: Multi-tenant connection pool sizing — v1.1+ scale exercise
+- [ ] **R11**: tenant_eval_sets + tenant_adapters usage spec — Diagnostic W4 (first eval-set)
+- [ ] **R12**: entities.version optimistic-concurrency helper — Janitor W5 (first entity write)
+- [ ] **R14**: v0.2 vault/Postgres split exception documentation — next architecture session OR ADR-005
+- [ ] **L2**: scripts/offboard-tenant.sh — first tenant churn
+- [ ] **L4**: ifos-render-agent render --all-tenants — second active tenant onboarded (ADR-005)
+- [ ] **L7**: 90-day purge cron — v1.1+ when offboarding becomes routine
+
+**14 remediation items + 8 lifecycle gaps = 22 backlog entries.** None block current work; all named triggers + owners. 3 are pre-LOI founder decisions already surfaced via D1-D3.
+
 ### Week 1-2 must-fill (carried forward)
 
 - [ ] **External advisor name + engagement letter** (per `v1.0-kill-criterion.md` §3.4) before first pilot LOI signs.
