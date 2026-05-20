@@ -1,0 +1,397 @@
+# IFOS recruitment vertical schema v0.2 — voice corpus supplement
+# ============================================================================
+# Status: Proposed (Codex Day-7 ratification queue addendum)
+# Date:   2026-05-20 (Day 8 of Week 0 extension)
+# Author: Founder (Maddox), Phase-4 of bubbly-snuggling-lantern.md plan
+# Predecessor: docs/verticals/recruitment/vertical-schema.yaml v0.1 (`fec8872`)
+#
+# Closes Day-7-honest-read gap #1 (voice corpus schema undefined). Required by
+# master brief §8.1 Change 1: agents/_shared/voice-loader.sh wires
+# hh_load_tone_rules / hh_load_voice_samples / hh_load_recent_edits — those
+# helpers need data substrate; this supplement defines it.
+#
+# Companion: docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql
+#   Drafted alongside; executed against migration-test tenant in Phase 5.
+#
+# Layer over v0.1 generic primitives (entities + entity_links + decision_log
+# from Day-4 §6.3). Three new entity_types + one pgvector index over
+# voice_corpus.text_chunks + per-entity voice classifier score fields.
+# ============================================================================
+
+vertical: recruitment
+version: v0.2
+supplements: v0.1
+status: Proposed
+date: 2026-05-20
+author: founder (Maddox), Phase-4 voice-corpus-substrate via Claude Code
+codex_ratification_queue_position: 29  # appended after Phase-3 items
+
+# ============================================================================
+# §1 — New entities (3)
+# ============================================================================
+
+entities:
+
+  # --------------------------------------------------------------------------
+  voice_corpus:
+    description: |
+      Per-tenant pack of source documents that define the firm's outbound voice — emails the consultant has written, prior Bullhorn Notes, marketing copy, founder-curated style examples. Read by hh_load_voice_samples (semantic ANN retrieval against the embedded chunks). One voice_corpus per tenant; versioned so re-indexing produces a new row rather than mutating the live pack.
+    bullhorn_source: none (IFOS-derived from /vault/<tenant>/_voice/ ingest)
+    v1_0_agent_access:
+      - Scribe (R — voice samples for note-summary tone matching)
+      - Concierge (R — voice samples for outbound message generation)
+      - voice-drift-canary nightly cron (R — drift detection input)
+    canonical_fields:
+      tenant_slug:
+        type: string
+        required: true
+        notes: RLS-isolated per tenant. Maps to entities.tenant_slug at row level.
+      version:
+        type: string
+        required: true
+        notes: |
+          Semver tag (e.g. "v0.1", "v0.2-2026-06-15"). Bump on re-index. Live pack is the row with `is_active: true`; historical packs preserved for audit + rollback per master brief §3.3 audit discipline.
+      source_doc_count:
+        type: integer
+        required: true
+        notes: Number of source documents ingested into this version (emails + notes + marketing). Sanity check during re-index.
+      source_doc_origin:
+        type: array
+        required: true
+        notes: |
+          Items enum: ["vault_emails", "bullhorn_notes", "marketing_copy", "founder_curated", "consultant_drafts"]. Order documents provenance for the LoRA pipeline (v2.0 Scale tier).
+      chunk_count:
+        type: integer
+        required: true
+        notes: Number of text chunks produced from the source corpus after the chunking pass. One chunk = one row in the pgvector index.
+      chunking_strategy:
+        type: string
+        required: true
+        notes: |
+          Enum: ["paragraph", "sentence-window-5", "semantic-segment-v1"]. v0.2 ships with "paragraph" (simplest, deterministic). Other values reserved for v1.1 experimentation per Q5 voice gate research.
+      embedding_model:
+        type: string
+        required: true
+        notes: |
+          Identifier of the embedding model used to populate the pgvector column. v0.2 ships with "text-embedding-3-small" (1536 dimensions); revising model triggers re-index + new version row.
+      last_indexed_at:
+        type: timestamp
+        required: true
+        notes: When the indexing pipeline last completed for this version. Set on row insert; never updated post-insert (immutability of versioned packs).
+      is_active:
+        type: boolean
+        required: true
+        notes: True for the version currently served to hh_load_voice_samples. Exactly one row per tenant has `is_active=true` (enforced via partial unique index).
+      ingest_completion_ms:
+        type: integer
+        required: false
+        notes: How long the ingest+chunk+embed pipeline took. Observability only.
+    notes: |
+      Versioning matters because (1) tenants may want to roll back if a re-index degrades voice quality (Risk: bad embedding model selection), (2) the LoRA SFT corpus is derived from {voice_corpus, decision_log.agent_drafts} and needs a stable snapshot to train against, (3) audit answers "what voice was the agent grounded against on date X" via voice_corpus.version + agent.payload.policy_version_sha pattern.
+
+  # --------------------------------------------------------------------------
+  tone_rule:
+    description: |
+      Per-tenant tone constraints expressed as rules. Read by hh_load_tone_rules at session start; constraints are surfaced to the agent as part of the context-assembly bundle (master brief §9). Distinct from voice_corpus: voice_corpus is implicit (semantic similarity); tone_rule is explicit (declarative).
+    bullhorn_source: none (IFOS-derived; authored in /vault/<tenant>/_voice/tone-rules.yaml then synced to Postgres)
+    v1_0_agent_access:
+      - Scribe (R — note format constraints)
+      - Cash Conductor (R — payment reminder tone)
+      - Concierge (R — every outbound message)
+    canonical_fields:
+      tenant_slug:
+        type: string
+        required: true
+      rule_id:
+        type: string
+        required: true
+        notes: Stable slug, e.g. "no-i-hope-this-finds-you-well". Referenced by recent_edit when a rule fires.
+      rule_text:
+        type: string
+        required: true
+        notes: Natural-language description of the rule. Surfaced verbatim to the agent.
+      severity:
+        type: string
+        required: true
+        notes: |
+          Enum: ["info", "warn", "block"]. `info` is observational (logged, not enforced); `warn` shows up in decision_log without blocking; `block` is a Gate-A hard-fail (causes regenerate-with-feedback per Ultraplan §5.3 retry budget).
+      applies_to_agents:
+        type: array
+        required: true
+        notes: |
+          Items: agent_name slugs from master brief §8.2 (e.g. ["scribe", "concierge"]). Empty array = applies to all agents. tone_rule rows MUST set this to at least one agent; "all agents" requires the empty-array literal.
+      enabled:
+        type: boolean
+        required: true
+        notes: Soft-delete pattern. Tenant can disable a rule without deleting the row; preserves history for audit.
+      created_by:
+        type: string
+        required: true
+        notes: |
+          Provenance: "founder" (default tenant-onboarding rules), "tenant-admin" (added via Brain UI), "ifos-csm" (added during CSM intervention per master brief §10 CSM workflow).
+      created_at:
+        type: timestamp
+        required: true
+      examples_positive:
+        type: array
+        required: false
+        notes: |
+          Items: short string phrases. Examples of compliant text. Surfaced to the agent in the context bundle.
+      examples_negative:
+        type: array
+        required: false
+        notes: |
+          Items: short string phrases. Examples of non-compliant text (the typical drift the rule prevents). Surfaced to the agent.
+    notes: |
+      Tone rules are the explicit complement to voice_corpus's implicit grounding. v0.2 ships with ~5-15 rules per tenant (curated at onboarding). v1.1 grows the rule library based on recent_edit patterns (tenant-specific drift becomes a rule).
+
+  # --------------------------------------------------------------------------
+  recent_edit:
+    description: |
+      Human edit to an agent's output captured at the point the consultant approves/edits/rejects a draft. Drives (a) the voice-drift-canary nightly cron, (b) future LoRA SFT pair generation per Ultraplan §6.1, (c) classifier retraining queue. Append-only per master brief §3.3 audit discipline.
+    bullhorn_source: none (IFOS-derived from operator's approve/edit UX)
+    v1_0_agent_access:
+      - voice-drift-canary cron (R — drift detection)
+      - Concierge (R — context-bundle includes recent edits per master brief §8.1 Change 1 hh_load_recent_edits)
+      - LoRA pipeline v2.0 (R — SFT pair generation)
+    canonical_fields:
+      tenant_slug:
+        type: string
+        required: true
+      agent_name:
+        type: string
+        required: true
+        notes: |
+          The agent whose draft was edited. Matches decision_log.agent_name. NOT entity_type — this is a metadata link to the producing agent, not to a domain entity.
+      action_type:
+        type: string
+        required: true
+        notes: References autosend-policy.yaml action_types. Drives per-action-type drift detection (e.g., are bullhorn_note_draft_internal drafts edited more than email_summary_to_customer drafts).
+      target_entity_type:
+        type: string
+        required: false
+        notes: |
+          Optional pointer to the entity the draft was about (e.g. "candidate", "client"). Enables linking voice drift to entity classes (some entity types correlate with more drift).
+      target_entity_id:
+        type: string
+        required: false
+        notes: bullhorn_id or IFOS slug. Used in the entity_links join below.
+      original_text:
+        type: string
+        required: true
+        notes: |
+          The agent's draft as produced. **Stored verbatim** (privacy posture: this is the agent's own output, not external PII). Length-capped at 8192 chars; if longer, suffix truncated with "[...]" marker.
+      edited_text:
+        type: string
+        required: false
+        notes: |
+          The consultant's final version. Nullable when the consultant approved verbatim (no edit). Length-capped at 8192 chars.
+      edit_distance:
+        type: integer
+        required: false
+        notes: |
+          Computed Levenshtein distance between original_text and edited_text. NULL when edited_text is NULL (approved verbatim). Computed at insert time by the operator UX; not derived at query time.
+      resolution:
+        type: string
+        required: true
+        notes: |
+          Enum: ["approved_verbatim", "approved_after_edit", "rejected", "deferred"]. `deferred` indicates operator returned to inbox without resolving (4h timeout case).
+      resolved_at:
+        type: timestamp
+        required: true
+      tone_rules_triggered:
+        type: array
+        required: false
+        notes: |
+          Items: tone_rule.rule_id values that fired in Gate A. Empty array = clean pass. Drives "which rules are the agent struggling with" reporting.
+    notes: |
+      recent_edit is the most privacy-sensitive entity in v0.2 because it stores raw agent output (potentially including names, salaries, etc. — anything the agent drafted). RLS isolation per tenant_slug is non-negotiable. Retention: indefinite for v1.0 (the SFT corpus needs longitudinal data); revisit at v1.1 if tenant pushes back. Per-message redaction is the operator's responsibility before approval.
+
+# ============================================================================
+# §2 — Pgvector index (1)
+# ============================================================================
+
+pgvector_indexes:
+
+  voice_samples_embedded:
+    description: |
+      Semantic-search index over voice_corpus text chunks. Read by hh_load_voice_samples to retrieve the top-K most-relevant voice samples for the agent's current task context.
+    table: voice_corpus_chunks                       # auxiliary table; see §3 migration SQL
+    column: embedding
+    dimensions: 1536                                 # text-embedding-3-small
+    distance_metric: cosine
+    index_type: hnsw                                 # HNSW preferred over IVFFlat for v1.0 corpus sizes (<10k chunks/tenant)
+    index_params:
+      m: 16
+      ef_construction: 64
+    notes: |
+      Per-tenant query pattern via RLS: SELECT * FROM voice_corpus_chunks WHERE tenant_slug = current_setting('ifos.tenant_slug') ORDER BY embedding <=> $query_vec LIMIT 10. RLS predicate ensures cross-tenant isolation even if a developer forgets the WHERE clause.
+    v1_0_query_volume_estimate: 10-50 queries per agent session × ~5 active agents × 24/7 = ~10k queries/day/tenant (well within pgvector + HNSW comfortable load).
+
+# ============================================================================
+# §3 — Additional fields on existing v0.1 entities (6)
+# ============================================================================
+
+additional_fields:
+
+  candidate:
+    voice_classifier_score:
+      type: number
+      required: false
+      source: IFOS-derived
+      notes: |
+        Most-recent voice classifier score (0.0-1.0) from any outbound Concierge message about this candidate. Concierge's autosend Gate A per bullhorn-integration-path.md §4.1 A6. NULL means no outbound message yet sent for this candidate. Threshold default 0.75 per common-voice.json.voice_classifier_threshold.
+
+  contractor:
+    voice_classifier_score:
+      type: number
+      required: false
+      source: IFOS-derived
+      notes: Same as candidate.voice_classifier_score, scoped to contractor sub-case.
+
+  contact:
+    voice_classifier_score:
+      type: number
+      required: false
+      source: IFOS-derived
+      notes: |
+        Most-recent voice classifier score from Concierge outbound messages addressed to this contact. Drives addressee-specific drift detection (some contacts' tone preferences may differ from firm baseline).
+
+  brief:
+    voice_classifier_score:
+      type: number
+      required: false
+      source: IFOS-derived
+      notes: |
+        Aggregate (last-7-day mean) voice classifier score across all Concierge messages about this brief. Drives "this brief is producing voice-drift messages — investigate" alerting.
+
+  opportunity:
+    voice_classifier_score:
+      type: number
+      required: false
+      source: IFOS-derived
+      notes: |
+        v1.1+ Triage exercises this; v1.0 sets to NULL. Tracks voice score for outbound messages within a specific candidate-brief opportunity pairing.
+
+  placement:
+    voice_drift_at_close:
+      type: number
+      required: false
+      source: IFOS-derived
+      notes: |
+        Snapshot of mean voice classifier score across all Concierge messages for the candidate during the 30 days BEFORE placement close. Captures voice quality at the moment of commercial success — drives "did voice quality predict deal close" reporting + v2.0 LoRA pipeline label generation.
+
+# ============================================================================
+# §4 — Additional relationships (2)
+# ============================================================================
+
+additional_relationships:
+
+  voice_corpus_governs_tone_rules:
+    source: voice_corpus
+    target: tone_rule
+    cardinality: 1:N
+    description: |
+      One voice_corpus version logically governs the set of tone_rules active at that version. When voice_corpus rolls forward (new version, is_active flipped), tone_rules don't migrate automatically — but the linkage records WHICH rules were active under WHICH corpus for audit and rollback.
+    v1_0_exercise: |
+      Sparse in v0.2 (linkage is recorded but not actively queried). v1.1 voice-drift-canary cross-references to identify rule-corpus mismatches.
+
+  recent_edit_drives_retraining:
+    source: recent_edit
+    target: voice_corpus
+    cardinality: M:N
+    description: |
+      The retraining queue: recent_edits with edit_distance > threshold accumulate as candidates for the next voice_corpus version's source corpus (and for v2.0 LoRA SFT pairs). M:N because one recent_edit may inform multiple future corpus versions (longitudinal SFT data); one corpus version draws from many edits.
+    v1_0_exercise: |
+      Recorded but not actively driving retraining in v1.0 (Brain UI v1.1 surfaces the queue; v2.0 LoRA pipeline reads it). v0.2 establishes the linkage schema so production data accumulates cleanly from W3 forward.
+
+# ============================================================================
+# §5 — Migration approach (cross-reference to companion SQL)
+# ============================================================================
+
+migration:
+  sql_file: docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql
+  status: drafted (Phase 4); execution against migration-test tenant scheduled for Phase 5
+  rollback_strategy: |
+    All v0.2 additions are nullable columns + new tables. Rollback = DROP TABLE on the 3 new tables + DROP COLUMN on the 6 added fields. No v0.1 data is mutated; v0.1 reads continue working after rollback. Migration SQL ships with companion v0.2-to-v0.1.sql (Phase 4 deliverable; landed in same commit).
+
+  prerequisite_extensions:
+    - pgvector (already enabled at Day-4 §6.5; verify version >= 0.8.0 for HNSW support)
+
+  decision_log_phase_implication: |
+    No new phase values needed. recent_edit writes piggy-back on existing `phase='action'` + `phase='gating_failed'` distinctions for the underlying autosend decision. tone_rule mutations write as decision_log with `agent_name='_tenant_admin'` + `phase='trigger'` per autosend §8 override propagation pattern.
+
+# ============================================================================
+# §6 — Open questions added in v0.2
+# ============================================================================
+# Three new questions; resolved at Codex ratification OR at first pilot data.
+# ============================================================================
+
+open_questions_v0_2_additions:
+
+  Q11_voice_corpus_chunk_storage:
+    question: |
+      Should voice_corpus_chunks store the raw text alongside the embedding, or only the embedding + a pointer back to the source document in /vault/?
+    options:
+      - A: Store both — duplicates ~50MB/tenant but enables fast retrieval without vault round-trip
+      - B: Store embedding + pointer — saves disk, requires vault read per top-K retrieval (latency cost)
+    v0_2_default: A (store both); revise to B if disk pressure surfaces at >50 tenants
+    trigger_for_revisit: tenant count > 50 OR pgvector storage > 10% of total disk
+
+  Q12_tone_rule_severity_block_path:
+    question: |
+      When a `severity: block` tone_rule fires Gate A, does the agent retry once, three times, or surface ESC_VOICE_DRIFT immediately?
+    options:
+      - A: Single retry then escalate (current Ultraplan §5.3 default)
+      - B: Three retries then escalate
+      - C: No retry; immediate escalate (operator triages drift in real-time)
+    v0_2_default: A; matches Ultraplan §5.3 retry budget for green-path agents
+    trigger_for_revisit: first Concierge build (W10) — measure real retry success rate
+
+  Q13_recent_edit_retention_under_GDPR:
+    question: |
+      Indefinite retention of original_text + edited_text plausibly exceeds GDPR "data minimisation" tests. Is retention of (edit_distance + resolution + tone_rules_triggered) sufficient for v2.0 LoRA SFT pair generation, with the text bodies purged after 90 days?
+    options:
+      - A: Indefinite retention (current v0.2 default; maximises LoRA training signal)
+      - B: Text bodies purged after 90 days; metadata retained indefinitely
+      - C: Text bodies purged after pilot ends (tenant-controlled retention)
+    v0_2_default: A; revise at v1.0 ratification before first pilot LOI signs
+    trigger_for_revisit: external advisor onboarding (kill-criterion §3.4 Week 1-2 must-fill) — legal/DPO review of retention posture
+
+# ============================================================================
+# §7 — Versioning continuation (extends v0.1 §6)
+# ============================================================================
+
+versioning:
+
+  v0_2:
+    status: This document — Proposed
+    date: 2026-05-20 (Day 8, Week 0 extension period)
+    scope: |
+      Voice corpus substrate. 3 new entities (voice_corpus, tone_rule, recent_edit) + 1 pgvector HNSW index (voice_samples_embedded over voice_corpus_chunks) + 6 voice_classifier_score / voice_drift_at_close fields on existing entities + 2 relationships.
+
+      Live migration deferred to Phase 5 against migration-test tenant first;
+      production rollout after Codex ratifies v0.2 (queue position 29) and
+      the Diagnostic + Janitor agent builds verify the schema against real
+      Bullhorn data (Q3 trigger from v0.1 §5).
+    next_action: |
+      Phase 5 — execute migration SQL against migration-test tenant; verify pgvector HNSW index builds clean; voice-loader.sh queries return expected shape; commit.
+
+  v1_0_voice:
+    expected_date: post-Concierge build (W10-13) — first agent to heavily exercise voice corpus
+    scope: |
+      Field expansion based on Concierge's real workload findings. Possibly chunk-strategy parameter added to voice_corpus row (semantic-segment-v1 if paragraph chunking underperforms). Tone rule library expansion (initial ~5-15 per tenant → ~30-50 per tenant as edge cases surface).
+
+  v1_1_voice:
+    expected_date: post-first-pilot voice corpus mature (Q4 2026 if pilot lands)
+    scope: |
+      Q11/Q12/Q13 resolved. recent_edit purge policy implemented if Q13=B/C. Brain UI v1.1 surfaces retraining queue. tone_rule examples_positive/examples_negative actively cross-referenced by Gate A.
+
+  v2_0_voice:
+    expected_date: 2027+ per LoRA pipeline activation per Ultraplan §6
+    scope: |
+      LoRA SFT pair generation from recent_edit + voice_corpus_chunks. Per-firm fine-tuned models. classifier retraining queue feeds production.
+
+# ============================================================================
+# End of vertical-schema.v0.2-supplement.yaml
+# ============================================================================
