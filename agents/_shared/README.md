@@ -1,6 +1,6 @@
 # `agents/_shared/` — IFOS shared agent runtime
 
-**Status:** Phase 3 scaffold (v0.1). `voice-loader.sh` lands in Phase 5 once `vertical-schema.yaml` v0.2 (Phase 4) defines voice corpus entities.
+**Status:** Phase 5 complete (v0.1). All 4 phase deliverables landed; live VPS migration is a manual founder action (see §Live integration test).
 
 This directory is the **canonical source** for files the renderer copies into every per-tenant agent's runtime location at `${frameworkRoot}/orgs/<tenant>/agents/_shared/` per ADR-003 §3.3.3 Option γ. Each rendered agent reaches `_shared/` via a symlink at `.claude/hooks/_shared → ../../_shared`.
 
@@ -13,6 +13,7 @@ This directory is the **canonical source** for files the renderer copies into ev
 | `hook-helpers.sh` | 3 `hh_decision_*` + 7 `autosend_*` Bash helpers per master brief §8.1 Change 2 + autosend §4 | 3 |
 | `voice-loader.sh` | `hh_load_tone_rules` / `hh_load_voice_samples` / `hh_load_recent_edits` per master brief §8.1 Change 1 | 5 |
 | `tests/test-hook-helpers.sh` | Offline test harness — 20 tests against fallback mode | 3 |
+| `tests/test-voice-loader.sh` | Offline test harness — 9 tests against fallback mode | 5 |
 
 ## Renderer-copies-not-symlinks contract (ADR-003 §3.3.3 Option γ)
 
@@ -94,9 +95,21 @@ bash agents/_shared/tests/test-hook-helpers.sh
 
 Expected output: `Tests run: 20  Tests passed: 20  ALL PASS ✓` (~3 seconds).
 
+### `voice-loader.sh` helpers (3, master brief §8.1 Change 1)
+
+```bash
+hh_load_tone_rules    [<agent_name>]                # JSON: { rules: [...], source }
+hh_load_voice_samples <task_context> [<top_k>]      # JSON: { samples: [...], voice_corpus_version, source }
+hh_load_recent_edits  [<lookback_days>] [<agent_name>]  # JSON: { edits: [...], lookback_days, source }
+```
+
+Each emits exactly one line of JSON to stdout. Live mode (`IFOS_DB_URL` set + `psql` on PATH) issues `SET LOCAL ifos.tenant_slug` + RLS-isolated SELECT against `tone_rule` / `voice_corpus_chunks` (HNSW ANN) / `recent_edit`. Fallback mode returns empty arrays + reason codes; `hh_load_voice_samples` surfaces `style_guide_path` if `/vault/<tenant>/_voice/style-guide.md` exists.
+
+**`hh_load_voice_samples` query vector:** shell can't generate embeddings. Callers from Python/Node MUST embed the task context first, encode to pgvector literal (e.g. `[0.123,0.456,...]`), and pass via `IFOS_VL_QUERY_VECTOR` env var before invoking. Without it, the helper falls back to the style-guide-only path.
+
 ### Live integration test (manual founder action)
 
-Phase 3 acceptance #2 + #3 require live Postgres writes against the Hetzner VPS. Procedure:
+Phase 3 acceptance #2 + #3 + Phase 5 live-migration require live Postgres against the Hetzner VPS. Procedure:
 
 1. Founder: retrieve `ifos_app` Postgres password from 1Password ("IFOS Postgres ifos_app — production"). Path A discipline applies — password stays in founder's local terminal.
 2. Founder runs (single-line, NEVER in this chat):
@@ -116,15 +129,48 @@ Phase 3 acceptance #2 + #3 require live Postgres writes against the Hetzner VPS.
    ```
 5. Report result back. If row count > 3 in a 7-day window, kill-criterion Trigger 5 fires (per `v1.0-kill-criterion.md` §2 Trigger 5).
 
+### Phase 5 live migration (manual founder action)
+
+Schema v0.2 voice corpus migration. Procedure:
+
+1. Founder: same `ifos_app` password retrieval as above. Path A discipline.
+2. Founder runs against `migration-test` tenant first:
+   ```bash
+   PGPASSWORD="<password>" psql -h 178.105.87.24 -U ifos_app -d ifos \
+     -v "ifos.tenant_slug=migration-test" \
+     -f docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql
+   ```
+3. Verify with §10 queries from the SQL file (commented at end). Expect:
+   - 4 new tables (`voice_corpus`, `voice_corpus_chunks`, `tone_rule`, `recent_edit`)
+   - `voice_samples_embedded` HNSW index on `voice_corpus_chunks.embedding`
+   - `validate_voice_scores` trigger on `entities`
+   - 1 seed row in `voice_corpus` for `migration-test` with `version='v0.2-seed'`, `is_active=TRUE`
+4. Smoke `voice-loader.sh` against live DB:
+   ```bash
+   IFOS_DB_URL="postgresql://ifos_app:<pw>@178.105.87.24:5432/ifos?sslmode=require" \
+   CTX_TENANT_SLUG=migration-test \
+   CTX_AGENT_NAME=test-agent \
+   bash -c 'source agents/_shared/voice-loader.sh; hh_load_tone_rules' | jq .
+   ```
+   Expect `{ "rules": [], "source": "db" }`.
+5. Rollback (if Codex rejects v0.2 OR something is broken):
+   ```bash
+   psql -h 178.105.87.24 -U ifos_app -d ifos -f docs/verticals/recruitment/migrations/v0.2-to-v0.1.sql
+   ```
+
+Production rollout (other tenants) waits for Codex ratification of v0.2 + Diagnostic + Janitor verification of the schema against real Bullhorn data (master brief §6 Day 6 Q3 trigger from v0.1).
+
 ## Codex Day-7 ratification
 
-Three new artefacts join the queue:
+Five new artefacts join the queue:
 
 - `agents/_shared/autosend-policy.yaml` (Reference — runtime table)
 - `agents/_shared/hook-helpers.sh` (Reference — runtime helpers)
-- `agents/_shared/tests/test-hook-helpers.sh` (Reference — test harness)
+- `agents/_shared/tests/test-hook-helpers.sh` (Reference — test harness, 20 tests)
+- `agents/_shared/voice-loader.sh` (Reference — voice corpus + tone rules + recent edits)
+- `agents/_shared/tests/test-voice-loader.sh` (Reference — test harness, 9 tests)
 
-All three sit downstream of already-ratified `autosend-safety-policy.md` + `master brief §8.1` + `agent-bundle-renderer-design.md`. No new master-brief edits required.
+All five sit downstream of already-ratified `autosend-safety-policy.md` + `master brief §8.1` + `agent-bundle-renderer-design.md` + `vertical-schema.v0.2-supplement.yaml` (Phase 4). No new master-brief edits required.
 
 ## See also
 
