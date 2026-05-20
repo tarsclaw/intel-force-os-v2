@@ -1,0 +1,6 @@
+tenant_slug: test-tenant-b
+tenant_legal_name: "Test Tenant B Ltd"
+operating_window: "24/7"
+tier: "growth"
+voice_threshold: 0.80
+echo_prefix: "[test-tenant-b]"
