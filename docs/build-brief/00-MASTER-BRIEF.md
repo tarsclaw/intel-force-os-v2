@@ -112,7 +112,7 @@ Two facts I asserted earlier that need correcting because they were wrong agains
 |---|---|---|---|
 | 1 | Persistent PTY via PM2 | `node-pty` + `ecosystem.config.js` regen via `cortextos ecosystem` | Per-tenant ecosystem entries via `cortextos init <tenant>` |
 | 2 | 71-hour context rotation | Daemon auto-restarts session before context-limit | Pre-rotation hook to checkpoint agent state to vault |
-| 3 | Inter-agent file bus | `bus/` shell wrappers + `chokidar` watcher in daemon | Our agents drop typed files into the bus; we override `kb-*` to point at the wiki |
+| 3 | Inter-agent file bus | `bus/` shell wrappers (47 shims execing `node dist/cli.js bus <command>`) + `FastChecker` poll loop in daemon (default 1000ms via `pollInterval` in agent config, configurable per agent) | Our agents drop typed files into the bus; IFOS implements a parallel `wiki-*` surface (see §3.4) rather than overriding `kb-*` |
 | 4 | Approval gates | Daemon enforces explicit approval before external action; `manualFireDisabled` flag on crons | Standing approval categories per tenant config |
 | 5 | Telegram + iOS approval surface | Bot per agent, `.env` carries `BOT_TOKEN / CHAT_ID / ALLOWED_USER` | Our agents route escalations through this surface; we never build a parallel one |
 | 6 | Overnight autoresearch (theta wave) | Analyst-template agents schedule overnight experiments | Night Sourcer + Spec Pitcher use this |
@@ -162,16 +162,9 @@ If a code review finds `composio.gmail.send_email` in an `agent.md` or `tools.ya
 
 The vault is the source of truth for voice and playbooks. Postgres is the source of truth for state and provenance. The Brain UI reads both via the `context-assembly` API (the single audit-logged surface).
 
-### 3.4 The brain-replacement boundary — exactly what we shadow
+### 3.4 The brain-replacement boundary — parallel system, not shadow
 
-CortexOS ships a stock knowledge base in `knowledge-base/scripts/` (the `mmrag.py` system referenced in the IFOS v2 CLAUDE.md). We replace it without forking by **shadowing the four `bus/kb-*.sh` shell entry points**.
-
-How the shadow works:
-
-1. Vendored copy at `packages/harness/cortextos/bus/kb-*.sh` is left untouched.
-2. Our overrides live at `packages/brain/bus-overrides/kb-*.sh`.
-3. PM2 `ecosystem.config.js` sets `PATH` so our overrides are picked up first by every agent. (Confirmed-safe approach because the cortextos daemon calls these scripts via the shell `PATH` lookup, not via absolute paths.)
-4. Each override implements the same CLI contract as the original (`kb-search "<query>"` returns JSON results to stdout; `kb-add <path>` ingests a file; etc.) but reads/writes against our wiki-brain at `packages/brain/wiki/` instead of the stock `mmrag` index.
+IFOS implements its second brain as a **parallel system**, not by shadowing cortextOS's stock knowledge base. cortextOS's `bus/kb-*.sh` files (`kb-collections.sh`, `kb-ingest.sh`, `kb-query.sh`, `kb-setup.sh` at SHA `c21fbfe`) remain untouched and continue to serve cortextOS-template agents. IFOS agents invoke a parallel wrapper surface at `packages/brain/bus-overrides/wiki-*.sh` (9 v1.0 + 1 v1.1 stub) that dispatches to `packages/brain/wiki/lib/` against Postgres + filesystem markdown. The §3.1 "four `bus/kb-*.sh` shadow points" edit-exception is unused — IFOS does not edit any file under `packages/harness/cortextos/`. See `docs/decisions/ADR-002-brain-system-as-parallel-not-shadow.md` + `docs/architecture/second-brain-design.md` for the full design.
 
 This is the single point where the brain swap-out happens. Every other agent, every dashboard route, every approval gate is unchanged. See §5 for the brain itself.
 
@@ -417,9 +410,8 @@ The "looks stunning" requirement is a feature. Pin these:
 
 | Stage | When | Scope |
 |---|---|---|
-| **v1.0 minimum** | Weeks 11–13 (Ultraplan §9) | `bus-overrides/kb-*.sh` shadow + `wiki/lib/{ingest,search}.ts` — agents can write and search but no UI yet |
-| **v1.0+ "today" view** | Week 13 | `/brain` (decisions feed) + `/brain/vault/[...path]` (read-only markdown render) |
-| **v1.1 — the wiki proper** | Q4 2026 | `compile.ts`, `lint.ts`, full entity profile pages, wiki-link rendering, search UI |
+| **v1.0 minimum** | Weeks 11–13 (Ultraplan §9) | 9 `wiki-*.sh` parallel wrappers under `packages/brain/bus-overrides/` + 9 `wiki/lib/*.ts` modules + 4 Postgres tables with RLS (`tenants`, `entities`, `entity_links`, `decision_log`) + pgvector index for voice samples — agents can search, ingest, update, append, and list; **no Brain UI yet**. Total v1.0 effort ~11-13 person-days. |
+| **v1.1 — the wiki proper + today-view** | Q4 2026 | `/brain` (decisions feed) + `/brain/vault/[...path]` (read-only markdown render) + backlinks panel + `wiki-find.sh` + `wiki-history.sh` + `compile.ts` + `lint.ts` + full entity profile pages + wiki-link rendering + search UI |
 | **v1.2 — the graph** | Q1 2027 | `graphify/*`, `/brain/graph`, cytoscape rendering — becomes the closing demo |
 | **v2.0 — the second brain at scale** | Q3 2027 | Reflect-driven hygiene, voice-trend analytics, LoRA-version comparison views |
 
@@ -463,27 +455,27 @@ The single most important Week 0 task.
 
 ### Day 2 — Tuesday — Bullhorn integration path
 
-- [ ] Decision: Bullhorn Marketplace vs Direct API. OAuth model: browser dance for production, service-account for dev. Document in `docs/decisions/bullhorn-integration-path.md`
+- [ ] Decision: Bullhorn Marketplace vs Direct API. OAuth model: authorization-code grant for production tenants; authorization-code grant against an IFOS-owned Bullhorn dev tenant for internal dev (Bullhorn does not support `client_credentials` grant for tenant-scoped data per Bullhorn OAuth docs at `https://bullhorn.github.io/Getting-Started-with-REST`). Document in `docs/decisions/bullhorn-integration-path.md`.
 - [ ] Design-partner conversation 2
 
 ### Day 3 — Wednesday — Sequencing + Brain UI scope
 
-- [ ] Confirm or revise Ultraplan §9's "close first 3 pilots fastest" → `.agents/decisions/sequencing-target.md`
-- [ ] **Brain UI v1.0 scope decision.** Per §5.5, v1.0 ships the `bus-overrides/kb-*.sh` shadow + ingest/search lib + the `/brain` today-view. The full wiki rendering is v1.1, the graph is v1.2. **Confirm this in `.agents/decisions/brain-ui-scope.md`** — or document the deviation.
+- [ ] Confirm or revise Ultraplan §9's "close first 3 pilots fastest" → `docs/decisions/sequencing-target.md`
+- [ ] **Brain UI scope decision.** Per §5.5 (post-ADR-002 Edit 2 atomic correction): v1.0 ships the parallel `packages/brain/bus-overrides/wiki-*.sh` wrappers + `wiki/lib/*.ts` modules + Postgres tables + pgvector voice index — **no Brain UI yet**. v1.1 adds the today-view + backlinks panel + wiki-find UI; v1.2 adds the graph view. **Confirm this in `docs/decisions/brain-ui-scope.md`** — or document the deviation.
 - [ ] Hire #1 status one-liner
 
 ### Day 4 — Thursday — Infrastructure
 
-- [ ] Hetzner UK VPS provisioned, LUKS-encrypted volume mounted at `/vault/`
-- [ ] Postgres 16 installed. Tables: `tenants`, `entity_graph`, `entity_relationships`, `decision_log`, `tenant_eval_sets`, `tenant_adapters` — per DATA-LAYER.md §2.2
+- [ ] Hetzner Falkenstein (FSN1) or Nuremberg (NBG1) VPS provisioned, LUKS-encrypted volume mounted at `/vault/`. Both are Hetzner eu-central locations with Schrems II EU jurisdiction; either acceptable. Hetzner has no UK data centre as of 2026-05-17 verification per `docs/runbooks/day-4-provisioning.md` §0.1.
+- [ ] Postgres 16 installed. Tables: `tenants`, `entities`, `entity_links`, `decision_log`, `tenant_eval_sets`, `tenant_adapters` (the single `entity_graph` of the earlier framing is split into `entities` + `entity_links` per ADR-002 Edit 3 + `docs/architecture/second-brain-design.md` §2.4.2).
 - [ ] **RLS test:** two synthetic tenant roles attempt to read each other's data. Kernel-stops-cross-tenant test passes.
 - [ ] PgBouncer pinned to per-session tenant roles
 - [ ] First MCP connector scoped: `packages/mcp-connectors/bullhorn/tools.yaml` shape documented per `docs/architecture/PATTERN-REFERENCE.md`
 
 ### Day 5 — Friday — Safety policy + kill criterion
 
-- [ ] `docs/auto-send-safety-policy.md` — categorical list of what may auto-send vs draft-only per tier, standing-authorisation contract per agent, escalation cascade, pilot-agreement liability language
-- [ ] `docs/v1-kill-criterion.md` — the explicit condition under which v1.0 stops shipping (e.g., "If after 3 pilots the average Gate B revenue uplift is <£20k/year per tenant, the wedge is dead and we pivot")
+- [ ] `docs/decisions/autosend-safety-policy.md` — categorical list of what may auto-send vs draft-only per tier, standing-authorisation contract per agent, escalation cascade, pilot-agreement liability language
+- [ ] `docs/decisions/v1.0-kill-criterion.md` — the explicit condition under which v1.0 stops shipping (e.g., "If after 3 pilots the average Gate B revenue uplift is <£20k/year per tenant, the wedge is dead and we pivot")
 
 ### Day 6 — Saturday (light day) — vertical schema v0.1
 
@@ -566,6 +558,8 @@ agents/recruitment/{agent-name}/
             ├── input.json              # Same input, run weekly in CI
             └── expected.md             # Output diffed against historical
 ```
+
+**The bundle at `agents/recruitment/<name>/` is the source artefact; the cortextOS daemon does not read it directly.** The renderer (`packages/agent-renderer/`, per `docs/decisions/ADR-003-agent-bundle-renderer.md` and `docs/architecture/agent-bundle-renderer-design.md`) translates the bundle into a cortextOS-shaped per-agent directory at `${frameworkRoot}/orgs/<org>/agents/<name>/` per-tenant. Source bundle authored once; rendered N times (once per active tenant). The `cortextos-ifos add-agent` command is **NOT** the IFOS path — it inherits 24 cortextOS template skills the IFOS bundle does not want.
 
 ### 8.1 The three v2 changes (Ultraplan §4.2)
 
