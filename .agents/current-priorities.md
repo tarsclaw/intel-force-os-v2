@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** Phase 3 — `agents/_shared/hook-helpers.sh` + `agents/_shared/autosend-policy.yaml` + `agents/_shared/README.md`. Closes gap #4 (autosend runtime YAML). ~3 days.
-**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Week-1 product-code slice (5 phases, ~10 days)
-**Most recent close:** Phase 2 (Day 8, 2026-05-20) — `packages/agent-renderer/` scaffold landed at `3c16d35`. 31 files, +3,378 lines; first runtime code. 30/30 unit tests pass; end-to-end render verified (10 files, ~23ms); Risk #1 stress test 10/10 stable; goals.json drift-check NO DRIFT; cortextOS `discoverAgents()` smoke ✓. Two observations flagged for Codex (CLI-name divergence → ADR-004; phantom `_shared` listing in upstream `list-agents`).
+**Today's task:** Phase 5 closed — **All 5 phases of the Week-1 product-code slice shipped in one session.** Next product action: manual founder live-VPS migration (Path A creds) per `agents/_shared/README.md §"Phase 5 live migration"`.
+**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — COMPLETE; all 5 phases landed.
+**Most recent close:** Phase 5 (Day 8, 2026-05-20) — `voice-loader.sh` + tests + README landed at `fe56e93`. 3 files, +522 lines. 9/9 voice-loader tests pass; renderer auto-copies; e2e helpers + loader callable through resolved `_shared` symlink. Closes master brief §8.1 Change 1.
 
 ## This week's gate
 
@@ -24,9 +24,11 @@ Single-sentence test result 3 of 5 YES (Q1 NO + Q3 NO + Q2/Q4/Q5 YES). Week 0 ex
 
 - [x] **Phase 1** — Renderer prereqs (claude-md-preamble.md + 8 common-*.json) + ESC catalogue. Landed Day 8 `a279226`. Closes gaps #2, #3, #6.
 - [x] **Phase 2** — `packages/agent-renderer/` scaffold (TypeScript Node). Landed Day 8 `3c16d35`. First runtime code; 30/30 tests; end-to-end render + discoverAgents() smoke verified.
-- [ ] **Phase 3** — `agents/_shared/hook-helpers.sh` + `autosend-policy.yaml` + README.md. ~3 days. Closes gap #4 (autosend runtime YAML). **IN PROGRESS NEXT.**
-- [ ] **Phase 4** — `vertical-schema.yaml` v0.2 (3 voice entities + 1 pgvector index + 6 fields). ~1 day. Closes gap #1 (voice corpus schema).
-- [ ] **Phase 5** — `agents/_shared/voice-loader.sh` + live Phase-4 migration execution. ~2 days.
+- [x] **Phase 3** — `hook-helpers.sh` + `autosend-policy.yaml` + README. Landed Day 8 `e6e9df1`. 20/20 hook-helpers tests pass; closes gap #4. Fixed renderer `_shared` symlink path (`../../_shared` → `../../../_shared` — ADR-003 spec error flagged for ADR-004).
+- [x] **Phase 4** — `vertical-schema.v0.2-supplement.yaml` + migration SQL (forward + rollback). Landed Day 8 `45b59e0`. Closes gap #1 (voice corpus schema). 3 entities + 1 HNSW index + 6 score fields + 2 relationships. Migration NOT yet executed against Hetzner.
+- [x] **Phase 5** — `voice-loader.sh` + tests + README updates. Landed Day 8 `fe56e93`. Closes master brief §8.1 Change 1. 9/9 voice-loader tests pass.
+
+**Live VPS migration: PENDING (Path A founder action).** Procedure documented in `agents/_shared/README.md §"Phase 5 live migration"`. Migration SQL ready; awaits founder `ifos_app` password from 1Password.
 
 ### Phase-2 follow-ups queued
 
@@ -69,6 +71,49 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 8 (2026-05-20) — Phases 3-5: hook-helpers + autosend policy + vertical-schema v0.2 + voice-loader
+
+Three commits in one session sequence. Total Day-8 PM output: 11 files, +2,501 lines.
+
+**Phase 3** — `e6e9df1` — hook-helpers.sh + autosend-policy.yaml + README + renderer symlink fix
+- `agents/_shared/autosend-policy.yaml` (259 lines) — 29 v1.0 action_types: 6 green / 5 yellow / 10 orange / 8 red. Each row with tier + agent + reason + (sample_rate | timeout | block_reason).
+- `agents/_shared/hook-helpers.sh` (528 lines, shellcheck clean) — 3 hh_decision_* contracts + 7 autosend_* helpers per autosend §4. Dual-mode (live psql / fallback JSONL). RLS via `SET LOCAL ifos.tenant_slug`.
+- `agents/_shared/tests/test-hook-helpers.sh` (321 lines, 20 tests, all pass).
+- `agents/_shared/README.md` (170 lines) — _shared/ contract docs.
+- `packages/agent-renderer/src/renderer.ts` — symlink target fix: `../../_shared` → `../../../_shared`. ADR-003 §3.3.3 had a 3-vs-4-level counting error; implementation deviates, ADR-004 will ratify.
+
+**Phase 4** — `45b59e0` — vertical-schema v0.2 supplement + migration SQL
+- `docs/verticals/recruitment/vertical-schema.v0.2-supplement.yaml` (397 lines, Proposed)
+- `docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql` (291 lines, drafted not executed)
+- `docs/verticals/recruitment/migrations/v0.2-to-v0.1.sql` (43 lines, rollback)
+- 3 entities (voice_corpus + tone_rule + recent_edit), 1 HNSW pgvector index (voice_samples_embedded), 6 score fields, 2 relationships. Q11/Q12/Q13 open questions added; Q13 (GDPR retention) explicitly tagged for external-advisor review.
+
+**Phase 5** — `fe56e93` — voice-loader.sh + tests + README updates
+- `agents/_shared/voice-loader.sh` (292 lines, shellcheck clean) — 3 hh_load_* helpers per master brief §8.1 Change 1. Live mode (RLS-isolated SELECT) + fallback (vault files).
+- `agents/_shared/tests/test-voice-loader.sh` (179 lines, 9 tests, all pass).
+- `agents/_shared/README.md` — live migration procedure documented.
+
+**Aggregate across all 5 phases (Day-8 single session):**
+- Commits: 7 (5 phase commits + 2 ops state-file updates)
+- Files added: 50+
+- Lines added: ~6,500
+- Test count: 30 (Vitest unit) + 20 (hook-helpers Bash) + 9 (voice-loader Bash) = **59 passing tests**
+- Day-7-honest-read gaps closed: 4 of 11 fully (#1, #2, #3, #4) + 2 side-effect (#6, partial #10)
+- Codex Day-7 ratification queue: 21 → 33 items
+
+**Remaining gaps after 5 phases:**
+- #5: 9 wiki-*.sh wrappers + 9 wiki/lib/*.ts (Week 10+ Brain UI)
+- #7: Context-assembly API spec (Week 5+ Janitor)
+- #8: Bullhorn MCP connector code (Week 5+ Janitor)
+- #9: tenant_eval_sets / tenant_adapters usage spec (lazy, follows first use)
+- #11: Fixture-runner / eval-runner code (Week 3+ Diagnostic prep — natural follow-up slice)
+
+**Pending live actions (Path A founder):**
+- Live Postgres smoke test of hook-helpers.sh (Phase 3 acceptance #2)
+- Kill-criterion Trigger 5 query verification (Phase 3 acceptance #3)
+- Phase 5 migration SQL execution against `migration-test` tenant
+- Live voice-loader.sh smoke against seeded voice_corpus
 
 ### Day 8 (2026-05-20) — Phase 2: packages/agent-renderer scaffold
 
