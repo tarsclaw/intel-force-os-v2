@@ -1,0 +1,259 @@
+# IFOS auto-send policy (runtime table)
+#
+# Source of truth: docs/decisions/autosend-safety-policy.md §3 + §4.
+# Read by agents/_shared/hook-helpers.sh::autosend_policy_lookup() at every
+# hh_decision_action() invocation. Per-tenant overrides live in Postgres
+# tenant_adapters.config.tier_overrides (§8).
+#
+# 29 v1.0 action_types: 6 green + 5 yellow + 10 orange + 8 red.
+# Each row carries:
+#   tier            green|yellow|orange|red
+#   agent           v1.0 owning agent (or "all" if cross-cutting red rule)
+#   reason          short rationale (mirrors §3 column 3)
+#   sample_rate     yellow only: 1-in-N for spot-check sampling
+#   block_reason    red only: enum from §3 red table column 2
+#   timeout         orange only: ISO-8601 duration; default PT4H if absent
+#   irreversible    boolean; informational — drives operator UX framing
+#
+# Schema validated by common-base.json $refs via render-time pre-flight.
+# Schema version stamps decision_log.payload.policy_version_sha at write time.
+
+version: "v1.0-2026-05-20"
+
+action_types:
+
+  # ───────────────────────────────────────────────────────────
+  # GREEN — auto-send without review (6 action_types)
+  # ───────────────────────────────────────────────────────────
+
+  diagnostic_report_render:
+    tier: green
+    agent: diagnostic
+    reason: "Internal artefact write; no external comms; idempotent (re-render overwrites)"
+    irreversible: false
+
+  bullhorn_candidate_tag:
+    tier: green
+    agent: janitor
+    reason: "Adds tag with checked_at date; reversible in <30s; high volume"
+    irreversible: false
+
+  bullhorn_note_internal:
+    tier: green
+    agent: scribe
+    reason: "Internal-only Bullhorn note (isExternal: false); consultant-visible; non-customer-facing"
+    irreversible: false
+
+  linkedin_profile_cache:
+    tier: green
+    agent: sourcing-scout
+    reason: "Stores profile snapshot to /vault/<tenant>/wiki/raw/; no external send; no rate-limit cost"
+    irreversible: false
+
+  xero_query_invoices:
+    tier: green
+    agent: cash-conductor
+    reason: "Read-only Xero query; rate-limited via Xero's own quotas; no side effect"
+    irreversible: false
+
+  bullhorn_brief_read:
+    tier: green
+    agent: concierge
+    reason: "Read of inbound brief; idempotent; no comms"
+    irreversible: false
+
+  # ───────────────────────────────────────────────────────────
+  # YELLOW — auto-send with 1-in-N spot-check (5 action_types)
+  # ───────────────────────────────────────────────────────────
+
+  bullhorn_candidate_dedupe:
+    tier: yellow
+    agent: janitor
+    sample_rate: 10
+    reason: "Merges duplicate candidate records; reversible but high-volume; merge quality needs ongoing review"
+    irreversible: false
+
+  bullhorn_note_append_summary:
+    tier: yellow
+    agent: scribe
+    sample_rate: 20
+    reason: "Appends to candidate record; consultant-only visibility; high-volume; format quality needs review"
+    irreversible: false
+
+  linkedin_connection_request:
+    tier: yellow
+    agent: sourcing-scout
+    sample_rate: 5
+    reason: "Outbound LinkedIn action subject to rate limits + reputation effects; sample for tone + targeting accuracy"
+    irreversible: true
+
+  xero_reminder_draft_internal:
+    tier: yellow
+    agent: cash-conductor
+    sample_rate: 10
+    reason: "Generates reminder draft visible to consultant; not yet sent; format + tone needs review"
+    irreversible: false
+
+  bullhorn_note_draft_internal:
+    tier: yellow
+    agent: concierge
+    sample_rate: 10
+    reason: "Drafts a Bullhorn Note for consultant review (not yet sent); high-volume; voice drift candidate"
+    irreversible: false
+
+  # ───────────────────────────────────────────────────────────
+  # ORANGE — per-action human approval (10 action_types)
+  # ───────────────────────────────────────────────────────────
+
+  bullhorn_note_customer_visible:
+    tier: orange
+    agent: concierge
+    timeout: PT4H
+    reason: "CANONICAL ORANGE. Bullhorn Note with isExternal: true — customer-visible in their CRM; single send is irreversible (note in audit trail even if deleted)"
+    irreversible: true
+    canonical: true
+
+  gmail_outlook_send_to_candidate:
+    tier: orange
+    agent: concierge
+    timeout: PT4H
+    reason: "Outbound email to candidate; customer-facing; reputation effects"
+    irreversible: true
+
+  twilio_sms_send:
+    tier: orange
+    agent: concierge
+    timeout: PT30M
+    reason: "Outbound SMS; high-trust channel; cost-per-send; irreversible"
+    irreversible: true
+
+  calendar_invite_send:
+    tier: orange
+    agent: concierge
+    timeout: PT4H
+    reason: "Creates calendar event with attendee notification; visible to attendee"
+    irreversible: true
+
+  email_summary_to_customer:
+    tier: orange
+    agent: scribe
+    timeout: PT4H
+    reason: "Outbound email summarising call to customer; customer-facing; format-sensitive"
+    irreversible: true
+
+  xero_reminder_send_customer:
+    tier: orange
+    agent: cash-conductor
+    timeout: PT24H
+    reason: "Outbound payment reminder to customer; reputation + collection risk"
+    irreversible: true
+
+  diagnostic_email_send:
+    tier: orange
+    agent: diagnostic
+    timeout: PT4H
+    reason: "Outbound diagnostic report to prospect; sales-stage outreach; reputation"
+    irreversible: true
+
+  diagnostic_calendar_invite:
+    tier: orange
+    agent: diagnostic
+    timeout: PT4H
+    reason: "Books intro call with prospect; reputation + scheduling friction"
+    irreversible: true
+
+  linkedin_inmail_send:
+    tier: orange
+    agent: sourcing-scout
+    timeout: PT4H
+    reason: "Outbound InMail (paid credit); cost-per-send; customer-facing"
+    irreversible: true
+
+  bullhorn_placement_terminate:
+    tier: orange
+    agent: janitor
+    timeout: PT4H
+    reason: "Marks placement as terminated; commercial/legal implications; reversible only via support ticket"
+    irreversible: false
+
+  # ───────────────────────────────────────────────────────────
+  # RED — blocked entirely; ESC_AUTOSEND_BLOCKED (8 action_types)
+  # ───────────────────────────────────────────────────────────
+
+  xero_payment_initiate:
+    tier: red
+    agent: all
+    block_reason: payment_action
+    reason: "Payment transfer; financial-bearing; never auto-send in v1.0"
+    irreversible: true
+
+  stripe_charge_initiate:
+    tier: red
+    agent: all
+    block_reason: payment_action
+    reason: "Charges a card; financial-bearing"
+    irreversible: true
+
+  subscription_modify:
+    tier: red
+    agent: all
+    block_reason: billing_modification
+    reason: "Changes tenant's IFOS subscription; structurally distinct from agent work"
+    irreversible: false
+
+  legal_document_generate:
+    tier: red
+    agent: all
+    block_reason: legal_artefact
+    reason: "Offer letters, employment contracts; legal-binding"
+    irreversible: true
+
+  pii_export_outside_tenant_geography:
+    tier: red
+    agent: all
+    block_reason: pii_geographic_breach
+    reason: "PII transmitted outside tenant's declared data residency (GDPR boundary breach)"
+    irreversible: true
+
+  cross_tenant_data_send:
+    tier: red
+    agent: all
+    block_reason: cross_tenant_violation
+    reason: "Sending tenant-A data to tenant-B recipient; RLS-enforced + red-listed for defence-in-depth"
+    irreversible: true
+
+  unauthorised_adapter_send:
+    tier: red
+    agent: all
+    block_reason: unauthorized_adapter
+    reason: "Send via adapter not declared in this tenant's tenant_adapters row + tools.yaml"
+    irreversible: true
+
+  send_to_blocked_recipient:
+    tier: red
+    agent: all
+    block_reason: blocked_recipient
+    reason: "Recipient in tenant's blocked_recipients override list"
+    irreversible: true
+
+# ───────────────────────────────────────────────────────────
+# Defaults applied when override fields are absent in tenant_adapters
+# ───────────────────────────────────────────────────────────
+
+defaults:
+  approval_timeout: PT4H        # Default orange-tier approval window per §8 rule 5
+  min_sample_rate: 100          # Tenants cannot set sample rate above 1-in-100 per §8 rule 6
+  spot_check_queue_path: /vault/{tenant_slug}/spot-checks/   # Where autosend_spot_check_enqueue writes
+
+# ───────────────────────────────────────────────────────────
+# Compile-time consistency assertions (enforced by Phase-3 validator script,
+# not by YAML itself — documented here so Codex can verify)
+# ───────────────────────────────────────────────────────────
+
+invariants:
+  - "tier ∈ {green, yellow, orange, red}"
+  - "yellow action_types MUST declare sample_rate (positive integer)"
+  - "orange action_types MUST declare timeout (ISO-8601 duration)"
+  - "red action_types MUST declare block_reason"
+  - "tenant overrides may only ELEVATE tier (green→yellow→orange→red); red is floor"
+  - "29 total action_types (6 green + 5 yellow + 10 orange + 8 red); v1.0 frozen"

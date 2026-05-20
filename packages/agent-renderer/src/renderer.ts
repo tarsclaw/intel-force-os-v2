@@ -168,7 +168,11 @@ export async function render(ctx: RenderContext): Promise<RenderResult> {
       counter,
     );
     mkdirSync(join(staging.tmpDir, ".claude", "hooks"), { recursive: true });
-    symlinkSync("../../_shared", join(staging.tmpDir, ".claude", "hooks", "_shared"));
+    // Symlink resolves to <org>/agents/_shared/ — 3 levels up from .claude/hooks/
+    // (ADR-003 §3.3.3 Option γ specifies "../../_shared" which is incorrect:
+    // that resolves to <agent_dir>/_shared. Implementation deviation flagged
+    // for ADR-004 ratification.)
+    symlinkSync("../../../_shared", join(staging.tmpDir, ".claude", "hooks", "_shared"));
     counter.n += 1;
     writeFileTracked(join(staging.tmpDir, RENDERED_MARKER), `${new Date().toISOString()}\n`, undefined, counter);
 
