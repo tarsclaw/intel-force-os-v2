@@ -1,8 +1,8 @@
 # Bullhorn integration path — decision document
 
 **Date:** 2026-05-16 evening / 2026-05-17 (Week 0, Day 2)
-**Status (top-level):** Mixed — Sub-decision C **Accepted**; Sub-decisions A and B **Proposed pending commercial verification per §1.3**
-**Author:** Claude Code, with founder commercial verification pending
+**Status:** Proposed (Sub-decision C Accepted technically; Sub-decisions A + B Proposed pending commercial verification per §1.3)
+**Author:** Claude Code, founder commercial verification pending for A + B
 **Surfaced by:** Master brief §6 Day 2 (lines 466-467) — "Decision: Bullhorn Marketplace vs Direct API. OAuth model: browser dance for production, service-account for dev." Plus Ultraplan §11 Day 2 (lines 847-849).
 **Submodule SHA referenced:** `c21fbfe991a0030ea055bd8e2389a0801a424383`
 

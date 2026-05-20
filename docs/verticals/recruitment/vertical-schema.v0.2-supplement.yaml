@@ -27,8 +27,28 @@ author: founder (Maddox), Phase-4 voice-corpus-substrate via Claude Code
 codex_ratification_queue_position: 29  # appended after Phase-3 items
 
 # ============================================================================
-# §1 — New entities (3)
+# §1 — New entities (3) — auxiliary Postgres tables, NOT entities.data entity_types
 # ============================================================================
+#
+# LAYERING DISCLOSURE (Codex Round 1 — issue 2 incorporation):
+#   v0.2 introduces voice_corpus, voice_corpus_chunks, tone_rule, and recent_edit
+#   as **auxiliary Postgres tables** (real CREATE TABLE statements in
+#   `migrations/v0.1-to-v0.2.sql`), NOT as entity_types in the entities/entity_links
+#   generic primitive layer from Day-4 §6.3. The voice corpus requires (a) pgvector
+#   HNSW indexes which need real columns + indexes, not JSONB blobs, and (b) RLS
+#   policies on per-table tenant_slug — both of which are simpler with first-class
+#   tables.
+#
+#   The label `entities:` below is a YAML key (the schema-document convention from
+#   v0.1) — read it as "new domain entities introduced in v0.2", not as "rows in the
+#   Postgres `entities` table". The Postgres-level shape lives in
+#   `migrations/v0.1-to-v0.2.sql` §2-§5.
+#
+#   The 6 voice_classifier_score / voice_drift_at_close fields added to existing
+#   v0.1 entities (candidate, contractor, contact, brief, opportunity, placement)
+#   in §3 below DO land as `entities.data` JSONB keys per the Day-4 §6.3 generic
+#   primitive layer; they are validated by the `validate_voice_scores` trigger
+#   in `migrations/v0.1-to-v0.2.sql` §7.
 
 entities:
 
@@ -45,46 +65,56 @@ entities:
       tenant_slug:
         type: string
         required: true
+        source: IFOS-derived (set at row insert from CTX_TENANT_SLUG)
         notes: RLS-isolated per tenant. Maps to entities.tenant_slug at row level.
       version:
         type: string
         required: true
+        source: IFOS-derived (operator names at re-index time)
         notes: |
           Semver tag (e.g. "v0.1", "v0.2-2026-06-15"). Bump on re-index. Live pack is the row with `is_active: true`; historical packs preserved for audit + rollback per master brief §3.3 audit discipline.
       source_doc_count:
         type: integer
         required: true
+        source: IFOS-derived (counted by ingest pipeline)
         notes: Number of source documents ingested into this version (emails + notes + marketing). Sanity check during re-index.
       source_doc_origin:
         type: array
         required: true
+        source: IFOS-derived (vault _voice/ subdirectory enumeration)
         notes: |
           Items enum: ["vault_emails", "bullhorn_notes", "marketing_copy", "founder_curated", "consultant_drafts"]. Order documents provenance for the LoRA pipeline (v2.0 Scale tier).
       chunk_count:
         type: integer
         required: true
+        source: IFOS-derived (computed by chunking pass)
         notes: Number of text chunks produced from the source corpus after the chunking pass. One chunk = one row in the pgvector index.
       chunking_strategy:
         type: string
         required: true
+        source: IFOS-derived (config; v0.2 default "paragraph")
         notes: |
           Enum: ["paragraph", "sentence-window-5", "semantic-segment-v1"]. v0.2 ships with "paragraph" (simplest, deterministic). Other values reserved for v1.1 experimentation per Q5 voice gate research.
       embedding_model:
         type: string
         required: true
+        source: IFOS-derived (config; default text-embedding-3-small)
         notes: |
           Identifier of the embedding model used to populate the pgvector column. v0.2 ships with "text-embedding-3-small" (1536 dimensions); revising model triggers re-index + new version row.
       last_indexed_at:
         type: timestamp
         required: true
+        source: IFOS-derived (timestamped at ingest completion)
         notes: When the indexing pipeline last completed for this version. Set on row insert; never updated post-insert (immutability of versioned packs).
       is_active:
         type: boolean
         required: true
+        source: IFOS-derived (atomic flip on version rollover)
         notes: True for the version currently served to hh_load_voice_samples. Exactly one row per tenant has `is_active=true` (enforced via partial unique index).
       ingest_completion_ms:
         type: integer
         required: false
+        source: IFOS-derived (observability counter; pipeline timing)
         notes: How long the ingest+chunk+embed pipeline took. Observability only.
     notes: |
       Versioning matters because (1) tenants may want to roll back if a re-index degrades voice quality (Risk: bad embedding model selection), (2) the LoRA SFT corpus is derived from {voice_corpus, decision_log.agent_drafts} and needs a stable snapshot to train against, (3) audit answers "what voice was the agent grounded against on date X" via voice_corpus.version + agent.payload.policy_version_sha pattern.
@@ -102,44 +132,54 @@ entities:
       tenant_slug:
         type: string
         required: true
+        source: IFOS-derived (set at row insert from CTX_TENANT_SLUG)
       rule_id:
         type: string
         required: true
+        source: IFOS-derived (operator names at rule authoring time)
         notes: Stable slug, e.g. "no-i-hope-this-finds-you-well". Referenced by recent_edit when a rule fires.
       rule_text:
         type: string
         required: true
+        source: IFOS-derived (operator natural-language description)
         notes: Natural-language description of the rule. Surfaced verbatim to the agent.
       severity:
         type: string
         required: true
+        source: IFOS-derived (operator picks at rule authoring)
         notes: |
           Enum: ["info", "warn", "block"]. `info` is observational (logged, not enforced); `warn` shows up in decision_log without blocking; `block` is a Gate-A hard-fail (causes regenerate-with-feedback per Ultraplan §5.3 retry budget).
       applies_to_agents:
         type: array
         required: true
+        source: IFOS-derived (operator picks subset from master brief §8.2 agents)
         notes: |
           Items: agent_name slugs from master brief §8.2 (e.g. ["scribe", "concierge"]). Empty array = applies to all agents. tone_rule rows MUST set this to at least one agent; "all agents" requires the empty-array literal.
       enabled:
         type: boolean
         required: true
+        source: IFOS-derived (default true; operator toggles via Brain UI)
         notes: Soft-delete pattern. Tenant can disable a rule without deleting the row; preserves history for audit.
       created_by:
         type: string
         required: true
+        source: IFOS-derived (enum from rule provenance — onboarding-flow / Brain-UI / CSM-intervention)
         notes: |
           Provenance: "founder" (default tenant-onboarding rules), "tenant-admin" (added via Brain UI), "ifos-csm" (added during CSM intervention per master brief §10 CSM workflow).
       created_at:
         type: timestamp
         required: true
+        source: IFOS-derived (timestamped at insert)
       examples_positive:
         type: array
         required: false
+        source: IFOS-derived (operator-curated at rule authoring)
         notes: |
           Items: short string phrases. Examples of compliant text. Surfaced to the agent in the context bundle.
       examples_negative:
         type: array
         required: false
+        source: IFOS-derived (operator-curated at rule authoring)
         notes: |
           Items: short string phrases. Examples of non-compliant text (the typical drift the rule prevents). Surfaced to the agent.
     notes: |
@@ -158,50 +198,61 @@ entities:
       tenant_slug:
         type: string
         required: true
+        source: IFOS-derived (set at row insert from CTX_TENANT_SLUG)
       agent_name:
         type: string
         required: true
+        source: IFOS-derived (from CTX_AGENT_NAME at edit-capture time)
         notes: |
           The agent whose draft was edited. Matches decision_log.agent_name. NOT entity_type — this is a metadata link to the producing agent, not to a domain entity.
       action_type:
         type: string
         required: true
+        source: IFOS-derived (lookup against autosend-policy.yaml at edit time)
         notes: References autosend-policy.yaml action_types. Drives per-action-type drift detection (e.g., are bullhorn_note_draft_internal drafts edited more than email_summary_to_customer drafts).
       target_entity_type:
         type: string
         required: false
+        source: IFOS-derived (entity context at edit time; nullable for system-level edits)
         notes: |
           Optional pointer to the entity the draft was about (e.g. "candidate", "client"). Enables linking voice drift to entity classes (some entity types correlate with more drift).
       target_entity_id:
         type: string
         required: false
+        source: IFOS-derived (entity ID at edit time; Bullhorn ID or IFOS slug)
         notes: bullhorn_id or IFOS slug. Used in the entity_links join below.
       original_text:
         type: string
         required: true
+        source: IFOS-derived (agent's draft as produced; capped at 8192 chars)
         notes: |
           The agent's draft as produced. **Stored verbatim** (privacy posture: this is the agent's own output, not external PII). Length-capped at 8192 chars; if longer, suffix truncated with "[...]" marker.
       edited_text:
         type: string
         required: false
+        source: IFOS-derived (consultant's final version at approve time; null when approved verbatim)
         notes: |
           The consultant's final version. Nullable when the consultant approved verbatim (no edit). Length-capped at 8192 chars.
       edit_distance:
         type: integer
         required: false
+        source: IFOS-derived (Levenshtein computed at insert; null when edited_text null)
         notes: |
           Computed Levenshtein distance between original_text and edited_text. NULL when edited_text is NULL (approved verbatim). Computed at insert time by the operator UX; not derived at query time.
       resolution:
         type: string
         required: true
+        source: IFOS-derived (operator UX action at approve/reject time)
         notes: |
           Enum: ["approved_verbatim", "approved_after_edit", "rejected", "deferred"]. `deferred` indicates operator returned to inbox without resolving (4h timeout case).
       resolved_at:
         type: timestamp
         required: true
+        source: IFOS-derived (timestamped at operator action)
       tone_rules_triggered:
         type: array
         required: false
+        source: IFOS-derived (Gate-A fires recorded by validate.sh + hh_decision_action)
         notes: |
           Items: tone_rule.rule_id values that fired in Gate A. Empty array = clean pass. Drives "which rules are the agent struggling with" reporting.
     notes: |
@@ -311,6 +362,7 @@ additional_relationships:
 
 migration:
   sql_file: docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql
+  rollback_sql_file: docs/verticals/recruitment/migrations/v0.2-to-v0.1.sql
   status: drafted (Phase 4); execution against migration-test tenant scheduled for Phase 5
   rollback_strategy: |
     All v0.2 additions are nullable columns + new tables. Rollback = DROP TABLE on the 3 new tables + DROP COLUMN on the 6 added fields. No v0.1 data is mutated; v0.1 reads continue working after rollback. Migration SQL ships with companion v0.2-to-v0.1.sql (Phase 4 deliverable; landed in same commit).

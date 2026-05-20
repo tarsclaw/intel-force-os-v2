@@ -1,8 +1,8 @@
 # v1.0 agent sequencing target — decision document
 
 **Date:** 2026-05-16 (Week 0, Day 3)
-**Status (top-level):** Drafting — will land **Accepted** at session close. Single-pass technical decision, no commercial gating.
-**Author:** Claude Code, with founder review pending
+**Status:** Accepted (Day 3 session close, 2026-05-16). Single-pass technical decision, no commercial gating.
+**Author:** Claude Code, founder decision logged 2026-05-16
 **Surfaced by:** Master brief §6 Day 3 (lines 469-473) — "Confirm or revise Ultraplan §9's 'close first 3 pilots fastest' → `.agents/decisions/sequencing-target.md`" (note: master brief §6 names `.agents/decisions/`; this document lives at `docs/decisions/sequencing-target.md` matching the convention established by ADR-001 through ADR-003 + bullhorn-integration-path.md — **Spec gap §1-A** flagged for atomic correction).
 **Submodule SHA referenced:** `c21fbfe991a0030ea055bd8e2389a0801a424383`
 

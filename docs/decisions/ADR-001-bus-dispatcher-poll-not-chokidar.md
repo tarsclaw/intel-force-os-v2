@@ -1,7 +1,7 @@
 # ADR-001 — Bus dispatcher is poll-based, not chokidar-watched
 
 **Date:** 2026-05-16 (Week 0, Day 1)
-**Author:** Claude Code, with founder review pending
+**Author:** Claude Code, founder decision logged 2026-05-16
 **Surfaced by:** `docs/architecture/cortexos-primitive-status.md` — Primitive 3
 **Submodule SHA:** `c21fbfe991a0030ea055bd8e2389a0801a424383`
 **Status:** Accepted — Option A. Founder decision logged 2026-05-16.

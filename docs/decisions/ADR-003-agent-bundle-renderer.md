@@ -1,7 +1,7 @@
 # ADR-003 — Agent Bundle v2 renderer
 
 **Date:** 2026-05-16 (Week 0, Day 1 evening — Week-1-prerequisite pull-forward)
-**Author:** Claude Code, with founder review pending
+**Author:** Claude Code, founder decision logged 2026-05-16
 **Surfaced by:** `docs/decisions/ADR-002-brain-system-as-parallel-not-shadow.md` §"For Week 1 work" + `docs/architecture/agent-bundle-renderer-design.md` (full design)
 **Submodule SHA:** `c21fbfe991a0030ea055bd8e2389a0801a424383`
 **Status:** Accepted. Founder decision logged 2026-05-16.
@@ -20,7 +20,7 @@ The design document (`docs/architecture/agent-bundle-renderer-design.md`) specif
 
 ### Decision 1 — Renderer is a new command, not a wrapper around `cortextos-ifos add-agent`
 
-Per design §5.1: the cortextOS `cortextos-ifos add-agent` command is **unchanged**. IFOS does not use it for IFOS-owned agents. The renderer is a **new** command at `packages/agent-renderer/`, invoked via `cortextos-ifos render-agent <agent-name> --tenant <slug>` (CLI signature per design §3.3.1).
+Per design §5.1: the cortextOS `cortextos-ifos add-agent` command is **unchanged**. IFOS does not use it for IFOS-owned agents. The renderer is a **new** command at `packages/agent-renderer/`, invoked via `ifos-render-agent <agent-name> --tenant <slug>` (standalone Node binary per `package.json` `bin`; **errata via ADR-004 Decision 1** — earlier drafts named this `cortextos-ifos render-agent` which would have required modifying the read-only submodule per master brief §3.1 boundary 1).
 
 **R2 commitment** per design §2.2: no `.claude/skills/` inheritance from cortextOS templates. Default is exclusion of all 24 cortextOS-template skills. Opt-in for specific skills only via the bundle's `tools.yaml` `cortextos_skills:` top-level block (syntax per design §2.2 spec gap §2.2-A resolution).
 
@@ -64,6 +64,8 @@ Two alternatives rejected per design §3.4: merge-with-conflict-markers (prematu
 **Atomicity** per design §3.3.4: write to `<name>.tmp.<pid>/`, rename existing target to `<name>.prev.<timestamp>/`, atomic rename `<name>.tmp.<pid>/` → `<name>/`, clean up older `.prev`. The daemon's `discoverAgents()` filters by directory name pattern; the `.tmp.<pid>/` and `.prev.<timestamp>/` directories are invisible to discovery.
 
 ## Master brief edits authorised by this ADR
+
+**Errata 2026-05-20 (ADR-004):** Edit B's CLI command text was revised post-ADR-004 from `cortextos-ifos render-agent` to `ifos-render-agent`. The proposed text block below reflects the corrected name. See ADR-004 §"Master brief edits authorised" Edit D for the full disposition.
 
 Three edits per design §5.3. Edits A and B land in this ADR's commit (small wording adds; Edit A is needed live before Week-1 renderer implementation). Edit C joins the deferred atomic correction commit alongside ADR-001 + ADR-002 edits.
 
@@ -118,8 +120,8 @@ Lands in this ADR's commit. Edit A is the minimum required to make `packages/age
 > # Test against fixtures; iterate; commit; PR; merge.
 >
 > # After merge, render the bundle for each tenant that uses this agent:
-> cortextos-ifos render-agent {name} --tenant <slug>
-> # For all active tenants (v1.1+): cortextos-ifos render-agent {name} --all-tenants
+> ifos-render-agent {name} --tenant <slug>
+> # For all active tenants (v1.1+): the --all-tenants flag is deferred to a future ADR-005 (see ADR-004 Edit D)
 > # Activate: pm2 restart ifos-daemon   (for new agents)
 > #       OR: cortextos-ifos bus self-restart {name}   (for re-renders of running agents)
 > ```

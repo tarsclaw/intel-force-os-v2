@@ -1,7 +1,7 @@
 # IFOS Agent Bundle v2 renderer — design specification
 
 **Date:** 2026-05-16 (Week 0, Day 1 evening — Week-1-prerequisite pull-forward)
-**Status:** Design specification (not a decision record). Recommendations become binding via ADR-003.
+**Status:** Reference. Recommendations become binding via ADR-003 (Accepted) + ADR-004 (errata on CLI name + symlink target).
 **Surfaced by:** `docs/decisions/ADR-002-brain-system-as-parallel-not-shadow.md` §"For Week 1 work" — declared the renderer the load-bearing Week-1 prerequisite.
 **Prior work referenced:** master brief §8 (bundle spec); `docs/architecture/second-brain-design.md` §1.7 (R2 inheritance recommendation); `docs/architecture/cortexos-primitive-status.md` Primitive 1 (PTY/PM2 spawn mechanism).
 **Submodule SHA audited:** `c21fbfe991a0030ea055bd8e2389a0801a424383`
@@ -329,7 +329,7 @@ ifos-context-assembly --agent "${CTX_AGENT_NAME}" --tenant "${CTX_TENANT_SLUG}"
 
 #### (b) Rendered output — `orgs/acme/agents/concierge/`
 
-After `cortextos-ifos render-agent concierge --tenant acme`:
+After `ifos-render-agent render concierge --tenant acme` (CLI name per ADR-004 Decision 1):
 
 ```
 orgs/acme/agents/concierge/
@@ -497,8 +497,10 @@ Alternatives' one-sentence trade-offs:
 #### 3.3.1 — CLI signature
 
 ```bash
-cortextos-ifos render-agent <agent-name> --tenant <slug> [flags]
+ifos-render-agent render <agent-name> --tenant <slug> [flags]
 ```
+
+(CLI name per ADR-004 Decision 1; earlier drafts of this design named this `cortextos-ifos render-agent` which violated master brief §3.1 boundary 1. The corrected standalone `ifos-render-agent` Node binary ships from `packages/agent-renderer/package.json` `bin`.)
 
 | Position / flag | Required | Default | Meaning |
 |---|---|---|---|
@@ -610,12 +612,12 @@ This makes re-runs cheap and accurate. A founder editing only `agents/recruitmen
 
 **Decision for v1.0: per-tenant per-agent invocation only.**
 
-`cortextos-ifos render-agent <agent-name> --tenant <slug>` — one render per call. To render Concierge across three tenants, three invocations. Scriptable via bash `for tenant in acme bravo charlie; do cortextos-ifos render-agent concierge --tenant "$tenant"; done`.
+`ifos-render-agent render <agent-name> --tenant <slug>` — one render per call. To render Concierge across three tenants, three invocations. Scriptable via bash `for tenant in acme bravo charlie; do ifos-render-agent render concierge --tenant "$tenant"; done`.
 
-v1.1+ ergonomic additions (out of v1.0 scope but planned):
+v1.1+ ergonomic additions (out of v1.0 scope but planned; will be ratified via ADR-005):
 
-- `cortextos-ifos render-agent <agent-name> --all-tenants` — iterates over all rows of the `tenants` Postgres table where `status = 'active'`. Used after an `agent.md` edit to propagate to every tenant.
-- `cortextos-ifos render-all` — iterates over the cross-product `<agents/recruitment/*> × <active tenants>`. Used for initial multi-tenant onboarding and post-major-refactor reprocessing.
+- `ifos-render-agent render <agent-name> --all-tenants` — iterates over all rows of the `tenants` Postgres table where `status = 'active'`. Used after an `agent.md` edit to propagate to every tenant.
+- `ifos-render-all` — iterates over the cross-product `<agents/recruitment/*> × <active tenants>`. Used for initial multi-tenant onboarding and post-major-refactor reprocessing.
 
 The v1.0 minimum keeps the renderer's CLI surface small (one mode, two required args) and defers cross-tenant orchestration to bash. The Postgres `tenants` table dependency (v1.0 Day 4 per master brief §6) is what unblocks `--all-tenants`; until then there's no programmatic source of truth for "the list of active tenants."
 
@@ -633,7 +635,7 @@ For each mode: detection mechanism + exit code + recovery + escalation.
 
 **Recovery:** stderr lists the failed validation path (e.g. `properties.nurture_cadence.post_interview_chase_hours: expected integer, got string`). Founder edits `/vault/<tenant>/_config.yaml` or the `config.schema.json` source (rare; schema edits go through Codex ratification per master brief §10.5). Re-runs render.
 
-**Escalation:** `ESC_RENDERER_FAILED` row written to `decision_log` Postgres table with `phase='render'`, `human_action='schema-validation-failure'`. If `--notify-on-failure` (default true), Telegram message to the operator with the validation path.
+**Escalation:** `ESC_RENDERER_FAILED` row written to `decision_log` Postgres table with `agent_name='_renderer'`, `phase='gating_failed'`, `payload->>'reason'='schema-validation-failure'`. (`phase='render'` was named in earlier drafts but is NOT in the live CHECK enum — see ADR-004 Decision 7; the 5-value enum is `trigger | output | action | gating_failed | agent_handoff` per Day-4 §6.3 + Day-5 schema migration.) If `--notify-on-failure` (default true), Telegram message to the operator with the validation path.
 
 ### 4.2 — Missing `_shared/` helpers
 
@@ -703,7 +705,7 @@ New escalation code added to `agents/_shared/escalation-codes.md` per master bri
 
 Escalation path:
 
-- **Audit log:** Postgres `decision_log` row with `tenant_slug`, `agent_name='_renderer'`, `phase='render'`, `human_action` field carries the reason. RLS-isolated per tenant. Codex's Day-7 ratification report queries this table for all rows where `agent_name='_renderer' AND human_action LIKE 'ESC_RENDERER_FAILED%'`.
+- **Audit log:** Postgres `decision_log` row with `tenant_slug`, `agent_name='_renderer'`, `phase='gating_failed'` (failures) or `phase='action'` (successful renders), `payload->>'reason'` carries the reason code. RLS-isolated per tenant. Codex's Day-7 ratification report queries this table for all rows where `agent_name='_renderer' AND payload->>'reason' LIKE 'ESC_RENDERER_FAILED%'`. (Per ADR-004 Decision 7: `phase='render'` was named in earlier drafts but is NOT in the live CHECK enum — use the 5-value enum from Day-4 §6.3 + Day-5 schema migration.)
 - **Telegram:** if `--notify-on-failure` is set (default true for v1.0), single message to the founder's operator chat with structured fields: tenant, agent, exit code, reason, stderr first line.
 - **stdout:** in the developer terminal, always — regardless of `--notify-on-failure`.
 
@@ -788,11 +790,12 @@ Plus a one-line footnote: "`agent-renderer/` — the IFOS Agent Bundle v2 → co
 
 ```bash
 # After merge, render the bundle for each tenant that uses this agent:
-cortextos-ifos render-agent {name} --tenant <slug>
-# For all active tenants (v1.1+): cortextos-ifos render-agent {name} --all-tenants
+ifos-render-agent render {name} --tenant <slug>
+# For all active tenants (v1.1+): the --all-tenants flag is deferred to ADR-005
 # Activate: pm2 restart ifos-daemon  (for new agents)
 #       OR: cortextos-ifos bus self-restart {name}  (for re-renders of running agents)
 ```
+(CLI name per ADR-004 Decision 1; earlier drafts named this `cortextos-ifos render-agent`.)
 
 **Edit C — Master brief §8.1 add renderer reference:**
 

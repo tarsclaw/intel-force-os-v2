@@ -394,6 +394,8 @@ The cascade is sequential — each referencing entity's flock is acquired serial
 
 ## Section 6 — Escalation codes summary
 
+**Status update 2026-05-20 (Day 8 Codex Round 1):** all 5 codes below are now catalogued at `agents/_shared/escalation-codes.md` §2.2 (commit `a279226`, Phase 1 of Week-1 slice) AND wired into the `autosend_escalate` helper at `agents/_shared/hook-helpers.sh` (commit `e6e9df1`, Phase 3 of Week-1 slice). The "_shared/hook-helpers.sh Week-1 prereq must wire these 5 codes" language below has been satisfied — current state is shipped + tested.
+
 Five new escalation codes introduced by this document:
 
 | Code | Trigger | Decision_log phase | Operator surface |
@@ -404,7 +406,7 @@ Five new escalation codes introduced by this document:
 | `ESC_VAULT_CASCADE_PARTIAL_FAILURE` | §5: rewrite-backlinks cascade completed but ≥1 referencing entity failed to rewrite | `gating_failed` | Telegram operator chat, plus `failures` list in decision_log metadata |
 | `ESC_VAULT_CASCADE_TIMEOUT` | §5: cascade exceeded `CASCADE_TIMEOUT_MS = 30_000` ms | `gating_failed` | Telegram operator chat, plus partial-progress counters |
 
-All five route via `hh_decision_log` from master brief §8.1 Change 2 + `ESC_BULLHORN_AUTH` pattern from `bullhorn-integration-path.md` §6.1. **The `_shared/hook-helpers.sh` Week-1 prereq must wire these 5 codes** (in addition to `ESC_BULLHORN_AUTH` and `ESC_RENDERER_FAILED` already on the wiring list per `current-priorities.md` Week-1 prereqs).
+All five route via `hh_decision_log` from master brief §8.1 Change 2 + `ESC_BULLHORN_AUTH` pattern from `bullhorn-integration-path.md` §6.1. **All 5 codes catalogued + wired as of Day 8 2026-05-20** at `agents/_shared/escalation-codes.md` §2.2 (commit `a279226`) and `agents/_shared/hook-helpers.sh::autosend_escalate` (commit `e6e9df1`). Test coverage in `agents/_shared/tests/test-hook-helpers.sh`.
 
 ---
 

@@ -1,7 +1,7 @@
 # IFOS second brain — design specification
 
 **Date:** 2026-05-16 (Week 0, Day 1)
-**Status:** Design specification (not a decision record). Recommendation in Q3 is non-binding; ADR-002 ratifies it.
+**Status:** Reference. Q3 recommendation non-binding; ADR-002 ratifies it.
 **Surfaced by:** `docs/architecture/cortexos-kb-surface-investigation.md` — the cortextOS KB substrate is incompatible with the IFOS wiki data model, and the gap is large enough that the second brain needs its own design before ADR-002 can land.
 **Submodule SHA audited:** `c21fbfe991a0030ea055bd8e2389a0801a424383`
 
@@ -972,7 +972,7 @@ Master brief §5.5 currently says (lines 416-420):
 | **2.4-A** | Master brief / Ultraplan silent on git for tenant vault | No backup-via-git mechanism specified | `git init` at tenant provisioning (`provision-tenant.sh` Ultraplan §5.5 step 2). Founder commits via Obsidian Git plugin; agents don't commit. | No — commit cadence can be decided Week 1+. |
 | **2.4-B** | Ultraplan §5.1 line 227 groups entity index + adjacency under "`entity_graph`" | Single-table model insufficient for the JSONB GIN + trigram + adjacency mix v1.0 needs | Split into `entities` + `entity_links` per §2.4.2. Update master brief §3.3 / Ultraplan §5.1 wording. **Roll into Week 0 Day 4 Postgres provisioning.** | **Tight** — Day 4 of Week 0 (this week). |
 | **2.4-C** | Master brief / Ultraplan silent on embedding model | No model specified for voice_samples_embedded or future compiled/ embeddings | Adopt `gemini-embedding-001` (3072 dims) — matches cortextOS's KB substrate per kb-setup.sh migration target. Same `GEMINI_API_KEY` serves both. Revisit if a sharply better model ships before Week 11. | No |
-| **2.6** | Master brief §5 silent on concurrency | No mechanism for agent×agent, agent×human-in-Obsidian, or rewrite-backlinks cascade | Resolved in §2.6.1, §2.6.2, §2.6.3 of this design. Companion document `docs/architecture/vault-concurrency.md` lands Week 1-2. New escalation codes (`ESC_VAULT_LOCK_TIMEOUT`, `ESC_VAULT_CONCURRENCY`, `ESC_HUMAN_EDITING_LOCK`, `ESC_VAULT_RENAME_RACE`) added to `agents/_shared/escalation-codes.md` per master brief §8.1 Change 3. | No — needs to land before Week 5 multi-agent test. |
+| **2.6** | Master brief §5 silent on concurrency | No mechanism for agent×agent, agent×human-in-Obsidian, or rewrite-backlinks cascade | Resolved in §2.6.1, §2.6.2, §2.6.3 of this design. Companion document `docs/architecture/vault-concurrency.md` LANDED (Day 3, commit `78680cc`). New escalation codes (`ESC_VAULT_LOCK_TIMEOUT`, `ESC_VAULT_CONCURRENCY`, `ESC_HUMAN_EDITING_LOCK`, `ESC_VAULT_RENAME_RACE`) CATALOGUED at `agents/_shared/escalation-codes.md` §2.2 (Day 8 commit `a279226`) + WIRED into `agents/_shared/hook-helpers.sh::autosend_escalate` (Day 8 commit `e6e9df1`). | **Closed 2026-05-20.** Catalogue + wiring complete; ESC codes callable from any rendered agent. |
 | **3.4-A** | Master brief §5.5 (lines 416-420) v1.0 brain wording | Says "shadow four files" — incorrect per Q1.5 | Rewrite per §3.4 of this design: "9 `wiki-*.sh` parallel wrappers + Postgres entities/entity_links/decision_log + pgvector voice." Bundles with ADR-002 atomic correction commit. | No — wording change, not work change. |
 | **3.4-B** | Master brief §6 Day 4 (line 478) Postgres table list | Lists `entity_graph` as a single table | Update wording: "`tenants`, `entities`, `entity_links`, `decision_log`, `tenant_eval_sets`, `tenant_adapters`." Bundles with Day 4 provisioning. | **Tight** — Day 4 of Week 0 (this week). |
 

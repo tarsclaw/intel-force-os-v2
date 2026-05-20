@@ -67,12 +67,15 @@ Three named protocols for handling credentials in IFOS operations. Path A is the
 **Waiver process if Path B is genuinely needed:**
 1. Founder types literally: `Path B: protocol override authorised` followed by the credential on a new line
 2. Claude Code uses the credential once, immediately
-3. Founder rotates the credential within 24 hours
-4. Rotation logged in `.agents/decisions/<date>-path-b-rotation-<n>.md` with the original need and the rotation evidence
+3. Founder **MUST rotate the credential within 24 hours** — non-negotiable. `cryptsetup luksChangeKey` for LUKS; equivalent rotation API for Postgres/OAuth/etc.
+4. Rotation **MUST be verified** — for LUKS, `cryptsetup luksChangeKey --test-passphrase` confirms OLD rejected + NEW accepted; for Postgres, `psql -c "SELECT 1;"` with OLD credentials fails and with NEW succeeds
+5. Rotation logged in `.agents/decisions/<date>-path-b-rotation-<n>.md` with the original need, the rotation evidence, AND the cryptographic verification output
 
-**Day-4 incident:** Path B was authorised once for §4.8 ifos-unlock end-to-end test. Founder retrospectively rotated via `cryptsetup luksChangeKey`; `--test-passphrase` verified OLD rejected + NEW accepted. The leaked passphrase in the transcript became cryptographically invalid against the LUKS volume. **Cost:** ~30 minutes of rotation work + permanent transcript-history annotation.
+**Codex Round 1 strengthening (2026-05-20):** the waiver text above is the *escape hatch*, not the default. **Any Path B use without same-session rotation is a protocol violation that counts as a Risk #1 strike** (operational hygiene degraded). Founder may invoke Path B exactly once per emergency context (e.g., boot-time `ifos-unlock` when Path A is impossible because no interactive terminal is available). Repeated Path B use in a single session indicates Path A/Path D pattern is insufficient — escalate to a new ADR rather than authorise repeatedly.
 
-**Path B was the right call for Day 4 only because the protocol violation was acknowledged and the rotation was committed in the same session.** The Day-4 close commit (`98c79b2`) is the audit record. Future sessions: avoid Path B by defaulting to Path A or Path D.
+**Day-4 incident (reference example of a correctly-handled Path B use):** Path B was authorised once for §4.8 ifos-unlock end-to-end test. Founder rotated WITHIN THE SAME SESSION via `cryptsetup luksChangeKey`; `--test-passphrase` verified OLD rejected + NEW accepted. The leaked passphrase in the transcript became cryptographically invalid against the LUKS volume. **Cost:** ~30 minutes of rotation work + permanent transcript-history annotation. Audit record: Day-4 close commit `98c79b2` + `.agents/decisions/2026-05-17-path-b-rotation-1.md`.
+
+**Path B was the right call for Day 4 ONLY because the protocol violation was acknowledged and the rotation was committed in the same session.** The Day-4 close commit (`98c79b2`) is the audit record. **Future sessions MUST avoid Path B by defaulting to Path A or Path D.** If Path B is invoked, the same-session-rotation discipline above is non-negotiable.
 
 ### §2.3 — Path D (default for credential generation)
 

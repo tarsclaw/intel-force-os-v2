@@ -86,7 +86,8 @@ entities:
         required: true
         source: Bullhorn.Candidate.status
         enum: [active, archived, do_not_contact, placed, contractor_promoted]
-        notes: 'contractor_promoted' = candidate whose status flipped to contractor; row gets duplicated as entity_type='contractor' via adapter layer.
+        notes: |
+          "contractor_promoted" = candidate whose status flipped to contractor; row gets duplicated as entity_type="contractor" via adapter layer.
       owner_user_id:
         type: integer
         required: false
@@ -142,7 +143,8 @@ entities:
         type: number
         required: false
         source: IFOS-derived (Concierge voice classifier per Ultraplan §8.1 A6 Gate A; range [0, 1])
-        notes: Concierge gate threshold ≥ 0.75 per bullhorn §4.1.
+        notes: |
+          Concierge gate threshold ≥ 0.75 per bullhorn §4.1. **Bounded [0.0, 1.0] enforced by the `validate_voice_scores` PL/pgSQL trigger** that lands via the v0.2 migration at `docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql` §7. v0.1 declares the field shape; v0.2 enforces the bound. Insertion attempts with out-of-range values raise `EXCEPTION` and reject the write.
     notes:
       - PII handling — fields email, phone, mobile, location are PII per UK GDPR Art. 4(1). Autosend-policy.md §7 `payload_preview` rules apply.
       - The full Bullhorn Candidate field set has 50+ fields plus customText1-25; v0.1 covers the minimal working set. Full enumeration TBD per bullhorn-integration-path.md §4.1 Spec gap §4.1-A at Week 3-4 Janitor build.
@@ -494,7 +496,8 @@ entities:
     description: |
       A candidate-brief pairing in the submission/screening/interview/offer pipeline. Pre-placement state. v1.1+ exercised; v1.0 minimal.
     bullhorn_source: Bullhorn.JobSubmission (or Bullhorn.Opportunity — tenant-config dependent; some tenants use one, some both)
-    v1_0_agent_access: []  # Not exercised in v1.0 per bullhorn §4.1
+    v1_0_agent_access:
+      - "none (v1.1+ exercise per bullhorn §4.1; Inbound Triage primary reader)"
     v1_1_plus_agent_access:
       - (v1.1) Inbound Triage — read for routing inbound candidate enquiries to active opportunities
       - (v1.1) Brief Decoder — write submission events
@@ -533,7 +536,8 @@ entities:
     description: |
       A contractor's weekly hours record. v2.0 entity — exercised by T2 Timesheet agent + T6 Pay & Bill agent per master brief §9. v0.1 captures placeholder shape only.
     bullhorn_source: Bullhorn.Timesheet (Bullhorn has a Timesheet entity; tenant-config dependent)
-    v1_0_agent_access: []  # Not exercised in v1.0
+    v1_0_agent_access:
+      - "none (v1.1+ exercise; T2 Timesheet + T6 Pay & Bill primary readers per v2.0 backlog)"
     v2_0_agent_access:
       - T2 Timesheet — R+W
       - T6 Pay & Bill — R
@@ -809,7 +813,7 @@ open_questions:
 
   Q4_system_agents_not_entities:
     status: RESOLVED (Day 6 founder decision)
-    decision: System agent names like `_renderer` are NOT entity_types in this schema. They appear in `decision_log.agent_name` only (per ADR-003 + Day-5 schema migration `phase='render'`).
+    decision: System agent names like `_renderer` are NOT entity_types in this schema. They appear in `decision_log.agent_name` only, with `phase` from the live 5-value enum (`trigger | output | action | gating_failed | agent_handoff` per Day-4 §6.3 + Day-5 migration). The sentinel `_renderer` writes `phase='gating_failed'` for failures and `phase='action'` for successful renders per ADR-004 Decision 7.
     rationale: Vertical schema covers tenant-domain entities only. System-internal agents (renderer, validators, ingest pipeline) live in decision_log audit but are not first-class business entities.
 
   Q5_contact_decision_authority_granularity:
@@ -856,14 +860,18 @@ open_questions:
     surfaced_during_review: 2026-05-18 Day 6 founder review (S4)
     v0_1_decision: placement.lifecycle_stage enum is hardcoded to Product Spec §2.2 R7 values (pre_start, week_1, month_1, month_3, month_6, month_12, month_24, completed).
     revisit_trigger: Any Product Spec revision touching R7 nurture cadence (e.g., adding week_2 checkpoint, removing month_24, splitting month_12 into quarterly checkpoints) requires schema migration. Migration steps — (1) ALTER TABLE add new enum value(s) to entities.data JSONB validator; (2) backfill existing placement rows if semantic change (e.g., week_1 → week_1_check_in renaming); (3) Concierge nurture-event firing logic updated to match new cadence.
-    rationale: Hardcoded enum is the lowest-friction v0.1 choice; alternative (lifecycle_stage as free-form string) loses query-time validation. Tradeoff: schema-migration-on-change vs runtime-validation-loss. v1.0 picks former.
+    rationale: |
+      Hardcoded enum is the lowest-friction v0.1 choice; alternative (lifecycle_stage as free-form string) loses query-time validation. Tradeoff: schema-migration-on-change vs runtime-validation-loss. v1.0 picks former.
 
   Q12_source_field_schema:
     status: DEFERRED to v1.0 Codex ratification
     surfaced_during_review: 2026-05-18 Day 6 founder review (S2)
-    v0_1_decision: canonical_fields.<name>.source values are free-text strings in v0.1. Two patterns used: (a) entity.field paths like `Bullhorn.Candidate.firstName`; (b) free-text with citation like `IFOS-derived (Scribe extracts from call transcripts per bullhorn §4.1 A3)`.
-    revisit_trigger: Codex Day-7 ratification reviews whether stricter source-field schema would improve machine-parseability. If accepted, v1.0 introduces structured source object — e.g., `source: {origin: bullhorn | ifos_derived, bullhorn_field?: <entity.field>, ifos_agent?: <agent_name>, citation?: <doc-ref>}`.
-    rationale: Mixed-format is readable for v0.1; stricter is Codex review work. Machine-parseability matters if Week-1 prereq 3 (`_shared/hook-helpers.sh`) consumes source provenance for audit; if not consumed programmatically, free-text is fine.
+    v0_1_decision: |
+      canonical_fields.<name>.source values are free-text strings in v0.1. Two patterns used: (a) entity.field paths like `Bullhorn.Candidate.firstName`; (b) free-text with citation like `IFOS-derived (Scribe extracts from call transcripts per bullhorn §4.1 A3)`.
+    revisit_trigger: |
+      Codex Day-7 ratification reviews whether stricter source-field schema would improve machine-parseability. If accepted, v1.0 introduces structured source object — e.g., `source: {origin: bullhorn | ifos_derived, bullhorn_field?: <entity.field>, ifos_agent?: <agent_name>, citation?: <doc-ref>}`.
+    rationale: |
+      Mixed-format is readable for v0.1; stricter is Codex review work. Machine-parseability matters if Week-1 prereq 3 (`_shared/hook-helpers.sh`) consumes source provenance for audit; if not consumed programmatically, free-text is fine.
 
 # ============================================================================
 # §6 — Versioning + scope progression
@@ -875,7 +883,7 @@ versioning:
     status: This document — Proposed
     date: 2026-05-18 (Day 6 of Week 0)
     scope: |
-      Structural cut. 8 entities + 10 relationships + agent-access matrix + Bullhorn mapping. Minimal field sets (10-20 per entity). 10 open questions catalogued (Q1, Q4 resolved; Q2, Q3, Q5-Q10 deferred with named triggers).
+      Structural cut. 8 entities + 10 relationships + agent-access matrix + Bullhorn mapping. Minimal field sets (10-20 per entity). 12 open questions catalogued (Q1, Q4 resolved at Day 6; Q2, Q3, Q5-Q12 deferred with named triggers).
     next_action: Codex Day-7 ratification queue position 18.
 
   v1_0:

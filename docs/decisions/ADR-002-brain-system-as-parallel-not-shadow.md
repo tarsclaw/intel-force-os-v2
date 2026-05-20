@@ -1,7 +1,7 @@
 # ADR-002 — Brain system as parallel, not shadow
 
 **Date:** 2026-05-16 (Week 0, Day 1)
-**Author:** Claude Code, with founder review pending
+**Author:** Claude Code, founder decision logged 2026-05-16
 **Surfaced by:** `docs/architecture/cortexos-kb-surface-investigation.md` (data-model mismatch) + `docs/architecture/second-brain-design.md` (full design analysis)
 **Submodule SHA:** `c21fbfe991a0030ea055bd8e2389a0801a424383`
 **Status:** Accepted — Option α. Founder decision logged 2026-05-16.
@@ -72,7 +72,9 @@ The forward-compatibility hook is: **do not dismantle cortextOS's KB tooling**. 
 
 ## Master brief edits authorised by this ADR
 
-Three edits, two in the atomic correction commit alongside ADR-001's `chokidar → FastChecker` edits, one in the Day 4 Postgres provisioning task.
+**Disposition update 2026-05-20 (Day 8 Codex Round 1):** all three edits landed in the atomic-correction commit **`0e5b2b4`** ("docs: master brief reconciliation — 11 edits batch-applied", Day 7 2026-05-20). Manifest-of-record below — each edit's "where it landed" is `0e5b2b4`.
+
+Three edits, two in the atomic correction commit alongside ADR-001's `chokidar → FastChecker` edits, one in the Day 4 Postgres provisioning task. **All three landed in commit `0e5b2b4` on 2026-05-20** — verifiable via `git show 0e5b2b4 -- docs/build-brief/00-MASTER-BRIEF.md`.
 
 ### Edit 1 — Master brief §3.4 brain-replacement seam wording
 
@@ -116,7 +118,7 @@ This edit lands on **Day 4 of Week 0 (this week)** as part of the Postgres provi
 
 **For cortextOS upstream.** No PR upstreamable from this ADR. cortextOS code is untouched; the submodule pin (`c21fbfe991a0030ea055bd8e2389a0801a424383`) stays. The brain-replacement boundary in master brief §3.1 simply isn't exercised — that's not a bug in cortextOS, it's an IFOS-side decision to use a parallel surface.
 
-**For the master brief atomic correction commit.** ADR-001 (Edit: `chokidar watcher` → `FastChecker poll loop` in §2.4 row 3 + §3.2 latency reframe in Ultraplan) and ADR-002 (Edits 1 and 2 above — §3.4 wording and §5.5 v1.0 brain build wording) land together. Single commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 spec drifts`. Queued for Codex ratification on Day 7 alongside the other six Week 0 artefacts per master brief §10.6.
+**For the master brief atomic correction commit.** ADR-001 (Edit: `chokidar watcher` → `FastChecker poll loop` in §2.4 row 3 + §3.2 latency reframe in Ultraplan) and ADR-002 (Edits 1, 2, 3 above — §3.4 wording, §5.5 v1.0 brain build wording, §6 Day 4 Postgres table list) **all landed together in commit `0e5b2b4` on 2026-05-20** ("docs: master brief reconciliation — 11 edits batch-applied"). Ratified by Codex on Day 7 along with ADR-001 + ADR-003 per master brief §10.6.
 
 **For future ADRs.** ADR-002 explicitly defers three decisions:
 
@@ -128,6 +130,6 @@ This edit lands on **Day 4 of Week 0 (this week)** as part of the Postgres provi
 
 **Accepted — Option α.** Founder decision logged 2026-05-16. Next steps:
 
-1. ADR-001 + ADR-002 master-brief edits land in one atomic correction commit (deferred to end of Week 0 or early Week 1).
+1. ADR-001 + ADR-002 master-brief edits LANDED in atomic-correction commit `0e5b2b4` (Day 7 2026-05-20). Status: closed.
 2. Edit 3 (Postgres table split, `entity_graph` → `entities` + `entity_links`) lands as part of the Day 4 Postgres provisioning task, this week.
 3. Day 7 Codex ratification reviews ADR-001 + ADR-002 + the seven Week 0 artefacts together (per master brief §10.6).

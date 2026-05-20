@@ -1,6 +1,7 @@
 # cortextOS primitive status — Week 0 Day 1 audit
 
 **Date:** 2026-05-16 (Week 0, Day 1)
+**Status:** Reference (Week-0 audit of cortextOS submodule at pinned SHA; no Proposed/Accepted lifecycle).
 **Audited SHA:** `c21fbfe991a0030ea055bd8e2389a0801a424383` (`packages/harness/cortextos/` reference pin, per `packages/harness/PINNED-SHA.md`)
 **Package manifest:** `cortextos@0.1.1` (npm), but CHANGELOG shows `0.2.0` work landed (External Persistent Crons) — the version field has drifted; the audit reflects the actual code at the pinned SHA.
 **Method:** read code under `src/daemon/`, `src/pty/`, `src/bus/`, `src/telegram/`, `src/cli/`; cross-reference with `README.md`, `CHANGELOG.md`, `CRONS_MIGRATION_GUIDE.md`, `templates/{orchestrator,analyst,agent,m2c1-worker,agent-codex}/`; line-cite `tests/unit/**` and `tests/integration/**`; cross-check Day-0 findings in `.agents/learnings/00-cortextos-quirks.md`; classify per the four-status scheme from master brief §6 Day 1.
