@@ -30,3 +30,4 @@ legacy/**/.env*
 # Per ~/.claude/plans/bubbly-snuggling-lantern.md decision 6
 # gstack is dev-environment-only; this file should never appear in IFOS repo
 .gbrain-source
+.gstack/

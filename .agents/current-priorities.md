@@ -1,18 +1,38 @@
 # Current priorities
 
-**Week:** Week 0 (pre-build)
-**Today's task:** Day 7 — single-sentence test review + first Codex ratification run per master brief §6 Day 7 lines 492-505
-**Most recent close:** Day 6 — recruitment vertical schema v0.1 (shipped 2026-05-18, see Shipped) — 8 entities, 89 canonical fields, 10 relationships, agent R/W matrix, Bullhorn mapping, 12 open_questions
+**Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
+**Today's task:** Week-1 prerequisite 3 (`agents/_shared/voice-loader.sh` + `hook-helpers.sh`) OR `.codex/ratification/*.md` skills build OR design-partner outreach (Q1 unblocker — single highest leverage)
+**Most recent close:** Day 7 — single-sentence test 3 of 5 YES; Week 0 extends; atomic-correction commit landed at `0e5b2b4`; Codex ratification manifest produced; Q1 unblocker is the design partner LOI (14 days remain to kill criterion Trigger 1 at 2026-06-03)
 
 ## This week's gate
 
 Clear all seven days of master brief §6 by Sunday. Five-of-five yeses on the
 §6 Day 7 single-sentence test gates entry to Week 1.
 
-## Open
+## Open — Week 0 extension period
 
-- [ ] Day 7: single-sentence test review + first Codex ratification run per master brief §6 Day 7 lines 492-505 (5 yes/no questions; Week 0 closure depends on 5 yeses; design-partner question 1 is currently NO per Risk #3)
-- [ ] **Week 1-2 must-fill** (per `v1.0-kill-criterion.md` §3.4): External advisor name + engagement letter before first pilot LOI signs. Slot reserved for future tie-break needs in commercial decisions or post-pilot scale.
+Single-sentence test result 3 of 5 YES (Q1 NO + Q3 NO + Q2/Q4/Q5 YES). Week 0 extends per master brief §6 line 502. **Week 1 named agent-build slices DO NOT BEGIN until at minimum Q1 turns YES.**
+
+### Highest-leverage (Q1 unblocker)
+
+- [ ] **Design-partner outreach.** The SINGLE Q1 unblocker. Founder-side work; warm-path strategy when targets named; cold-path templates drafted now possible. Without this, kill criterion Trigger 1 fires 2026-06-03 (14 days from today 2026-05-20) and Week 0 escalates to PAUSE.
+
+### Continues during extension (parallel tracks)
+
+- [ ] **Week-1 prerequisite 3** — `agents/_shared/voice-loader.sh` + `agents/_shared/hook-helpers.sh`. Full implementation surface specified across Day-5 `autosend-safety-policy.md` §4 + ADR-002 §"For Week 1 work" + `vault-concurrency.md` §3.1. 3 `hh_decision_*` contracts + 7 `autosend_*` helpers + ESC catalogue (ESC_BULLHORN_AUTH + ESC_RENDERER_FAILED + 5×ESC_VAULT_* + 3×ESC_AUTOSEND_*). Estimated 3-5 person-days.
+- [ ] **`.codex/ratification/*.md` skills build** — master brief §10.2 Day-1 task surfaced as gap during Day-7 grounding. 7 skill files (SKILL.md + 6 review-{type}.md). Estimated 2-3 person-days. Required before first Codex ratification run can execute.
+- [ ] **Bullhorn commercial conversations** — `partnerships@bullhorn.com`, Bullhorn dev support, design-partner #1 ATS confirmation. Flips Sub-decisions A+B Proposed → Accepted; reduces Risk #2 from High to Medium. Resolves Q3 partially (auth path cleared) but does NOT unblock Week 1 alone.
+- [ ] **Renderer implementation per ADR-003** — ALLOWED to scaffold but agent-build slices DO NOT start until Q1 turns YES.
+
+### Week 1-2 must-fill (carried forward)
+
+- [ ] **External advisor name + engagement letter** (per `v1.0-kill-criterion.md` §3.4) before first pilot LOI signs.
+
+## BLOCKED during Week 0 extension
+
+- ❌ Diagnostic W3-4 agent build (and all named v1.0 agent builds: Janitor, Scribe, Cash Conductor, Sourcing Scout, Concierge)
+- ❌ First Codex ratification run execution (manifest produced; actual `codex review` waits for skills + Week 0 close)
+- ❌ Any work requiring pilot-client data
 
 ## Operational debts from Day 4 — CLOSED 2026-05-18 Monday morning
 
@@ -31,6 +51,42 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 7 (2026-05-20) — Single-sentence test 3-of-5 + atomic-correction commit + Codex ratification manifest
+
+Week 0 closing day per master brief §6 Day 7. Three deliverables landed across two commits.
+
+**Single-sentence test result (3 of 5 YES):**
+
+| # | Question | Answer | Evidence |
+|---|---|---|---|
+| 1 | Design partner pilot Q3 2026 LOI? | **NO** | Zero pipeline; Risk #3 High; Trigger 1 fires 2026-06-03 |
+| 2 | Primitives 1, 4, 5 working today? | **YES with caveat** | Primitives 4+5 confirmed shipped+tested; primitive 1 documented "flaky-under-load" per Risk #1 (operationally sound for v1.0 6-agent fleet) |
+| 3 | ATS decided + auth cleared? | **NO** | Bullhorn decided (YES); auth path Sub-decisions A+B Proposed pending commercial conversations (NO commercial outreach sent) |
+| 4 | Agent Bundle v2 refactor scoped + <5 days? | **YES** | ADR-003 + agent-bundle-renderer-design.md + sequencing-target.md all Accepted; renderer initial implementation <5 person-days per ADR-003 §5.2 |
+| 5 | Vertical schema v0.1 with 8 entities? | **YES** | `vertical-schema.yaml` shipped Day 6 `fec8872`; 8 entities, 89 fields, 10 relationships |
+
+**Per master brief §6 line 502 verbatim: "Five yeses → Week 1 starts Monday. Anything less → Week 0 extends."** → **Week 0 EXTENDS.**
+
+**Deliverables landed in 2 commits:**
+
+1. **Atomic-correction commit `0e5b2b4`** — master brief reconciliation, 11 edits batch-applied (10 master brief + 1 Ultraplan):
+   - Edits 1-10 + 12 (Edit 11 dropped per founder decision: already-executed live SQL migration is its own audit trail)
+   - Two side effects flagged in commit message for Codex review: §2.4 row 3 col 4 wiki-* reframe (downstream from Edit 3); §5.5 table 3-rows → 2-rows merge (downstream from Edit 4)
+   - Stats: 2 files, +15 / -21 lines
+   - Master brief fully reconciled. No further atomic-correction commits queued.
+
+2. **Day-7 close commit (this commit)** — single-sentence test artefact + Codex ratification manifest + state-file updates:
+   - `docs/decisions/2026-05-18-day-7-single-sentence-test.md` (Accepted, factual recording)
+   - `docs/decisions/2026-05-18-codex-ratification-manifest.md` (Reference, 19+ items queued)
+   - `.agents/current-priorities.md` Day 7 → Shipped + Week 0 extending status + extension protocol
+   - `docs/RISK-REGISTER.md` Risk #3 updated with Week 0 extension active + Q1 unblocker path
+
+**Q1 unblocker:** design partner LOI by 2026-06-03 (14 calendar days). Single structural unblocker for Week 1 named agent-build slices.
+
+**Q3 unblocker independent of Q1:** Bullhorn commercial conversations (founder-side; reduces Risk #2 to Medium; doesn't unblock Week 1 alone).
+
+**Codex Day-7 ratification execution:** deferred per founder Option C. Manifest produced today; execution waits for (a) `.codex/ratification/*.md` skills built (Day 1 task gap surfaced) AND (b) Week 0 close achievable. Schedule documented in manifest §4.
 
 ### Day 6 evening (2026-05-18) — Citation audit + operational hygiene protocol
 
@@ -237,9 +293,11 @@ Test ran as `ifos_app` over TCP+scram-sha-256 (NOT as postgres superuser which b
 
 All four consolidated tightenings applied in §6 + §7 of Day 4 execution. Verified at `\dt` + `\d entities` + `\d decision_log` + `ls -la /usr/local/bin/provision-tenant.sh` + RLS gate pass.
 
-## Atomic master-brief correction commit (deferred to end of Week 0 / early Week 1)
+## Atomic master-brief correction commit — LANDED Day 7 at `0e5b2b4`
 
-**Nine-edit manifest** — Day-4 execution added Edit 9 (Hetzner NBG1 wording per runbook §0.1 + §12 deviation 3):
+**11 of 12 edits applied** in atomic-correction commit `0e5b2b4` on 2026-05-20. Edit 11 dropped (already-executed live SQL migration is its own audit trail). Master brief is fully reconciled. Two side effects flagged in commit message for Codex review (Edit 1 col 4 reframe + Edit 4 row merge).
+
+Historical 12-edit manifest preserved below for traceability:
 
 1. **ADR-001** — Master brief §2.4 row 3: `chokidar watcher` → `FastChecker poll loop`
 2. **ADR-001** — Ultraplan §3.2: 4-agent pipeline latency reframe to "3-5 seconds end-to-end"
@@ -259,7 +317,7 @@ Commit message: `docs: master brief reconciliation — ADR-001 + ADR-002 + ADR-0
 
 ## Queued for Codex ratification (Day 7)
 
-Per master brief §10.6 first ratification run — Day 6 evening added item 19, now 19:
+Per master brief §10.6 first ratification run — Day 7 added items 20 + 21 + the landed atomic-correction commit `0e5b2b4`. Total: 21 items + 1 commit. **Execution deferred** to Week 0 extension period (skills + Q1 unblocker both required first). See `docs/decisions/2026-05-18-codex-ratification-manifest.md` §3 + §4 for the gap + schedule.
 
 1. `docs/architecture/cortexos-primitive-status.md` (the audit document)
 2. `docs/decisions/ADR-001-bus-dispatcher-poll-not-chokidar.md` (Accepted Option A)
@@ -280,6 +338,9 @@ Per master brief §10.6 first ratification run — Day 6 evening added item 19, 
 17. **`docs/decisions/v1.0-kill-criterion.md`** (Status: Proposed) — NEW Day 5 morning 2026-05-18 + Day-5 close commit (includes live Postgres schema migration; Risk #3 escalation; state-file updates)
 18. **`docs/verticals/recruitment/vertical-schema.yaml`** (Status: Proposed) — NEW Day 6 2026-05-18 (8 entities, 89 fields, 10 relationships, agent R/W matrix, Bullhorn mapping, 12 open_questions)
 19. **`docs/runbooks/operational-hygiene-protocol.md`** (Status: In Force) — NEW Day 6 evening 2026-05-18 (Path A/D credential protocols, no-defensive-additions rule, length calibration methodology, citation accuracy discipline, Day-4-6 audit findings)
+20. **`docs/decisions/2026-05-18-codex-ratification-manifest.md`** (Status: Reference) — NEW Day 7 2026-05-20 (this manifest itself; lists 19+ ratification queue items + gap + schedule)
+21. **`docs/decisions/2026-05-18-day-7-single-sentence-test.md`** (Status: Accepted, factual recording) — NEW Day 7 2026-05-20 (3 of 5 YES result + Week 0 extension protocol)
+22. **Atomic-correction commit `0e5b2b4`** — LANDED Day 7 2026-05-20 (`docs: master brief reconciliation — 11 edits batch-applied`); two side effects flagged for Codex review per commit message
 
 ## Stuck
 
