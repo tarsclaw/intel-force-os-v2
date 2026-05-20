@@ -1,8 +1,9 @@
 # Current priorities
 
 **Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** Week-1 prerequisite 3 (`agents/_shared/voice-loader.sh` + `hook-helpers.sh`) OR `.codex/ratification/*.md` skills build OR design-partner outreach (Q1 unblocker — single highest leverage)
-**Most recent close:** Day 7 — single-sentence test 3 of 5 YES; Week 0 extends; atomic-correction commit landed at `0e5b2b4`; Codex ratification manifest produced; Q1 unblocker is the design partner LOI (14 days remain to kill criterion Trigger 1 at 2026-06-03)
+**Today's task:** Phase 2 — `packages/agent-renderer/` scaffold per ADR-003 (TypeScript Node + tsup + vitest + commander); ends with `cortextos-ifos render-agent test-agent --tenant migration-test` working against test fixture. ~3 days.
+**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Week-1 product-code slice (5 phases, ~10 days)
+**Most recent close:** Phase 1 (Day 8, 2026-05-20) — renderer prereqs + ESC catalogue landed at `a279226`. 10 files, +813 lines; first product-code commit. Closes 3 of 11 Day-7-honest-read gaps (#2 preamble, #3 common schemas, #6 ESC catalogue).
 
 ## This week's gate
 
@@ -19,10 +20,22 @@ Single-sentence test result 3 of 5 YES (Q1 NO + Q3 NO + Q2/Q4/Q5 YES). Week 0 ex
 
 ### Continues during extension (parallel tracks)
 
-- [ ] **Week-1 prerequisite 3** — `agents/_shared/voice-loader.sh` + `agents/_shared/hook-helpers.sh`. Full implementation surface specified across Day-5 `autosend-safety-policy.md` §4 + ADR-002 §"For Week 1 work" + `vault-concurrency.md` §3.1. 3 `hh_decision_*` contracts + 7 `autosend_*` helpers + ESC catalogue (ESC_BULLHORN_AUTH + ESC_RENDERER_FAILED + 5×ESC_VAULT_* + 3×ESC_AUTOSEND_*). Estimated 3-5 person-days.
-- [ ] **`.codex/ratification/*.md` skills build** — master brief §10.2 Day-1 task surfaced as gap during Day-7 grounding. 7 skill files (SKILL.md + 6 review-{type}.md). Estimated 2-3 person-days. Required before first Codex ratification run can execute.
-- [ ] **Bullhorn commercial conversations** — `partnerships@bullhorn.com`, Bullhorn dev support, design-partner #1 ATS confirmation. Flips Sub-decisions A+B Proposed → Accepted; reduces Risk #2 from High to Medium. Resolves Q3 partially (auth path cleared) but does NOT unblock Week 1 alone.
-- [ ] **Renderer implementation per ADR-003** — ALLOWED to scaffold but agent-build slices DO NOT start until Q1 turns YES.
+### Active 5-phase plan (`bubbly-snuggling-lantern.md`)
+
+- [x] **Phase 1** — Renderer prereqs (claude-md-preamble.md + 8 common-*.json) + ESC catalogue. Landed Day 8 `a279226`. Closes gaps #2, #3, #6.
+- [ ] **Phase 2** — `packages/agent-renderer/` scaffold (TypeScript Node). ~3 days. **IN PROGRESS NEXT.**
+- [ ] **Phase 3** — `agents/_shared/hook-helpers.sh` + `autosend-policy.yaml` + README.md. ~3 days. Closes gap #4 (autosend runtime YAML).
+- [ ] **Phase 4** — `vertical-schema.yaml` v0.2 (3 voice entities + 1 pgvector index + 6 fields). ~1 day. Closes gap #1 (voice corpus schema).
+- [ ] **Phase 5** — `agents/_shared/voice-loader.sh` + live Phase-4 migration execution. ~2 days.
+
+### Parallel tracks during extension
+
+- [ ] **`.codex/ratification/*.md` skills build** — master brief §10.2 Day-1 task surfaced as gap during Day-7 grounding. 7 skill files (SKILL.md + 6 review-{type}.md). Estimated 2-3 person-days. Required before first Codex ratification run can execute. **Deferred per plan §Out-of-scope** to immediately-before-Codex-execution.
+- [ ] **Bullhorn commercial conversations** — `partnerships@bullhorn.com`, Bullhorn dev support, design-partner #1 ATS confirmation. Flips Sub-decisions A+B Proposed → Accepted; reduces Risk #2 from High to Medium. Resolves Q3 partially.
+
+### Highest-leverage (Q1 unblocker — Jack's lane)
+
+- [ ] **Design-partner outreach.** The SINGLE Q1 unblocker for Week 1 named-agent-build slices. Co-founder Jack owns. Without this, kill criterion Trigger 1 fires 2026-06-03 (14 days from 2026-05-20).
 
 ### Week 1-2 must-fill (carried forward)
 
@@ -51,6 +64,18 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 8 (2026-05-20) — Phase 1: renderer prereqs + ESC catalogue
+
+Commit `a279226`. First product-code commit. 10 files, +813 lines.
+
+- `packages/agent-renderer/templates/claude-md-preamble.md` (71 lines) — closes ADR-003 spec gap §2.1-A
+- `packages/agents-runtime/_shared/common-{base,client,voice,notifications,vault,ats,accounting,target-patch}.json` (8 files, 487 lines total) — closes ADR-003 spec gap §2.1-B; 7 named in PRODUCT-SPEC §5.3 + 1 added (`common-base.json`)
+- `agents/_shared/escalation-codes.md` (255 lines, Reference) — closes master brief §8.1 Change 3 Week-0 task ("Build the catalogue in Week 0"); 24 active codes + 2 reserved across 6 sections
+
+Closes 3 of 11 Day-7-honest-read gaps: #2 preamble template, #3 common schemas, #6 ESC catalogue consolidation.
+
+Codex Day-7 queue grows from 21 to 24 items (preamble + common-bundle + ESC catalogue).
 
 ### Day 7 (2026-05-20) — Single-sentence test 3-of-5 + atomic-correction commit + Codex ratification manifest
 
