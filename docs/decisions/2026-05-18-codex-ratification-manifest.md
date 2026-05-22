@@ -33,7 +33,7 @@
 | 18 | `docs/verticals/recruitment/vertical-schema.yaml` | Proposed | Verify 8 entities + 89 fields + 10 relationships + agent R/W matrix + 12 open_questions; cross-check Bullhorn mapping against §4.1 |
 | 19 | `docs/runbooks/operational-hygiene-protocol.md` | In Force | Verify Path A/D + no-defensive-additions + length calibration + citation accuracy rules; verify §7 audit findings (15 §10.4 fabrications fixed) |
 
-**Plus this manifest itself (#20)** and **Day-7 single-sentence test artefact (#21)** join the queue on commit. Total: **21 items** at Day-7 close.
+**Plus this manifest itself (#20)** and **Day-7 single-sentence test artefact (#21)** join the queue on commit. Original Day-7 close total: **21 items**. Current manifest state after Round 2 closure: **43+ queued/registered items; 19 ratified by Codex across Rounds 1-2, 9 remaining rejected from the 26-item Round-2 queue, and the rest deferred/not yet in the Round-2 slice.**
 
 ---
 
@@ -50,7 +50,40 @@ Architecture+tenancy slice (commits `5c3fa66` + `c4348aa`) adds 4 new artefacts 
 
 **Cross-cutting reference:** these 4 artefacts ratify the layered defence model documented across Day-4 §7 (RLS isolation gate) + ADR-002 (parallel brain) + ADR-003 (renderer) + ADR-004 (deviations). They are downstream of, not redundant with, the existing 21+ queue items.
 
-**Queue total: 43 items** at Day-9 evening close.
+**Queue total: 43 items** at Day-9 evening close. Round 2 subsequently reviewed 26 of these artefacts and closed with **17 RATIFIED / 9 REJECTED**.
+
+## §1.7 — Codex Round 2 verdicts (2026-05-22)
+
+Autonomous Round 2 ratification reviewed 26 artefacts across the re-ratification, Day-9, and Day-11 queues. Remediation commits referenced by the protocol: `2b287d3` (Round-1 incorporation), `5c3fa66` + `c4348aa` (architecture+tenancy), `783c496` (D5 skill softening), and `20e78d7` + `95e7d4a` (D1/D3 prep). Result: **17 RATIFIED / 9 REJECTED**. Full report: `logs/codex-ratification/round-2-autonomous/SUMMARY.md`.
+
+| # | Artefact | Round-2 verdict | Round-2 disposition |
+|---|---|---|---|
+| 1 | `docs/decisions/ADR-001-bus-dispatcher-poll-not-chokidar.md` | RATIFIED | Incorporated remediation verified clean. |
+| 2 | `docs/decisions/ADR-002-brain-system-as-parallel-not-shadow.md` | RATIFIED | Incorporated remediation verified clean. |
+| 3 | `docs/decisions/ADR-003-agent-bundle-renderer.md` | RATIFIED | Incorporated remediation verified clean. |
+| 4 | `docs/decisions/bullhorn-integration-path.md` | REJECTED | Open: see SUMMARY.md §4 for founder action. |
+| 5 | `docs/decisions/sequencing-target.md` | RATIFIED | Incorporated remediation verified clean. |
+| 6 | `docs/decisions/autosend-safety-policy.md` | REJECTED | Open: see SUMMARY.md §4 for founder action. |
+| 7 | `docs/architecture/cortexos-primitive-status.md` | RATIFIED | Incorporated remediation verified clean; D5 softening applied. |
+| 8 | `docs/architecture/second-brain-design.md` | RATIFIED | Incorporated remediation verified clean. |
+| 9 | `docs/architecture/agent-bundle-renderer-design.md` | RATIFIED | Incorporated remediation verified clean. |
+| 10 | `docs/architecture/vault-concurrency.md` | RATIFIED | Incorporated remediation verified clean. |
+| 11 | `docs/decisions/v1.0-kill-criterion.md` | RATIFIED | Incorporated remediation verified clean. |
+| 12 | `docs/runbooks/operational-hygiene-protocol.md` | RATIFIED | Incorporated remediation verified clean; D5 softening applied. |
+| 13 | `docs/verticals/recruitment/vertical-schema.yaml` | RATIFIED | Incorporated remediation verified clean. |
+| 14 | `docs/verticals/recruitment/vertical-schema.v0.2-supplement.yaml` | REJECTED | Open: see SUMMARY.md §4 for founder action. |
+| 15 | `docs/architecture/tenancy-invariants.md` | RATIFIED | First ratification on Round 2; RATIFIED. |
+| 16 | `docs/architecture/architecture-cohesion-review.md` | RATIFIED | First ratification on Round 2; RATIFIED. |
+| 17 | `docs/runbooks/tenant-lifecycle.md` | RATIFIED | First ratification on Round 2; RATIFIED. |
+| 18 | `scripts/run-tenancy-audit.sh` | REJECTED | First ratification on Round 2; REJECTED. Open: see SUMMARY.md §4. |
+| 19 | `docs/decisions/codex-disagreement-2026-05-20-decision-doc-shape-on-audits.md` | RATIFIED | First ratification on Round 2; recursive disagreement RATIFIED. |
+| 20 | `docs/decisions/codex-disagreement-2026-05-20-bullhorn-week-1-gate.md` | REJECTED | First ratification on Round 2; recursive disagreement REJECTED. Open: see SUMMARY.md §3-§4. |
+| 21 | `docs/decisions/2026-05-20-codex-round-1-founder-decisions.md` | RATIFIED | First ratification on Round 2; RATIFIED with D1/D2/D3 advisory. |
+| 22 | `docs/decisions/autosend-approval-bridge-spec.md` | REJECTED | First ratification on Round 2; REJECTED. Open: see SUMMARY.md §4. |
+| 23 | `docs/runbooks/pii-purge-operational-pattern.md` | REJECTED | First ratification on Round 2; REJECTED. Open: see SUMMARY.md §4. |
+| 24 | `scripts/ifos-pii-purge.sh` | REJECTED | First ratification on Round 2; REJECTED. Open: see SUMMARY.md §4. |
+| 25 | `docs/verticals/recruitment/migrations/v0.2-to-v0.3-pii-purge.sql` | REJECTED | First ratification on Round 2; REJECTED. Open: see SUMMARY.md §4. |
+| 26 | `docs/verticals/recruitment/migrations/v0.3-to-v0.2-pii-purge.sql` | RATIFIED | First ratification on Round 2; RATIFIED; paired forward migration remains rejected. |
 
 ---
 
