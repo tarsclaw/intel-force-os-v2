@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** **Round-2 remediation closed in this commit.** 6 mechanical rejection classes fixed, 3 founder-decision surfaces annotated/escalated, and Round 3 closed 10 RATIFIED / 0 REJECTED. Next founder action: D1 autosend path + D2/D3 SeedLegals/legal bundle.
+**Today's task:** **Diagnostic agent.md pre-build scaffold landed in this commit.** Output contract + 12-section spec + 10-step workflow + Gate A spec + escalation codes authored against Ultraplan §8.1 A1 + master brief §1 Rule 1. Pre-W3-build; not ratified. Awaits W3 build slice for full bundle ratification.
 **Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Architecture+tenancy plan COMPLETE; 3 phases landed.
-**Most recent close:** Day 11 evening (2026-05-22) — Codex Round-2 remediation + Round 3. Round-2 mechanical rejects fixed; Risks #11/#12 mitigated; D1/D2/D3 remain founder-blocking.
+**Most recent close:** Day 11 evening (2026-05-22) — Diagnostic agent.md pre-build scaffold draft (output contract first per Rule 1). Round-2 remediation + Round 3 closed earlier today; Risks #11/#12 mitigated; D1/D2/D3 remain founder-blocking.
 
 ## This week's gate
 
@@ -107,6 +107,36 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 11 evening (2026-05-22) — Diagnostic agent.md pre-build scaffold
+
+Master brief §1 Rule 1 "Output before architecture" applied — Diagnostic agent.md output contract authored without waiting for first pilot tenant. Pre-build slice frees W3-4 build to focus on 5 remaining bundle files + 3 fixtures rather than iterating on output contract under deadline pressure.
+
+**Artefacts landed (this commit):**
+
+- `agents/recruitment/diagnostic/agent.md` (~370 lines, Status: Proposed) — full output contract per master brief §1 Rule 1:
+  - §1 Output contract (one-paragraph screenshot) — 12-section Markdown report ~600-1000 words, vault-write only (no external sends), per-section evidence-link requirement, Gate B ≥30% discovery-call ratio
+  - §2 Invocation surface (CLI v1.0 + v1.1+ deferred surfaces)
+  - §3 The 12 required sections (Firm signal / Online footprint / Sector + role-type mix / Geography / Deal-size band proxy / ICP fit vs target_patch / Tech stack signals / Pain signals / Competitor positioning / Recent activity / Decision-maker map / Conversation opener) — proposed enumeration per Ultraplan §8.1 A1; founder review pending
+  - §4 Workflow (10-step process from Ultraplan §8.1 A1 with `hh_decision_*` integration per master brief §8.1 Change 2)
+  - §5 Gates (Gate A validate.sh hard-fail conditions; Gate B 30% discovery-call success threshold)
+  - §6 Escalation codes (ESC_VOICE_DRIFT / ESC_PII_LEAKAGE_RISK / ESC_RATE_LIMIT_HIT / ESC_SCHEMA_VIOLATION) mapped from `agents/_shared/escalation-codes.md`
+  - §7 Voice + tone constraints (integration with `_shared/voice-loader.sh` per master brief §8.1 Change 1)
+  - §8 Build dependencies (13 pre-W3 prerequisites; ⏸ items block W3 build start)
+  - §9 Status + 6 open questions for founder review
+- `agents/recruitment/diagnostic/README.md` (~60 lines, Status: Proposed) — directory positioning artefact; enumerates the 5 missing bundle files + 3 fixtures for W3 build slice
+
+**Out-of-scope (W3 build slice):**
+- `tools.yaml`, `context.sh`, `validate.sh`, `cycle.sh`, `cleanup.sh` (5 sibling bundle files)
+- `fixtures/01-primary.yaml`, `fixtures/02-edge-case-no-online-footprint.yaml`, `fixtures/99-voice-drift-canary.yaml` (3 fixtures)
+- Companies House MCP connector + LinkedIn read-only MCP connector + web scraper utility
+- Codex bundle ratification via `review-agent-bundle.md` (skill not yet built; lazy per execution plan)
+
+**Why now:** master brief §1 Rule 1 "Output before architecture" + ADR-003 agent bundle v2 pattern + zero blocking dependency on founder-side D1/D2/D3 + zero blocking dependency on pilot tenant. Output contract is self-contained spec.
+
+**Pending founder review:** §9 6 open questions (12-section list canonicality, §11 split vs merge, Proxycurl vs alternative LinkedIn API, Gate B measurement mechanism v1.0, firm-slug canonical form, Glassdoor scraping inclusion).
+
+**Codex Day-7 ratification queue:** grows by 1 (agent.md draft); ratifies individually via `review-architecture-decision.md` skill OR as part of full bundle via `review-agent-bundle.md` at W3 build close.
 
 ### Day 11 evening (2026-05-22) — Codex Round-2 remediation + Round 3
 
