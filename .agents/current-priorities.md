@@ -108,6 +108,24 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 
 ## Shipped
 
+### Day 11 evening (2026-05-22) — Live migration first-attempt: 4 Day-4 drifts surfaced + fixed
+
+First end-to-end execution of `bash scripts/run-live-migration.sh` against live VPS exposed 4 Day-4 documentation/code drifts that had survived 3 rounds of Codex ratification + the Day-9 cohesion review. **Pattern: scripts authored Days 8-11 were never run against live until today, so divergence from Day-4-executed reality went undetected.**
+
+**Drift 1 — `ifos_app` password mismatch between 1Password and live Postgres.** Rotated via Day-4 §5.4 Path D pattern (VPS-generated, /vault/.ifos_app_password.tmp, never entered chat). New password saved to 1Password "IFOS Postgres ifos_app — production".
+
+**Drift 2 — DB name hardcoded as `ifos` in 3 scripts + README; actual DB is `ifos_v2`.** Fixed in commit `49ebc98`. Day-4 §6.2 line 670 always created `ifos_v2`; scripts authored Day-8+ assumed wrong name.
+
+**Drift 3 — `ifos_app` role lacked TRIGGER privilege on `entities` table.** Day-4 §6.3 granted SELECT/INSERT/UPDATE/DELETE but not TRIGGER. Fixed by founder running `GRANT TRIGGER ON entities TO ifos_app;` as postgres superuser on VPS.
+
+**Drift 4 — GUC name divergence (load-bearing, Risk #13).** Live RLS policies on Day-4 tables use `current_setting('app.current_tenant', TRUE)`, but Days 8-11 codebase + Day-9 ratified docs (`tenancy-invariants.md`, `architecture-cohesion-review.md`) wrote `ifos.tenant_slug`. Fixed via mechanical rename across 15 files. 29/29 helper tests still pass. Future tenancy-audit will verify all 12 invariants against live DB to catch any remaining drift.
+
+**This commit:** Risk #13 added (mitigated pending live re-run). Day-4 runbook NOT modified — runbook was always the source of truth; Days 8-11 deviated. Lesson written to learnings/00-cortextos-quirks.md candidate (deferred).
+
+**Pending re-run after this commit:**
+1. `bash scripts/run-live-migration.sh` — should now apply v0.2 cleanly against live Postgres
+2. `bash scripts/run-tenancy-audit.sh` — verifies all 12 invariants empirically
+
 ### Day 11 evening (2026-05-22) — Diagnostic agent.md pre-build scaffold
 
 Master brief §1 Rule 1 "Output before architecture" applied — Diagnostic agent.md output contract authored without waiting for first pilot tenant. Pre-build slice frees W3-4 build to focus on 5 remaining bundle files + 3 fixtures rather than iterating on output contract under deadline pressure.

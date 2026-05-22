@@ -32,7 +32,7 @@ IFOS is multi-tenant with RLS isolation per tenant_slug (Day-4 §6.3, §7). Ever
 
 1. Have a `tenant_slug TEXT NOT NULL` column
 2. `ALTER TABLE <name> ENABLE ROW LEVEL SECURITY`
-3. `CREATE POLICY <name>_tenant_isolation ON <name> USING (tenant_slug = current_setting('ifos.tenant_slug', TRUE))`
+3. `CREATE POLICY <name>_tenant_isolation ON <name> USING (tenant_slug = current_setting('app.current_tenant', TRUE))`
 
 REJECT if a new table omits any of these three. (Day-4 §7 RLS isolation gate passed all 5 conditions; new tables must extend that posture, not weaken it.)
 
@@ -196,7 +196,7 @@ REJECT if:
 
 - **Trigger on every row in entities** — entities can grow to millions of rows; a trigger that fires on every entity row instead of WHEN-clause-restricted to relevant entity_types is a performance disaster. REJECT.
 
-- **Missing session variable for RLS** — RLS policies reference `current_setting('ifos.tenant_slug')`. If the migration script itself executes RLS-protected operations without `SET LOCAL ifos.tenant_slug`, those operations fail silently (return 0 rows) or fail loudly. REJECT if the migration's own seed INSERTs lack `SET LOCAL ifos.tenant_slug = '<slug>'` before the INSERT.
+- **Missing session variable for RLS** — RLS policies reference `current_setting('app.current_tenant')`. If the migration script itself executes RLS-protected operations without `SET LOCAL app.current_tenant`, those operations fail silently (return 0 rows) or fail loudly. REJECT if the migration's own seed INSERTs lack `SET LOCAL app.current_tenant = '<slug>'` before the INSERT.
 
 ---
 
@@ -205,11 +205,11 @@ REJECT if:
 Run mentally through this scenario:
 
 ```
-Tenant A sets ifos.tenant_slug='acme'; SELECT * FROM voice_corpus_chunks;
-Tenant B sets ifos.tenant_slug='globex'; SELECT * FROM voice_corpus_chunks;
+Tenant A sets app.current_tenant='acme'; SELECT * FROM voice_corpus_chunks;
+Tenant B sets app.current_tenant='globex'; SELECT * FROM voice_corpus_chunks;
 ```
 
-Both queries must return only their own tenant's rows. If the migration's RLS policy uses `current_setting('ifos.tenant_slug', TRUE)` (the TRUE = missing_ok), check that:
+Both queries must return only their own tenant's rows. If the migration's RLS policy uses `current_setting('app.current_tenant', TRUE)` (the TRUE = missing_ok), check that:
 
 - When the setting is missing, the query returns 0 rows (NOT all rows)
 - When the setting is `'acme'`, only Acme rows are returned

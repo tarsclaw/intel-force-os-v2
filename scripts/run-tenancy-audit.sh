@@ -253,16 +253,16 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────
-# T4 — Adversarial: INSERT without SET LOCAL ifos.tenant_slug
+# T4 — Adversarial: INSERT without SET LOCAL app.current_tenant
 # ────────────────────────────────────────────────────────────────────────
 
 _step "T4 — Missing-SET-LOCAL adversarial WRITE"
 
-# T4 — adversarial: INSERT without SET LOCAL ifos.tenant_slug.
+# T4 — adversarial: INSERT without SET LOCAL app.current_tenant.
 # Expected: RLS rejects OR inserted row remains invisible to the app role.
 T4_WRITE_RESULT=$(_psql_local <<EOF 2>&1
 BEGIN;
--- DO NOT set ifos.tenant_slug
+-- DO NOT set app.current_tenant
 INSERT INTO decision_log (tenant_slug, agent_name, phase, payload, created_at)
 VALUES ('rls-probe-tenant', '_t4_probe', 'trigger', '{}'::jsonb, now());
 SELECT count(*) FROM decision_log
@@ -280,7 +280,7 @@ else
 fi
 echo "${T4_WRITE_RESULT}" > "${LOG_DIR}/T4-missing-set-local-write.log"
 
-# Without setting ifos.tenant_slug, attempt to read from decision_log.
+# Without setting app.current_tenant, attempt to read from decision_log.
 # RLS should return 0 rows.
 T4_RESULT=$(_psql_local <<EOF 2>&1
 SELECT count(*) FROM decision_log;
@@ -318,7 +318,7 @@ fi
 
 # Adversarial DELETE attempt should fail with permission denied
 T5_DELETE=$(_psql_local <<EOF 2>&1
-SET ifos.tenant_slug='${TENANT_A}';
+SET app.current_tenant='${TENANT_A}';
 DELETE FROM decision_log WHERE 1=0;
 EOF
 )
@@ -457,7 +457,7 @@ fi
 
 # Adversarial: insert second is_active=TRUE row for migration-test
 T10_ADV=$(_psql_local <<EOF 2>&1
-SET ifos.tenant_slug='${TENANT_A}';
+SET app.current_tenant='${TENANT_A}';
 INSERT INTO voice_corpus (tenant_slug, version, source_doc_count, source_doc_origin,
   chunk_count, chunking_strategy, embedding_model, last_indexed_at, is_active)
 VALUES ('${TENANT_A}', 'audit-duplicate-test', 0, '{}', 0, 'paragraph',
@@ -469,7 +469,7 @@ if echo "${T10_ADV}" | grep -qi "duplicate\|unique\|conflict"; then
 else
   # Clean up the duplicate if it landed
   _psql_local <<EOF >/dev/null 2>&1
-SET ifos.tenant_slug='${TENANT_A}';
+SET app.current_tenant='${TENANT_A}';
 DELETE FROM voice_corpus WHERE version='audit-duplicate-test';
 EOF
   _fail "T10: Adversarial second-is_active INSERT NOT rejected" "${T10_ADV}"
@@ -486,7 +486,7 @@ WRONG_TENANT="not-the-real-tenant"
 T11_FAILED=0
 for table in "${TENANT_TABLES[@]}"; do
   count=$(_psql_local <<EOF
-SET ifos.tenant_slug='${WRONG_TENANT}';
+SET app.current_tenant='${WRONG_TENANT}';
 SELECT count(*) FROM ${table};
 EOF
 )
@@ -545,7 +545,7 @@ fi
 
 AUDIT_SQL=$(cat <<EOF
 BEGIN;
-SET LOCAL ifos.tenant_slug='ifos-meta';
+SET LOCAL app.current_tenant='ifos-meta';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, payload, created_at)
 VALUES (
   'ifos-meta',

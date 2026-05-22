@@ -68,7 +68,7 @@ CREATE INDEX IF NOT EXISTS voice_corpus_tenant_slug_idx ON voice_corpus (tenant_
 
 ALTER TABLE voice_corpus ENABLE ROW LEVEL SECURITY;
 CREATE POLICY voice_corpus_tenant_isolation ON voice_corpus
-  USING (tenant_slug = current_setting('ifos.tenant_slug', TRUE));
+  USING (tenant_slug = current_setting('app.current_tenant', TRUE));
 
 -- ----------------------------------------------------------------------------
 -- §3 — Create voice_corpus_chunks table (pgvector substrate)
@@ -100,7 +100,7 @@ CREATE INDEX IF NOT EXISTS voice_samples_embedded
 
 ALTER TABLE voice_corpus_chunks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY voice_corpus_chunks_tenant_isolation ON voice_corpus_chunks
-  USING (tenant_slug = current_setting('ifos.tenant_slug', TRUE));
+  USING (tenant_slug = current_setting('app.current_tenant', TRUE));
 
 -- ----------------------------------------------------------------------------
 -- §4 — Create tone_rule table
@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS tone_rule_tenant_enabled_idx ON tone_rule (tenant_slu
 
 ALTER TABLE tone_rule ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tone_rule_tenant_isolation ON tone_rule
-  USING (tenant_slug = current_setting('ifos.tenant_slug', TRUE));
+  USING (tenant_slug = current_setting('app.current_tenant', TRUE));
 
 -- ----------------------------------------------------------------------------
 -- §5 — Create recent_edit table
@@ -157,7 +157,7 @@ CREATE INDEX IF NOT EXISTS recent_edit_lookback_idx ON recent_edit (tenant_slug,
 
 ALTER TABLE recent_edit ENABLE ROW LEVEL SECURITY;
 CREATE POLICY recent_edit_tenant_isolation ON recent_edit
-  USING (tenant_slug = current_setting('ifos.tenant_slug', TRUE));
+  USING (tenant_slug = current_setting('app.current_tenant', TRUE));
 
 -- ----------------------------------------------------------------------------
 -- §6 — Grants for ifos_app role
@@ -248,7 +248,7 @@ END $$;
 -- than failing on no-corpus-found.
 -- ----------------------------------------------------------------------------
 
-SET LOCAL ifos.tenant_slug = 'migration-test';
+SET LOCAL app.current_tenant = 'migration-test';
 
 INSERT INTO voice_corpus (
   tenant_slug, version, source_doc_count, source_doc_origin,

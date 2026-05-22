@@ -102,7 +102,7 @@ voice_threshold: 0.75
 EOF
 
 # Step 7: Seed initial voice corpus row (empty — operator uploads docs separately)
-psql -c "SET ifos.tenant_slug='${SLUG}';
+psql -c "SET app.current_tenant='${SLUG}';
   INSERT INTO voice_corpus (tenant_slug, version, source_doc_count, source_doc_origin,
     chunk_count, chunking_strategy, embedding_model, last_indexed_at, is_active)
   VALUES ('${SLUG}', 'v0.1-seed', 0, '{}', 0, 'paragraph',
@@ -242,7 +242,7 @@ ssh maddox@${VPS_HOST} "sudo -u ifos_user tar -czf /backup/tenant-snapshots/<slu
 
 # Step 4: Post-legal-hold purge (90 days later — scheduled cron OR manual)
 # WARNING: this is destructive
-psql -c "SET ifos.tenant_slug='<slug>';
+psql -c "SET app.current_tenant='<slug>';
   DELETE FROM recent_edit       WHERE tenant_slug='<slug>';
   DELETE FROM voice_corpus_chunks WHERE tenant_slug='<slug>';
   DELETE FROM voice_corpus      WHERE tenant_slug='<slug>';
@@ -336,7 +336,7 @@ psql -f migrations/vN.M+1-to-vN.M.sql  # the companion rollback SQL
 Regardless of state transition, the 12 tenancy invariants from `docs/architecture/tenancy-invariants.md` MUST hold:
 
 - **T1-T3**: every tenant-data table has tenant_slug + RLS + policy (structural; can't be transiently violated)
-- **T4**: any write path must set `SET LOCAL ifos.tenant_slug` first (runtime invariant; enforced by helpers)
+- **T4**: any write path must set `SET LOCAL app.current_tenant` first (runtime invariant; enforced by helpers)
 - **T5**: append-only tables remain append-only (offboarding's DELETE requires admin role + audit-log row pre-DELETE)
 - **T6-T8**: vault perms + render isolation + .env chmod survive state transitions
 - **T9**: tenant_slug regex enforced on Provisioned (entry gate)

@@ -93,7 +93,7 @@ SSH_MODE=1 bash scripts/ifos-pii-purge.sh --retention-days 90
 ## §5 — What the cron does
 
 1. Queries `tenants` table for active + suspended tenants
-2. Per tenant, sets `SET ifos.tenant_slug='<tenant>'` (T4 invariant)
+2. Per tenant, sets `SET app.current_tenant='<tenant>'` (T4 invariant)
 3. SELECTs count(*) from `recent_edit` WHERE `resolved_at < now() - interval '<N> days' AND original_text IS NOT NULL`
 4. If dry-run: reports counts, exits
 5. Otherwise: UPDATE setting `original_text = NULL`, `edited_text = NULL`, `text_purged_at = now()`

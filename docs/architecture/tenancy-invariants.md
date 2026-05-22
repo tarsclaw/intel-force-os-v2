@@ -14,7 +14,7 @@ IFOS is multi-tenant SaaS. Every tenant runs the same agent fleet (Diagnostic, J
 Tenancy is enforced by **layered defence**:
 
 1. **Postgres RLS** is the structural last line of defence. If application code forgets to filter by tenant_slug, RLS still blocks cross-reads at the database engine level.
-2. **`SET LOCAL ifos.tenant_slug`** in helper code is the upstream guard. If a path forgets to set it, RLS returns zero rows — explicit failure rather than silent leak.
+2. **`SET LOCAL app.current_tenant`** in helper code is the upstream guard. If a path forgets to set it, RLS returns zero rows — explicit failure rather than silent leak.
 3. **Vault filesystem permissions** isolate `/vault/<tenant>/` directories.
 4. **Rendered agent dirs** at `${frameworkRoot}/orgs/<tenant>/agents/` are physically separate per tenant.
 5. **Tenant-agnostic helpers** in `agents/_shared/` never hard-code tenant slugs; everything reads `CTX_TENANT_SLUG` at runtime.
@@ -60,7 +60,7 @@ The 12 invariants below apply to **tenant-data tables**. The `tenants` meta tabl
 
 ### T3 — Every tenant-data table has a `tenant_isolation` policy
 
-- **Definition:** RLS policy named `<table>_tenant_isolation` (or `tenant_isolation` for Day-4 tables) attached to every tenant-data table, using `current_setting('ifos.tenant_slug', TRUE)` as the predicate.
+- **Definition:** RLS policy named `<table>_tenant_isolation` (or `tenant_isolation` for Day-4 tables) attached to every tenant-data table, using `current_setting('app.current_tenant', TRUE)` as the predicate.
 - **Enforcement:** Migration SQL `CREATE POLICY` after `ENABLE ROW LEVEL SECURITY`. The `TRUE` second argument to `current_setting()` returns NULL on missing setting (safe — RLS returns 0 rows).
 - **Documentation source:** Day-4 §6.3 lines 951-973 + v0.2 §2-§5.
 - **Verification command:**
@@ -71,14 +71,14 @@ The 12 invariants below apply to **tenant-data tables**. The `tenants` meta tabl
   Expected: 9 rows, one per tenant-data table, policy name follows naming convention.
 - **Acceptance:** Every tenant-data table has its `_tenant_isolation` policy.
 
-### T4 — Every app-code write to a tenant-data table calls `SET LOCAL ifos.tenant_slug` first
+### T4 — Every app-code write to a tenant-data table calls `SET LOCAL app.current_tenant` first
 
-- **Definition:** Application code (helpers, renderer, ad-hoc scripts) sets the session variable `ifos.tenant_slug` BEFORE the first INSERT/UPDATE/SELECT against a tenant-data table. `SET LOCAL` scopes the setting to the current transaction.
-- **Enforcement:** `agents/_shared/hook-helpers.sh::_hh_emit_row` sets it via `SET LOCAL ifos.tenant_slug = '${tenant}';` before INSERT. `agents/_shared/voice-loader.sh::_vl_psql_query` sets it via wrapped SQL. `packages/agent-renderer/src/renderer.ts` doesn't write to tenant-data tables directly (it writes to vault).
+- **Definition:** Application code (helpers, renderer, ad-hoc scripts) sets the session variable `app.current_tenant` BEFORE the first INSERT/UPDATE/SELECT against a tenant-data table. `SET LOCAL` scopes the setting to the current transaction.
+- **Enforcement:** `agents/_shared/hook-helpers.sh::_hh_emit_row` sets it via `SET LOCAL app.current_tenant = '${tenant}';` before INSERT. `agents/_shared/voice-loader.sh::_vl_psql_query` sets it via wrapped SQL. `packages/agent-renderer/src/renderer.ts` doesn't write to tenant-data tables directly (it writes to vault).
 - **Documentation source:** `agents/_shared/hook-helpers.sh` lines ~75-95 (`_hh_emit_row` live-mode SQL) + `agents/_shared/voice-loader.sh` lines ~60-70 (`_vl_psql_query`).
 - **Verification command:**
   ```bash
-  grep -n "SET LOCAL ifos.tenant_slug\|SET ifos.tenant_slug" agents/_shared/hook-helpers.sh agents/_shared/voice-loader.sh packages/agent-renderer/src/*.ts
+  grep -n "SET LOCAL app.current_tenant\|SET app.current_tenant" agents/_shared/hook-helpers.sh agents/_shared/voice-loader.sh packages/agent-renderer/src/*.ts
   ```
   Plus adversarial: try INSERT without setting it; expect failure OR succeed-with-RLS-block-on-read.
 - **Acceptance:** All write paths confirmed via grep + adversarial test in tenancy audit Step T4.
@@ -166,13 +166,13 @@ The 12 invariants below apply to **tenant-data tables**. The `tenants` meta tabl
 
 ### T11 — Cross-tenant RLS structurally blocks reads even when app code forgets the guard
 
-- **Definition:** The most load-bearing invariant. Even if a developer forgets `SET LOCAL ifos.tenant_slug`, an app-level SELECT returns ZERO rows from another tenant's data. This is structural Postgres-level enforcement, not application-level.
-- **Enforcement:** T2 (RLS enabled) + T3 (policy attached) + `current_setting('ifos.tenant_slug', TRUE)` returns NULL when unset; NULL never equals any non-null value; predicate returns false; row excluded.
+- **Definition:** The most load-bearing invariant. Even if a developer forgets `SET LOCAL app.current_tenant`, an app-level SELECT returns ZERO rows from another tenant's data. This is structural Postgres-level enforcement, not application-level.
+- **Enforcement:** T2 (RLS enabled) + T3 (policy attached) + `current_setting('app.current_tenant', TRUE)` returns NULL when unset; NULL never equals any non-null value; predicate returns false; row excluded.
 - **Documentation source:** Day-4 §7 lines ~1080-1150 (RLS isolation gate, 5/5 conditions verified at provisioning).
 - **Verification command:**
   ```sql
   -- Set wrong tenant + try to read another's data
-  SET ifos.tenant_slug='not-the-real-tenant';
+  SET app.current_tenant='not-the-real-tenant';
   SELECT count(*) FROM voice_corpus;            -- expect 0
   SELECT count(*) FROM decision_log WHERE agent_name='test-agent';  -- expect 0
   ```
@@ -234,7 +234,7 @@ The full provenance trail: ADR → tenancy-invariants.md update → migration SQ
 
 - **Pre-render**: ADR-003 §3.3.3 Option γ + ADR-004 Decision 2 + Decision 3 enforce T6, T7, T8 at render time.
 - **Pre-migration**: Day-4 §6.5 provision-tenant workflow + v0.1-to-v0.2.sql migration enforce T1, T2, T3, T5, T9, T10 at schema creation.
-- **At every agent runtime write**: hook-helpers.sh + voice-loader.sh enforce T4 via `SET LOCAL ifos.tenant_slug` pattern; relies on T11 (Postgres RLS) as the structural backstop.
+- **At every agent runtime write**: hook-helpers.sh + voice-loader.sh enforce T4 via `SET LOCAL app.current_tenant` pattern; relies on T11 (Postgres RLS) as the structural backstop.
 - **At every code review**: `_shared/` changes audited for T12 hard-coded slug introduction.
 - **At every tenancy audit run**: `scripts/run-tenancy-audit.sh` (companion artefact) verifies T1-T12 against live VPS.
 

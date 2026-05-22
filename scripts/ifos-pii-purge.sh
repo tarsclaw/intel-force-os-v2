@@ -141,7 +141,7 @@ TENANTS_TOUCHED=()
 for tenant in ${ALL_TENANTS}; do
   COUNT=$(psql "${PSQL_CONN[@]}" -q -t -A <<EOF
 BEGIN;
-SET LOCAL ifos.tenant_slug='${tenant}';
+SET LOCAL app.current_tenant='${tenant}';
 SELECT count(*) FROM recent_edit
 WHERE resolved_at < now() - interval '${DEFAULT_RETENTION_DAYS} days'
   AND original_text IS NOT NULL;
@@ -177,7 +177,7 @@ ROWS_PURGED=0
 for tenant in "${TENANTS_TOUCHED[@]}"; do
   PURGED=$(psql "${PSQL_CONN[@]}" -q -t -A <<EOF
 BEGIN;
-SET LOCAL ifos.tenant_slug='${tenant}';
+SET LOCAL app.current_tenant='${tenant}';
 WITH purged AS (
   UPDATE recent_edit
   SET original_text = NULL,
@@ -203,7 +203,7 @@ done
 TENANTS_JSON="[$(printf '"%s",' "${TENANTS_TOUCHED[@]}" | sed 's/,$//')]"
 audit_sql=$(cat <<EOF
 BEGIN;
-SET LOCAL ifos.tenant_slug='ifos-meta';
+SET LOCAL app.current_tenant='ifos-meta';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, payload, created_at)
 VALUES (
   'ifos-meta',

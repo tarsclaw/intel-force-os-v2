@@ -23,7 +23,7 @@ The renderer COPIES this entire directory into every per-tenant rendered org-age
 
 `hook-helpers.sh` writes to `decision_log` via two paths:
 
-1. **Live mode (production)** — `IFOS_DB_URL` is set + `psql` is on PATH. Helpers `INSERT` via `psql -v ON_ERROR_STOP=1`. Postgres RLS isolates rows per tenant via the `ifos.tenant_slug` session variable (set with `SET LOCAL` per row).
+1. **Live mode (production)** — `IFOS_DB_URL` is set + `psql` is on PATH. Helpers `INSERT` via `psql -v ON_ERROR_STOP=1`. Postgres RLS isolates rows per tenant via the `app.current_tenant` session variable (set with `SET LOCAL` per row).
 2. **Fallback mode (degraded / offline)** — `IFOS_DB_URL` unset OR `psql` unavailable OR `psql` exited non-zero. Helpers append JSON lines to `${IFOS_DECISION_LOG_FALLBACK:-/vault/<tenant>/decision-log.jsonl}`. The trail replays into Postgres when connectivity returns via the autosend-syncer worker (Week 5+).
 
 The dual-mode design is intentional. It means **agent processes are not blocked by Postgres unavailability** — they continue writing audit data locally + degrade gracefully. This is the v1.0 mitigation for Risk #1 (cortextOS primitive 1 flaky-under-load): even if the daemon stalls, individual agents still produce auditable output.
@@ -103,7 +103,7 @@ hh_load_voice_samples <task_context> [<top_k>]      # JSON: { samples: [...], vo
 hh_load_recent_edits  [<lookback_days>] [<agent_name>]  # JSON: { edits: [...], lookback_days, source }
 ```
 
-Each emits exactly one line of JSON to stdout. Live mode (`IFOS_DB_URL` set + `psql` on PATH) issues `SET LOCAL ifos.tenant_slug` + RLS-isolated SELECT against `tone_rule` / `voice_corpus_chunks` (HNSW ANN) / `recent_edit`. Fallback mode returns empty arrays + reason codes; `hh_load_voice_samples` surfaces `style_guide_path` if `/vault/<tenant>/_voice/style-guide.md` exists.
+Each emits exactly one line of JSON to stdout. Live mode (`IFOS_DB_URL` set + `psql` on PATH) issues `SET LOCAL app.current_tenant` + RLS-isolated SELECT against `tone_rule` / `voice_corpus_chunks` (HNSW ANN) / `recent_edit`. Fallback mode returns empty arrays + reason codes; `hh_load_voice_samples` surfaces `style_guide_path` if `/vault/<tenant>/_voice/style-guide.md` exists.
 
 **`hh_load_voice_samples` query vector:** shell can't generate embeddings. Callers from Python/Node MUST embed the task context first, encode to pgvector literal (e.g. `[0.123,0.456,...]`), and pass via `IFOS_VL_QUERY_VECTOR` env var before invoking. Without it, the helper falls back to the style-guide-only path.
 
@@ -137,7 +137,7 @@ Schema v0.2 voice corpus migration. Procedure:
 2. Founder runs against `migration-test` tenant first:
    ```bash
    PGPASSWORD="<password>" psql -h 178.105.87.24 -U ifos_app -d ifos_v2 \
-     -v "ifos.tenant_slug=migration-test" \
+     -v "app.current_tenant=migration-test" \
      -f docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql
    ```
 3. Verify with §10 queries from the SQL file (commented at end). Expect:

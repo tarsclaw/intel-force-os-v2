@@ -185,7 +185,7 @@ _write_audit_row() {
   if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
     psql -v ON_ERROR_STOP=1 -q "${IFOS_DB_URL}" >/dev/null 2>&1 <<EOF
 BEGIN;
-SET LOCAL ifos.tenant_slug = 'ifos-meta';
+SET LOCAL app.current_tenant = 'ifos-meta';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, payload, created_at)
 VALUES (
   'ifos-meta',

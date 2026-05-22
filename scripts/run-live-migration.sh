@@ -272,7 +272,7 @@ TRIGGER_PRESENT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_
 [[ "${TRIGGER_PRESENT}" == "1" ]] && _pass "validate_voice_scores trigger present" || _fail "validate_voice_scores trigger missing"
 
 SEED_ROW=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
-  -c "SET ifos.tenant_slug='migration-test'; SELECT count(*) FROM voice_corpus WHERE tenant_slug='migration-test' AND version='v0.2-seed';")
+  -c "SET app.current_tenant='migration-test'; SELECT count(*) FROM voice_corpus WHERE tenant_slug='migration-test' AND version='v0.2-seed';")
 [[ "${SEED_ROW}" == "1" ]] && _pass "migration-test seed voice_corpus row present" || _warn "Seed row count: ${SEED_ROW}"
 
 # ────────────────────────────────────────────────────────────────────────
@@ -294,7 +294,7 @@ source "${HOOK_HELPERS}"
 # Capture the rowcount before our writes to verify we add exactly the
 # expected number of rows.
 ROWCOUNT_BEFORE=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
-  -c "SET ifos.tenant_slug='${TENANT_SLUG}'; SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
+  -c "SET app.current_tenant='${TENANT_SLUG}'; SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
 
 hh_decision_trigger "live_smoke_test" "Phase-3+5 integration"
 hh_decision_output "smoke_artefact" "/tmp/sample.md" "smoke run"
@@ -308,7 +308,7 @@ fi
 
 # Verify rows landed
 ROWCOUNT_AFTER=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
-  -c "SET ifos.tenant_slug='${TENANT_SLUG}'; SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
+  -c "SET app.current_tenant='${TENANT_SLUG}'; SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
 ROWS_ADDED=$((ROWCOUNT_AFTER - ROWCOUNT_BEFORE))
 
 # Expected: 1 trigger + 1 output + 1 green action + 2 red (gating_failed audit + ESC escalation) = 5
@@ -326,7 +326,7 @@ _step "Step 3 — Kill-criterion Trigger 5 query (red-tier audit shape)"
 
 # Query per autosend-safety-policy §7 + v1.0-kill-criterion.md §2 Trigger 5
 RED_TIER_COUNT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET ifos.tenant_slug='${TENANT_SLUG}';
+SET app.current_tenant='${TENANT_SLUG}';
 SELECT count(*) FROM decision_log
 WHERE tenant_slug = '${TENANT_SLUG}'
   AND payload->>'tier' = 'red'
@@ -342,7 +342,7 @@ fi
 
 # Also verify ESC_AUTOSEND_BLOCKED escalation row queryable
 ESC_BLOCKED_COUNT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET ifos.tenant_slug='${TENANT_SLUG}';
+SET app.current_tenant='${TENANT_SLUG}';
 SELECT count(*) FROM decision_log
 WHERE tenant_slug = '${TENANT_SLUG}'
   AND payload->>'escalation_code' = 'ESC_AUTOSEND_BLOCKED'
@@ -393,7 +393,7 @@ _step "Step 5 — RLS isolation sanity (cross-tenant blocked)"
 
 # Try to read migration-test rows while claiming to be a different tenant — must return 0
 WRONG_TENANT_COUNT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET ifos.tenant_slug='not-the-real-tenant';
+SET app.current_tenant='not-the-real-tenant';
 SELECT count(*) FROM voice_corpus;
 EOF
 )
@@ -406,7 +406,7 @@ fi
 
 # Same for decision_log
 WRONG_TENANT_LOG=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET ifos.tenant_slug='not-the-real-tenant';
+SET app.current_tenant='not-the-real-tenant';
 SELECT count(*) FROM decision_log WHERE agent_name='live-smoke';
 EOF
 )

@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS autosend_approval_mappings (
 
 ALTER TABLE autosend_approval_mappings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON autosend_approval_mappings
-  USING (tenant_slug = current_setting('ifos.tenant_slug', TRUE));
+  USING (tenant_slug = current_setting('app.current_tenant', TRUE));
 GRANT SELECT, INSERT, UPDATE ON autosend_approval_mappings TO ifos_app;
 ```
 

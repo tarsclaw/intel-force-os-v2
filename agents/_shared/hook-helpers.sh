@@ -101,7 +101,7 @@ _hh_emit_row() {
     local sql
     sql=$(cat <<EOF
 BEGIN;
-SET LOCAL ifos.tenant_slug = '$(_hh_json_escape "${tenant}")';
+SET LOCAL app.current_tenant = '$(_hh_json_escape "${tenant}")';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, reason, payload, created_at)
 VALUES (
   '$(_hh_json_escape "${tenant}")',
