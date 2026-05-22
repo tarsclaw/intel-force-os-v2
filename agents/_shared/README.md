@@ -114,7 +114,7 @@ Phase 3 acceptance #2 + #3 + Phase 5 live-migration require live Postgres agains
 1. Founder: retrieve `ifos_app` Postgres password from 1Password ("IFOS Postgres ifos_app — production"). Path A discipline applies — password stays in founder's local terminal.
 2. Founder runs (single-line, NEVER in this chat):
    ```bash
-   IFOS_DB_URL="postgresql://ifos_app:<password>@178.105.87.24:5432/ifos?sslmode=require" \
+   IFOS_DB_URL="postgresql://ifos_app:<password>@178.105.87.24:5432/ifos_v2?sslmode=require" \
    CTX_TENANT_SLUG="migration-test" \
    CTX_AGENT_NAME="test-agent" \
    bash -c 'source agents/_shared/hook-helpers.sh; hh_decision_trigger "manual_smoke_test"'
@@ -136,7 +136,7 @@ Schema v0.2 voice corpus migration. Procedure:
 1. Founder: same `ifos_app` password retrieval as above. Path A discipline.
 2. Founder runs against `migration-test` tenant first:
    ```bash
-   PGPASSWORD="<password>" psql -h 178.105.87.24 -U ifos_app -d ifos \
+   PGPASSWORD="<password>" psql -h 178.105.87.24 -U ifos_app -d ifos_v2 \
      -v "ifos.tenant_slug=migration-test" \
      -f docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql
    ```
@@ -147,7 +147,7 @@ Schema v0.2 voice corpus migration. Procedure:
    - 1 seed row in `voice_corpus` for `migration-test` with `version='v0.2-seed'`, `is_active=TRUE`
 4. Smoke `voice-loader.sh` against live DB:
    ```bash
-   IFOS_DB_URL="postgresql://ifos_app:<pw>@178.105.87.24:5432/ifos?sslmode=require" \
+   IFOS_DB_URL="postgresql://ifos_app:<pw>@178.105.87.24:5432/ifos_v2?sslmode=require" \
    CTX_TENANT_SLUG=migration-test \
    CTX_AGENT_NAME=test-agent \
    bash -c 'source agents/_shared/voice-loader.sh; hh_load_tone_rules' | jq .
@@ -155,7 +155,7 @@ Schema v0.2 voice corpus migration. Procedure:
    Expect `{ "rules": [], "source": "db" }`.
 5. Rollback (if Codex rejects v0.2 OR something is broken):
    ```bash
-   psql -h 178.105.87.24 -U ifos_app -d ifos -f docs/verticals/recruitment/migrations/v0.2-to-v0.1.sql
+   psql -h 178.105.87.24 -U ifos_app -d ifos_v2 -f docs/verticals/recruitment/migrations/v0.2-to-v0.1.sql
    ```
 
 Production rollout (other tenants) waits for Codex ratification of v0.2 + Diagnostic + Janitor verification of the schema against real Bullhorn data (master brief §6 Day 6 Q3 trigger from v0.1).

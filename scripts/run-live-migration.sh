@@ -51,7 +51,7 @@ readonly VPS_SSH_USER="maddox"
 readonly VPS_SSH_KEY="${HOME}/.ssh/ifos_hetzner_ed25519"
 readonly LOCAL_PORT="55432"     # forwards to VPS-side localhost:5432 via SSH
 readonly VPS_PORT="5432"
-readonly DB_NAME="ifos"
+readonly DB_NAME="ifos_v2"
 readonly DB_USER="ifos_app"
 readonly TENANT_SLUG="migration-test"
 

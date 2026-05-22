@@ -109,10 +109,10 @@ elif (( SSH_MODE == 1 )); then
   printf '\n'
   export PGPASSWORD
 
-  PSQL_CONN=(-h localhost -p "${LOCAL_PORT}" -U ifos_app -d ifos)
+  PSQL_CONN=(-h localhost -p "${LOCAL_PORT}" -U ifos_app -d ifos_v2)
 else
   # On-VPS deployment: direct localhost connection (default)
-  PSQL_CONN=(-h localhost -p 5432 -U ifos_app -d ifos)
+  PSQL_CONN=(-h localhost -p 5432 -U ifos_app -d ifos_v2)
 fi
 
 # ────────────────────────────────────────────────────────────────────────
