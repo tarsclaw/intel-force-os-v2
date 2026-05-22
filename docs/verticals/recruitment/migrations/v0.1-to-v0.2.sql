@@ -228,7 +228,7 @@ DO $$
 DECLARE
   existing_check TEXT;
 BEGIN
-  SELECT consrc INTO existing_check
+  SELECT pg_get_constraintdef(c.oid) INTO existing_check
   FROM pg_constraint c
   JOIN pg_class t ON c.conrelid = t.oid
   WHERE t.relname = 'entity_links' AND c.conname LIKE '%link_type%';

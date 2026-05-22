@@ -92,7 +92,17 @@ Stated explicitly so the founder knows what's landable tonight vs what waits for
   - Single-sentence test Q3 ("Have we cleared the auth path?") answered Yes iff Sub-decisions A and B are Accepted.
   - This document joins the first Codex ratification run alongside the other Week 0 artefacts per master brief §10.6.
 
-If commercial answers don't land by Monday — i.e. the partnerships outreach response is slow — Sub-decisions A and B can stay Proposed without blocking Week-1 implementation, because Sub-decision C is already Accepted and the v1.0 endpoint surface is fully specified. The connector code can be scaffolded against direct-API as the default; if Sub-decision A subsequently lands as marketplace-required, the connector's authentication module is the only piece that changes (a few hundred lines, isolated). This is the documented honest signal per master brief §1 Rule 5.
+**Status: Sub-decisions A+B can remain Proposed without blocking Week-1 PREREQ CODE** (renderer, `_shared/` helpers, schema, voice-loader — none of which reference Bullhorn). A+B MUST flip to Accepted before Janitor (W5) build starts per `v1.0-kill-criterion.md` §2 Trigger 3 (JANITOR-BULLHORN-AUTH-W5). A+B are NOT a Week-1 prereq gate; they ARE a W5 agent-build gate. Any Bullhorn connector/auth scaffold is blocked until Sub-decisions A+B are Accepted or explicitly scoped as non-auth test harness work.
+
+### 1.5 — Gate hierarchy (Day-11 clarification)
+
+Three distinct gates govern Bullhorn-touching work, in temporal order:
+
+| Gate | Trigger | Status |
+|---|---|---|
+| Week-1 prereq code | None — substrate is ATS-agnostic | DONE (Phases 1-5 landed Day 8) |
+| Diagnostic W3-4 build | None — Diagnostic doesn't touch Bullhorn (`sequencing-target.md` §2.1) | Awaits Q1 LOI |
+| Janitor W5 build | A+B Accepted (commercial conversations complete) | Pending |
 
 ---
 

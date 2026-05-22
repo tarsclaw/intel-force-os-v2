@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** **Codex Round 2 autonomous ratification CLOSED.** 26 artefacts reviewed; 17 RATIFIED / 9 REJECTED. Manifest §1.7 updated; full outputs at `logs/codex-ratification/round-2-autonomous/`. Next: resolve founder-domain D1/D2/D3 + Bullhorn gate wording, then rerun the corrected rejection subset before live migration/audit.
+**Today's task:** **Round-2 remediation closed in this commit.** 6 mechanical rejection classes fixed, 3 founder-decision surfaces annotated/escalated, and Round 3 closed 10 RATIFIED / 0 REJECTED. Next founder action: D1 autosend path + D2/D3 SeedLegals/legal bundle.
 **Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Architecture+tenancy plan COMPLETE; 3 phases landed.
-**Most recent close:** Day 11 (2026-05-22) — Codex Round 2 autonomous ratification. 26 artefacts reviewed; 17 RATIFIED / 9 REJECTED. New high-severity gaps surfaced: transactionless `SET LOCAL` usage and PII purge schema/script mismatch.
+**Most recent close:** Day 11 evening (2026-05-22) — Codex Round-2 remediation + Round 3. Round-2 mechanical rejects fixed; Risks #11/#12 mitigated; D1/D2/D3 remain founder-blocking.
 
 ## This week's gate
 
@@ -49,11 +49,11 @@ Single-sentence test result 3 of 5 YES (Q1 NO + Q3 NO + Q2/Q4/Q5 YES). Week 0 ex
 The Day-9 architecture-cohesion-review surfaced 14 remediation items (R1-R14 in `docs/architecture/architecture-cohesion-review.md` §8). The tenant-lifecycle runbook surfaced 8 implementation gaps (L1-L8 in `docs/runbooks/tenant-lifecycle.md` §8). Consolidated:
 
 **HIGH severity (already founder-decision-tracked):**
-- [ ] **R1 = D2**: External advisor identification — pre-LOI blocker per kill-criterion §3.4
-- [ ] **R2 = D1**: Autosend v1.0 tier enforcement — pre-Concierge W10 blocker
-- [ ] **R3 = D3**: PII retention in recent_edit (bundles with D2) — pre-first-LOI blocker (Risk #10)
-- [ ] **Round-2 R15**: Transactionless `SET LOCAL` usage in scripts/helpers — runtime correctness blocker before live audit is trusted (Risk #11)
-- [ ] **Round-2 R16**: PII purge migration/script mismatch with `recent_edit.original_text NOT NULL` — D3 implementation blocker (Risk #12)
+- [ ] **R1 = D2**: External advisor identification — pre-LOI blocker per kill-criterion §3.4; blocks first pilot LOI
+- [ ] **R2 = D1**: Autosend v1.0 tier enforcement — pre-Concierge W10 blocker; choose D1-B bridge path or D1-C manual/ad-hoc path
+- [ ] **R3 = D3**: PII retention in recent_edit (bundles with D2) — pre-first-LOI blocker (Risk #10); implementation path now mechanically unblocked
+- [x] **Round-2 R15**: Transactionless `SET LOCAL` usage in scripts/helpers — closed by Round-2 remediation; Risk #11 mitigated pending live verification
+- [x] **Round-2 R16**: PII purge migration/script mismatch with `recent_edit.original_text NOT NULL` — closed by Round-2 remediation; Risk #12 mitigated pending D2/D3 decision and dry-run
 
 **MEDIUM severity (code-side):**
 - [ ] **R4**: Re-rendering active agent (PM2 + cortextOS coordination) — documented in tenant-lifecycle.md §3; verify at first Diagnostic re-render in W3
@@ -87,7 +87,7 @@ The Day-9 architecture-cohesion-review surfaced 14 remediation items (R1-R14 in 
 ## BLOCKED during Week 0 extension
 
 - ❌ Diagnostic W3-4 agent build (and all named v1.0 agent builds: Janitor, Scribe, Cash Conductor, Sourcing Scout, Concierge)
-- ✅ Codex Round 1 + Round 2 ratification execution complete for the Week-0 close subset; 9 Round-2 rejects remain as corrective work.
+- ✅ Codex Round 1 + Round 2 + Round 3 remediation execution complete for the Week-0 close subset; remaining blockers are founder decisions D1/D2/D3.
 - ❌ Any work requiring pilot-client data
 
 ## Operational debts from Day 4 — CLOSED 2026-05-18 Monday morning
@@ -107,6 +107,23 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 - **Design partner #1** (founder runs design-partner conversation 2) — what ATS does pilot #1 use? Sub-decisions A and C scope to that answer. ETA: Sunday
 
 ## Shipped
+
+### Day 11 evening (2026-05-22) — Codex Round-2 remediation + Round 3
+
+Round-2 rejection remediation closed in this commit:
+- Mechanical fixes applied across migrations, scripts, helper DB wrappers, Bullhorn gate docs, approval bridge spec, PII purge runbook, and tenancy invariants
+- Founder-decision-bound items annotated only: autosend D1, legal D2/D3, vertical-schema D3 retention
+- Round 3 corrected subset: **10 RATIFIED / 0 REJECTED**
+- Verification: shellcheck clean; hook-helpers 20/20; voice-loader 9/9; renderer 30/30
+
+State changes:
+- Manifest §1.8 appended with Round-3 verdicts
+- Risks #11 and #12 marked mitigated post-remediation
+- R15/R16 backlog entries closed
+
+Remaining founder action:
+- D1: choose autosend orange-tier v1.0 path
+- D2+D3: engage SeedLegals/external advisor and confirm PII retention before first pilot LOI/cron
 
 ### Day 11 (2026-05-22) — Codex Round 2 autonomous ratification closure
 
@@ -146,16 +163,16 @@ Three commits: `5c3fa66` (Phase 1) + `c4348aa` (Phase 2) + this commit (Phase 3)
 - current-priorities.md updated with new Shipped section + Open backlog
 - No new risks added (cohesion review surfaces gaps with named paths; no surprises beyond what Risk #10 already captures)
 
-**Verdict from architecture-cohesion-review §9:** foundation is sound for Diagnostic build, conditional on (1) D1+D2+D3 resolve before Concierge W10 + first LOI; (2) Phase 2.2 documentation lands (✓); (3) Codex Round 2 closes (✓, with 9 corrective rejects); (4) live VPS tenancy audit confirms 12 invariants after the audit script is corrected.
+**Verdict from architecture-cohesion-review §9:** foundation is sound for Diagnostic build, conditional on (1) D1+D2+D3 resolve before Concierge W10 + first LOI; (2) Phase 2.2 documentation lands (✓); (3) Codex Round 2 + remediation closes (✓); (4) live VPS tenancy audit confirms 12 invariants.
 
 **Pending founder actions (in priority order):**
 - D1 — autosend v1.0 tier enforcement (~30 min; Concierge scope)
 - Bullhorn gate hierarchy — decide/update whether Week-1 allows only ATS-agnostic substrate or Bullhorn scaffold too
 - D2 + D3 bundle — external advisor + PII retention (~1h; pre-LOI blockers)
 - D4 — Path B credential policy (no rush)
-- Correct Round-2 rejected code/docs subset, then reratify those 9 items
-- `bash scripts/run-live-migration.sh` only after migration subset is corrected
-- `bash scripts/run-tenancy-audit.sh` only after audit script transaction discipline is corrected
+- D1/D2/D3 founder decisions before affected product/legal gates close
+- `bash scripts/run-live-migration.sh --dry-run` now safe as next Path A check
+- `bash scripts/run-tenancy-audit.sh` after dry-run/live migration when founder has credentials ready
 
 ### Day 8 evening (2026-05-20) — Codex Round-1 remediation: 13 of 14 rejections incorporated
 

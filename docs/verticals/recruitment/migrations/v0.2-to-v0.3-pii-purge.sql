@@ -26,6 +26,9 @@ BEGIN;
 -- ----------------------------------------------------------------------------
 
 ALTER TABLE recent_edit
+  ALTER COLUMN original_text DROP NOT NULL;
+
+ALTER TABLE recent_edit
   ADD COLUMN IF NOT EXISTS text_purged_at TIMESTAMPTZ;
 
 COMMENT ON COLUMN recent_edit.text_purged_at IS
@@ -42,6 +45,7 @@ CREATE INDEX IF NOT EXISTS recent_edit_text_purged_idx
 -- ----------------------------------------------------------------------------
 -- If text_purged_at is NOT NULL, both text fields MUST be NULL.
 -- Catches accidental writes to a purged row.
+-- original_text NOT NULL dropped in §1 to allow purge to set NULL.
 -- ----------------------------------------------------------------------------
 
 ALTER TABLE recent_edit
@@ -57,12 +61,13 @@ ALTER TABLE recent_edit
 -- §3 — Per-tenant retention override storage (tenant_adapters extension)
 -- ----------------------------------------------------------------------------
 -- D3-C compatibility: tenants can request extended retention via TOS
--- amendment. Storage is tenant_adapters.config.pii_retention_days
--- (existing JSONB shape; no new column needed). Value is integer in
--- [30, 365] OR null (use v1.0 default of 90).
+-- amendment. Storage is reserved at tenant_adapters.config.pii_retention_days
+-- (existing JSONB shape; no new column needed) for the Phase-2 cron
+-- enhancement. Value will be integer in [30, 365] OR null (use default).
 --
 -- No DDL required for this — it's a JSONB key in an existing column.
--- The PII purge cron reads tenant_adapters for the override per tenant.
+-- The v0.1 PII purge cron uses one global --retention-days value; per-tenant
+-- override reads land when first tenant requests extended retention.
 -- ----------------------------------------------------------------------------
 
 -- ----------------------------------------------------------------------------
@@ -72,6 +77,10 @@ ALTER TABLE recent_edit
 -- SELECT column_name, data_type, is_nullable FROM information_schema.columns
 --   WHERE table_name='recent_edit' AND column_name='text_purged_at';
 -- → expect 1 row: text_purged_at | timestamp with time zone | YES
+--
+-- SELECT column_name, is_nullable FROM information_schema.columns
+--   WHERE table_name='recent_edit' AND column_name='original_text';
+-- → expect 1 row: original_text | YES
 --
 -- SELECT constraint_name FROM information_schema.table_constraints
 --   WHERE table_name='recent_edit' AND constraint_name='recent_edit_text_purged_consistency';

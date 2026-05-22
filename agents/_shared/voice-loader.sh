@@ -62,9 +62,11 @@ _vl_psql_query() {
   local sql="$1"
   local tenant="${CTX_TENANT_SLUG:?CTX_TENANT_SLUG unset}"
   local wrapped
-  wrapped="SET LOCAL ifos.tenant_slug = '$(_hh_json_escape "${tenant}")';
-${sql}"
-  psql -v ON_ERROR_STOP=1 -t -A -F $'\t' "${IFOS_DB_URL}" <<<"${wrapped}" 2>/dev/null
+  wrapped="BEGIN;
+SET LOCAL ifos.tenant_slug = '$(_hh_json_escape "${tenant}")';
+${sql}
+COMMIT;"
+  psql -v ON_ERROR_STOP=1 -q -t -A -F $'\t' "${IFOS_DB_URL}" <<<"${wrapped}" 2>/dev/null
 }
 
 # ────────────────────────────────────────────────────────────────────────

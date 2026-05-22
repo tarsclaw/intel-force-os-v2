@@ -28,7 +28,7 @@ UK GDPR Art. 5(1)(e) (data minimisation) requires that personal data be "kept in
 
 ## §2 — Default retention window
 
-**v1.0 default: 90 days.** Confirmed by Founder Decision D3 (recommended D3-B). May change post D2 SeedLegals advisor input — recommend NOT shorter than 30 days (review-cycle floor) and NOT longer than 180 days (GDPR-compliance ceiling for un-consented retention).
+**Proposed v1.0 default: 90 days, pending D2/D3 advisor confirmation.** This runbook is written for the recommended D3-B path, but D3 has not been confirmed by the founder and D2 SeedLegals/external-advisor input is still required. Recommend NOT shorter than 30 days (review-cycle floor) and NOT longer than 180 days (GDPR-compliance ceiling for un-consented retention).
 
 Per-tenant override via `tenant_adapters.config.pii_retention_days` — range [30, 365]. Allows enterprise tenants to extend retention via TOS amendment + advisor signoff.
 
@@ -206,8 +206,10 @@ P1 + P4 are pre-production blockers. P2 + P3 + P5 are v1.1+.
 
 ## §11 — Pre-deployment checklist
 
-Before first cron run in production:
+Before applying the migration or running the first cron in production:
 
+- [ ] D2 SeedLegals advisor input received BEFORE applying migration
+- [ ] D3 founder confirmation received BEFORE first cron run
 - [ ] D3 final retention period confirmed by D2 SeedLegals advisor
 - [ ] `v0.2-to-v0.3-pii-purge.sql` migration applied to live VPS (adds `text_purged_at` column + constraint)
 - [ ] `scripts/ifos-pii-purge.sh` symlinked to `/usr/local/bin/ifos-pii-purge.sh`

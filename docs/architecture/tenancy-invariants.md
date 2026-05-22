@@ -35,6 +35,7 @@ The 12 invariants below apply to **tenant-data tables**. The `tenants` meta tabl
 - **Definition:** Every row in every tenant-data table carries a non-null `tenant_slug` identifying which tenant the row belongs to.
 - **Enforcement:** Migration SQL `CREATE TABLE` statement uses `tenant_slug TEXT NOT NULL` (no DEFAULT, no nullable).
 - **Documentation source:** Day-4 §6.3 lines 708-797 (5 tables) + v0.2 §2-§5 (4 tables).
+- **Subtle case:** `recent_edit.original_text` was originally `TEXT NOT NULL` in v0.2; v0.3 (post Round-2 remediation) drops that NOT NULL constraint to allow PII purge to set `original_text=NULL`. This does not weaken T1: `recent_edit.tenant_slug` remains `TEXT NOT NULL`.
 - **Verification command:**
   ```sql
   SELECT table_name FROM information_schema.columns
@@ -249,6 +250,7 @@ This document is the **single source of truth**. ADRs, runbooks, and code commen
 | Q2 | Should `tenants` meta table have an `enabled` boolean (vs `status` enum) to enable structural disable-without-delete? | If first tenant offboards and we discover row deletion is destructive to audit trail. Founder Decision D3 from Codex Round 1 may resolve. |
 | Q3 | Should `ifos_app` role be split into per-vertical roles (e.g., `ifos_app_recruitment`) to limit blast radius if `ifos_app` credentials leak? | If pilot reveals broader-than-recruitment workload that warrants role split. v1.1+ concern. |
 | Q4 | What is the test pattern for verifying T4 at code-review time (vs runtime audit)? | If Day-9 audit reveals false-negatives — code-review-style grep checks would be more reliable. |
+| Q5 | When `autosend_approval_mappings` ships in v0.3 with the bridge implementation (per `docs/decisions/autosend-approval-bridge-spec.md`), must T1-T3 + T11 + T12 update the table inventory + audit script? | Bridge implementation slice (Week 9) updates §2 enumeration and `scripts/run-tenancy-audit.sh` `TENANT_TABLES` array. |
 
 ---
 

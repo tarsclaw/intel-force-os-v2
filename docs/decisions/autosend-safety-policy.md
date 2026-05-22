@@ -36,6 +36,8 @@ This policy governs **every agent action that produces a side effect outside the
 
 If an action's scope is ambiguous, default to **governed** and require classification.
 
+**Founder Decision D1 pending (Codex Round 2 rejection).** The v1.0 tier semantics in this document define orange as approval-gated. §9 says v1.0 ships green + red only. These are contradictory until D1 resolves. See `docs/decisions/2026-05-20-codex-round-1-founder-decisions.md` §D1 for options + Claude's recommended path (D1-B with the bridge spec at `docs/decisions/autosend-approval-bridge-spec.md`). Until D1 resolves, treat this policy as "Proposed for D1-B; subset In Force for green + red only".
+
 ---
 
 ## §2 — Tier model
@@ -582,6 +584,8 @@ forum to be specified]
 3. **Dispute resolution forum.** Arbitration (cheaper, faster, private) vs court (precedent-setting, public)? Recommendation: binding arbitration under LCIA rules.
 4. **Cyber insurance.** IFOS Limited needs cyber insurance covering policy miscategorisation events. Quote requests pending; budget impact on v1.0 founder-set cost budget (Day-4 runbook §1.4 — £20/mo for infrastructure at single-tenant pilot scale; master brief does not specify a numeric cost target).
 5. **PII liability for `payload_preview` formatting.** If `payload_preview` accidentally leaks PII into `decision_log`, that's a Provider liability event. Tooling: linter on `payload_preview` strings at hook-helpers.sh layer.
+
+**Founder Decision D2 + D3 pending (Codex Round 2 rejection).** This section is non-binding placeholder language. First pilot LOI signing is BLOCKED until counsel-reviewed language replaces this section. See `docs/operations/seedlegals-engagement-queries.md` for the founder's engagement queries + `docs/decisions/2026-05-20-codex-round-1-founder-decisions.md` §D2 + §D3 for the founder decision framing.
 
 ---
 

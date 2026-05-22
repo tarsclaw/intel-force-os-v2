@@ -100,6 +100,7 @@ _hh_emit_row() {
   if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
     local sql
     sql=$(cat <<EOF
+BEGIN;
 SET LOCAL ifos.tenant_slug = '$(_hh_json_escape "${tenant}")';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, reason, payload, created_at)
 VALUES (
@@ -111,6 +112,7 @@ VALUES (
   '$(_hh_json_escape "${payload_json}")'::jsonb,
   '${created_at}'::timestamptz
 );
+COMMIT;
 EOF
 )
     if printf '%s\n' "${sql}" | psql -v ON_ERROR_STOP=1 -q "${IFOS_DB_URL}" >/dev/null 2>&1; then

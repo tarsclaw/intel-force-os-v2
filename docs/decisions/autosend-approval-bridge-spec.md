@@ -123,24 +123,28 @@ GRANT SELECT, INSERT, UPDATE ON autosend_approval_mappings TO ifos_app;
 
 This adds the 10th tenant-data table (T1-T12 invariants apply). Tenancy-invariants.md needs update on landing.
 
+### §3.2.1 — Tenancy invariants update
+
+`autosend_approval_mappings` becomes the 10th tenant-data table when the bridge implementation lands. The Week-9 bridge implementation slice MUST update `docs/architecture/tenancy-invariants.md` §1 and `scripts/run-tenancy-audit.sh` `TENANT_TABLES` to include this table in T1-T3, T11, and audit coverage. This remediation corrects the spec only; the table does not exist yet, so the live invariant inventory remains the v0.2 nine-table set until the bridge migration ships.
+
 ### §3.3 — IFOS action_type → cortextOS ApprovalCategory mapping
 
-cortextOS Primitive 4 enumerates approval categories (email_send, deploy, delete, financial — per `src/bus/approval.ts` `ApprovalCategory` enum). IFOS action_types from `agents/_shared/autosend-policy.yaml` map as follows:
+cortextOS Primitive 4 enumerates approval categories as `external-comms`, `financial`, `deployment`, `data-deletion`, and `other` per `packages/harness/cortextos/src/types/index.ts`. IFOS action_types from `agents/_shared/autosend-policy.yaml` map as follows:
 
 | IFOS action_type | cortextOS category |
 |---|---|
-| `bullhorn_note_customer_visible` | `customer_message` |
-| `gmail_outlook_send_to_candidate` | `email_send` |
-| `twilio_sms_send` | `customer_message` |
-| `calendar_invite_send` | `customer_message` |
-| `email_summary_to_customer` | `email_send` |
-| `xero_reminder_send_customer` | `email_send` |
-| `diagnostic_email_send` | `email_send` |
-| `diagnostic_calendar_invite` | `customer_message` |
-| `linkedin_inmail_send` | `customer_message` |
-| `bullhorn_placement_terminate` | `state_change` |
+| `bullhorn_note_customer_visible` | `external-comms` |
+| `gmail_outlook_send_to_candidate` | `external-comms` |
+| `twilio_sms_send` | `external-comms` |
+| `calendar_invite_send` | `external-comms` |
+| `email_summary_to_customer` | `external-comms` |
+| `xero_reminder_send_customer` | `financial` |
+| `diagnostic_email_send` | `external-comms` |
+| `diagnostic_calendar_invite` | `external-comms` |
+| `linkedin_inmail_send` | `external-comms` |
+| `bullhorn_placement_terminate` | `data-deletion` |
 
-If cortextOS doesn't have all these categories, fall back to `customer_message` as the default + add a comment in the bridge code. The category is metadata for cortextOS's audit; IFOS-side semantics are preserved via the action_type field in our state table.
+`bullhorn_placement_terminate` maps to `data-deletion` because placement termination destroys/closes a placement record; `other` remains only an explicit fallback for future action_types without a clean cortextOS category. The category is metadata for cortextOS's audit; IFOS-side semantics are preserved via the action_type field in our state table.
 
 ### §3.4 — Telegram operator UX
 

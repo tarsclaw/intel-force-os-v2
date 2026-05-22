@@ -55,7 +55,7 @@ The bullhorn-integration-path.md line 95 wording is arguably ambiguous — "Week
 - [x] **Counter-argued + sharpen wording (Claude's reading on substance prevails; tighten line 95 wording for clarity)**
 - [ ] Compromise
 
-## §4 — Proposed line 95 sharpening (lands in this commit alongside this disagreement doc)
+## §4 — Proposed line 95 sharpening (landed in Round-2 remediation)
 
 Current line 95 (paraphrased): "Sub-decisions A+B remaining Proposed does not block Week-1 implementation."
 
@@ -69,7 +69,7 @@ build starts per `v1.0-kill-criterion.md` §2 Trigger 3 (JANITOR-BULLHORN-AUTH-W
 A+B are NOT a Week-1 prereq gate; they ARE a W5 agent-build gate.
 ```
 
-This change ships in the Codex Round 1 commit as part of the broader remediation.
+**Round-2 remediation update (2026-05-22):** this source-document sharpening landed in this commit alongside the new `bullhorn-integration-path.md` Gate hierarchy subsection.
 
 ---
 
@@ -82,5 +82,7 @@ Founder picks one of:
 - **Split the difference** — line 95 wording sharpens AND a new explicit "Week-1 prereq vs W5 agent-build gate hierarchy" subsection is added to bullhorn-integration-path.md §1.
 
 Cost of delay: minor; Week-1 prereq code is already shipped, so the gate disagreement is retrospective rationalisation rather than blocking future work.
+
+**Resolution update (2026-05-22):** [x] Incorporated via "Counter-argued + sharpen wording." The source decision now encodes the prereq-code-only gate and the W5 Janitor auth gate explicitly.
 
 *End of disagreement doc.*

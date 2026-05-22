@@ -407,7 +407,15 @@ open_questions_v0_2_additions:
       - A: Indefinite retention (current v0.2 default; maximises LoRA training signal)
       - B: Text bodies purged after 90 days; metadata retained indefinitely
       - C: Text bodies purged after pilot ends (tenant-controlled retention)
-    v0_2_default: A; revise at v1.0 ratification before first pilot LOI signs
+    v0_2_default: |
+      Pending D2/D3 resolution. v0.2 ships with text fields stored verbatim
+      but production deployment + first pilot LOI BLOCKED until D2 SeedLegals
+      advisor input + D3 founder decision land. Recommended default per
+      Claude analysis: D3-B (90-day text purge + indefinite metadata) with
+      per-tenant override [30, 365] via tenant_adapters.config.pii_retention_days.
+      Implementation pre-written: scripts/ifos-pii-purge.sh +
+      docs/verticals/recruitment/migrations/v0.2-to-v0.3-pii-purge.sql (post
+      Round-2 remediation fix).
     trigger_for_revisit: external advisor onboarding (kill-criterion §3.4 Week 1-2 must-fill) — legal/DPO review of retention posture
 
 # ============================================================================

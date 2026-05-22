@@ -33,7 +33,7 @@
 | 18 | `docs/verticals/recruitment/vertical-schema.yaml` | Proposed | Verify 8 entities + 89 fields + 10 relationships + agent R/W matrix + 12 open_questions; cross-check Bullhorn mapping against §4.1 |
 | 19 | `docs/runbooks/operational-hygiene-protocol.md` | In Force | Verify Path A/D + no-defensive-additions + length calibration + citation accuracy rules; verify §7 audit findings (15 §10.4 fabrications fixed) |
 
-**Plus this manifest itself (#20)** and **Day-7 single-sentence test artefact (#21)** join the queue on commit. Original Day-7 close total: **21 items**. Current manifest state after Round 2 closure: **43+ queued/registered items; 19 ratified by Codex across Rounds 1-2, 9 remaining rejected from the 26-item Round-2 queue, and the rest deferred/not yet in the Round-2 slice.**
+**Plus this manifest itself (#20)** and **Day-7 single-sentence test artefact (#21)** join the queue on commit. Original Day-7 close total: **21 items**. Current manifest state after Round 3 remediation: **43+ queued/registered items; 24 RATIFIED in the 26-item Round-2/Round-3 slice, 2 artefacts founder-escalated pending D1/D2/D3, and the rest deferred/not yet in the Round-2 slice.**
 
 ---
 
@@ -84,6 +84,25 @@ Autonomous Round 2 ratification reviewed 26 artefacts across the re-ratification
 | 24 | `scripts/ifos-pii-purge.sh` | REJECTED | First ratification on Round 2; REJECTED. Open: see SUMMARY.md §4. |
 | 25 | `docs/verticals/recruitment/migrations/v0.2-to-v0.3-pii-purge.sql` | REJECTED | First ratification on Round 2; REJECTED. Open: see SUMMARY.md §4. |
 | 26 | `docs/verticals/recruitment/migrations/v0.3-to-v0.2-pii-purge.sql` | RATIFIED | First ratification on Round 2; RATIFIED; paired forward migration remains rejected. |
+
+## §1.8 — Codex Round 3 remediation verdicts (2026-05-22)
+
+Round 3 remediated the Round-2 rejection set. Mechanical fixes were incorporated in this remediation commit; founder-domain items were annotated and escalated without Codex making D1/D2/D3 decisions. Result for the corrected subset: **10 RATIFIED / 0 REJECTED of 10**. Full report: `logs/codex-ratification/round-3-remediation/SUMMARY.md`.
+
+| # | Artefact | Round-3 verdict | Round-3 disposition |
+|---|---|---|---|
+| 1 | `docs/decisions/bullhorn-integration-path.md` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 2 | `docs/decisions/autosend-safety-policy.md` | FOUNDER-ESCALATED | Founder-escalated pending D1 / D2 / D3; annotations added only. |
+| 3 | `docs/verticals/recruitment/vertical-schema.v0.2-supplement.yaml` | FOUNDER-ESCALATED | Founder-escalated pending D3; `consrc` companion-migration issue fixed separately. |
+| 4 | `scripts/run-tenancy-audit.sh` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 5 | `docs/decisions/codex-disagreement-2026-05-20-bullhorn-week-1-gate.md` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 6 | `docs/decisions/autosend-approval-bridge-spec.md` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 7 | `docs/runbooks/pii-purge-operational-pattern.md` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 8 | `scripts/ifos-pii-purge.sh` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 9 | `docs/verticals/recruitment/migrations/v0.2-to-v0.3-pii-purge.sql` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 10 | `docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql` | RATIFIED | Mechanical remediation incorporated in this commit; Round-3 RATIFIED. |
+| 11 | `docs/architecture/tenancy-invariants.md` | RATIFIED | Auxiliary update incorporated in this commit; Round-3 RATIFIED. |
+| 12 | `agents/_shared/hook-helpers.sh` + `agents/_shared/voice-loader.sh` + `scripts/run-codex-ratification.sh` | RATIFIED | Cross-cutting Risk #11 remediation incorporated in this commit; Round-3 RATIFIED. |
 
 ---
 

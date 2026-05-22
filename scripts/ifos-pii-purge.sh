@@ -139,11 +139,13 @@ TOTAL_ROWS_TO_PURGE=0
 TENANTS_TOUCHED=()
 
 for tenant in ${ALL_TENANTS}; do
-  COUNT=$(psql "${PSQL_CONN[@]}" -t -A <<EOF
-SET ifos.tenant_slug='${tenant}';
+  COUNT=$(psql "${PSQL_CONN[@]}" -q -t -A <<EOF
+BEGIN;
+SET LOCAL ifos.tenant_slug='${tenant}';
 SELECT count(*) FROM recent_edit
 WHERE resolved_at < now() - interval '${DEFAULT_RETENTION_DAYS} days'
   AND original_text IS NOT NULL;
+COMMIT;
 EOF
 )
   COUNT="${COUNT// /}"
@@ -173,8 +175,9 @@ fi
 
 ROWS_PURGED=0
 for tenant in "${TENANTS_TOUCHED[@]}"; do
-  PURGED=$(psql "${PSQL_CONN[@]}" -t -A <<EOF
-SET ifos.tenant_slug='${tenant}';
+  PURGED=$(psql "${PSQL_CONN[@]}" -q -t -A <<EOF
+BEGIN;
+SET LOCAL ifos.tenant_slug='${tenant}';
 WITH purged AS (
   UPDATE recent_edit
   SET original_text = NULL,
@@ -185,6 +188,7 @@ WITH purged AS (
   RETURNING 1
 )
 SELECT count(*) FROM purged;
+COMMIT;
 EOF
 )
   PURGED="${PURGED// /}"
@@ -197,7 +201,8 @@ done
 # ────────────────────────────────────────────────────────────────────────
 
 TENANTS_JSON="[$(printf '"%s",' "${TENANTS_TOUCHED[@]}" | sed 's/,$//')]"
-psql -v ON_ERROR_STOP=1 "${PSQL_CONN[@]}" >/dev/null 2>&1 <<EOF
+audit_sql=$(cat <<EOF
+BEGIN;
 SET LOCAL ifos.tenant_slug='ifos-meta';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, payload, created_at)
 VALUES (
@@ -213,7 +218,14 @@ VALUES (
   ),
   now()
 );
+COMMIT;
 EOF
+)
+
+if ! printf '%s\n' "${audit_sql}" | psql -v ON_ERROR_STOP=1 -q "${PSQL_CONN[@]}" >/dev/null 2>&1; then
+  echo "FATAL: audit row write failed" >&2
+  exit 2
+fi
 
 echo "[$(date -u +%FT%TZ)] ifos-pii-purge complete: ${ROWS_PURGED} rows purged across ${#TENANTS_TOUCHED[@]} tenants"
 exit 0

@@ -256,10 +256,32 @@ fi
 # T4 — Adversarial: INSERT without SET LOCAL ifos.tenant_slug
 # ────────────────────────────────────────────────────────────────────────
 
-_step "T4 — Missing-SET-LOCAL adversarial write"
+_step "T4 — Missing-SET-LOCAL adversarial WRITE"
 
-# Without setting ifos.tenant_slug, attempt to read from decision_log
-# RLS should return 0 rows; INSERT might fail or write a row that's invisible
+# T4 — adversarial: INSERT without SET LOCAL ifos.tenant_slug.
+# Expected: RLS rejects OR inserted row remains invisible to the app role.
+T4_WRITE_RESULT=$(_psql_local <<EOF 2>&1
+BEGIN;
+-- DO NOT set ifos.tenant_slug
+INSERT INTO decision_log (tenant_slug, agent_name, phase, payload, created_at)
+VALUES ('rls-probe-tenant', '_t4_probe', 'trigger', '{}'::jsonb, now());
+SELECT count(*) FROM decision_log
+  WHERE agent_name='_t4_probe' AND tenant_slug='rls-probe-tenant';
+ROLLBACK;
+EOF
+)
+
+if echo "${T4_WRITE_RESULT}" | grep -qi "row-level security\|violates row-level"; then
+  _pass "Missing-SET-LOCAL INSERT rejected by RLS"
+elif echo "${T4_WRITE_RESULT}" | grep -qE "^0[[:space:]]*$"; then
+  _pass "Missing-SET-LOCAL INSERT then SELECT returns 0 rows (RLS structural block)"
+else
+  _fail "T4: Missing-SET-LOCAL INSERT path returned visible rows — possible leak" "${T4_WRITE_RESULT}"
+fi
+echo "${T4_WRITE_RESULT}" > "${LOG_DIR}/T4-missing-set-local-write.log"
+
+# Without setting ifos.tenant_slug, attempt to read from decision_log.
+# RLS should return 0 rows.
 T4_RESULT=$(_psql_local <<EOF 2>&1
 SELECT count(*) FROM decision_log;
 EOF
@@ -521,7 +543,8 @@ if (( FAIL_STEPS > 0 )); then
   AUDIT_OUTCOME="failed"
 fi
 
-_psql_local -v ON_ERROR_STOP=1 -q >/dev/null 2>&1 <<EOF
+AUDIT_SQL=$(cat <<EOF
+BEGIN;
 SET LOCAL ifos.tenant_slug='ifos-meta';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, payload, created_at)
 VALUES (
@@ -532,9 +555,11 @@ VALUES (
   '${AUDIT_PAYLOAD}'::jsonb,
   now()
 );
+COMMIT;
 EOF
-AUDIT_RC=$?
-if (( AUDIT_RC == 0 )); then
+)
+
+if printf '%s\n' "${AUDIT_SQL}" | _psql_local -v ON_ERROR_STOP=1 -q >/dev/null 2>&1; then
   _pass "Audit row written to decision_log (agent_name=_tenancy_audit, session=${SESSION_ID})"
 else
   _warn "Audit row write failed; check fallback at logs/tenancy-audit/${SESSION_ID}/"
