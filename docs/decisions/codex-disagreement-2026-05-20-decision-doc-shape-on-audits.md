@@ -51,19 +51,21 @@ This change preserves the citation-accuracy + status-honesty checks (load-bearin
 
 ## §3 — Resolution
 
-- [ ] Incorporated (Codex correct; artefact updated to add Decision/Consequences sections)
-- [x] **Counter-argued (Claude's reading prevails; founder picks via D5)**
+- [x] **Incorporated (Codex correct on Context + Status; counter-argued on Decision/Consequences for Reference + In Force — Founder Decision D5-A accepted 2026-05-22)**
+- [ ] Counter-argued
 - [ ] Compromise (partial accept)
 
-## §4 — Founder decision (D5 in `2026-05-20-codex-round-1-founder-decisions.md`)
+**Resolution detail (2026-05-22):** Founder accepted D5-A. Skill softening landed in `.codex/ratification/review-architecture-decision.md §1` — Reference + In Force status artefacts are now exempt from Decision + Alternatives + Consequences sections (Context + Status update line still required). The two REJECTED artefacts from Round 1 (`cortexos-primitive-status.md`, `operational-hygiene-protocol.md`) are expected to RATIFY in Round 2 without changes. Two new Day-9 artefacts (`architecture-cohesion-review.md` Reference, `tenant-lifecycle.md` In Force) are now ratifiable under the softened skill.
 
-Founder picks one of:
+## §4 — Founder decision (RESOLVED 2026-05-22)
 
-- **D5-A:** Accept Claude's reasoning. Soften the skill per §2 above. Re-run Codex Round 2 on `cortexos-primitive-status.md` + `operational-hygiene-protocol.md` against the updated skill; both expected to RATIFY. **Recommended.**
-- **D5-B:** Accept Codex's reasoning. Add Decision + Consequences sections to both artefacts. Re-run Round 2 without skill changes. Adds ~50 lines of ceremony to each artefact.
-- **D5-C:** Hybrid. Soften the skill for Reference (audits) but keep enforcement for In Force (runbooks — argue runbooks DO encode binding policy and benefit from explicit Decision/Consequences for new-reader onboarding).
+**D5-A accepted.** Skill softened. Cluster B re-ratification (Round 2) expected to RATIFY `cortexos-primitive-status.md` + `operational-hygiene-protocol.md` without artefact changes. Day-9 Reference + In Force artefacts (`architecture-cohesion-review.md`, `tenant-lifecycle.md`) ratifiable under softened skill.
 
-If D5-A or D5-C: skill update is a separate small commit (`fix(codex-skills): soften decision-doc shape requirement for Reference/In Force status`). Re-ratification runs from the same `bash scripts/run-codex-ratification.sh --cluster B` command.
+Original options preserved for audit:
+
+- **D5-A** (chosen): Accept Claude's reasoning. Soften the skill per §2 above.
+- **D5-B**: Accept Codex's reasoning. Add Decision + Consequences sections.
+- **D5-C**: Hybrid. Soften for Reference; keep for In Force.
 
 ---
 

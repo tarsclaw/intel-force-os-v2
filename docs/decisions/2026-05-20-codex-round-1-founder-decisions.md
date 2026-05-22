@@ -112,6 +112,18 @@ This decision is whether to go further:
 
 If D5-A or D5-C: skill update is a separate small commit. Re-ratification runs from same `bash scripts/run-codex-ratification.sh --cluster B` command.
 
+### ✅ D5 — RESOLVED 2026-05-22
+
+Founder accepted **D5-A**. Skill softening landed in `.codex/ratification/review-architecture-decision.md §1` plus new §1-Exemption clause. Reference + In Force status artefacts now exempt from Decision + Alternatives + Consequences requirements (Context + Status line still required for ALL).
+
+Round 2 expectations after this resolution:
+- `cortexos-primitive-status.md` (was REJECTED §1 issue 2) → expected RATIFY
+- `operational-hygiene-protocol.md` (was REJECTED §1 issue 1) → expected RATIFY
+- `architecture-cohesion-review.md` (Day-9; not yet ratified) → ratifiable under softened skill
+- `tenant-lifecycle.md` (Day-9; not yet ratified) → ratifiable under softened skill
+
+D5 unblocks Round 2 closure for 4 artefacts.
+
 ---
 
 ## §10 — Resolution timeline recommendation
