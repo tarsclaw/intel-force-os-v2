@@ -185,6 +185,32 @@ GRANT USAGE, SELECT ON SEQUENCE tone_rule_id_seq           TO ifos_app;
 GRANT USAGE, SELECT ON SEQUENCE recent_edit_id_seq         TO ifos_app;
 
 -- ----------------------------------------------------------------------------
+-- §6.5 — Table ownership note
+-- ----------------------------------------------------------------------------
+-- v0.2 tables should be owned by `postgres`, not `ifos_app`. Day-11 finding:
+-- when the migration runs as ifos_app via SSH tunnel, the new tables become
+-- owned by ifos_app, conferring implicit UPDATE + DELETE privileges that
+-- bypass the GRANT-based append-only model (T5 invariant). FORCE ROW LEVEL
+-- SECURITY (above) prevents the owner-RLS-bypass, but only ownership
+-- transfer prevents the privilege bypass. The transfer requires postgres
+-- superuser; it's run once on the VPS, separate from this migration:
+--
+--   sudo -u postgres psql -d ifos_v2 <<EOF
+--   ALTER TABLE voice_corpus OWNER TO postgres;
+--   ALTER TABLE voice_corpus_chunks OWNER TO postgres;
+--   ALTER TABLE tone_rule OWNER TO postgres;
+--   ALTER TABLE recent_edit OWNER TO postgres;
+--   ALTER SEQUENCE voice_corpus_id_seq OWNER TO postgres;
+--   ALTER SEQUENCE voice_corpus_chunks_id_seq OWNER TO postgres;
+--   ALTER SEQUENCE tone_rule_id_seq OWNER TO postgres;
+--   ALTER SEQUENCE recent_edit_id_seq OWNER TO postgres;
+--   EOF
+--
+-- v1.1 architecture proposal: migrations run via a `migrations` role that
+-- has CREATE on schema but isn't the same as `ifos_app`. Pre-bakes ownership.
+-- ----------------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------------
 -- §7 — Extend entities.data JSONB with 6 voice-score keys
 -- ----------------------------------------------------------------------------
 -- entities.data is JSONB so the 6 new fields land as keys, no DDL needed for
