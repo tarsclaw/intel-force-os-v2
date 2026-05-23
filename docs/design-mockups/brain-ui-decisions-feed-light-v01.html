@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1440, initial-scale=1" />
+<title>IFOS · Brain UI · Decisions Feed (light v01)</title>
+<style>
+  :root {
+    /* OKLCH palette — warm off-white surface, terracotta accent.
+       Tinted toward yellow-orange (h=80), never pure #fff/#000.
+       Restrained strategy: tinted neutrals + one accent (<=10% surface). */
+    --surface:        oklch(0.985 0.005 80);
+    --surface-sunk:   oklch(0.965 0.006 80);
+    --surface-raised: oklch(0.995 0.003 80);
+    --hairline:       oklch(0.915 0.006 80);
+    --hairline-soft:  oklch(0.945 0.005 80);
+
+    --ink-1: oklch(0.20 0.015 80);   /* primary text */
+    --ink-2: oklch(0.42 0.012 80);   /* secondary text */
+    --ink-3: oklch(0.60 0.010 80);   /* tertiary / meta */
+    --ink-4: oklch(0.75 0.008 80);   /* faintest */
+
+    --accent:        oklch(0.56 0.15 32);   /* terracotta — used <=10% */
+    --accent-sunk:   oklch(0.97 0.025 32);  /* accent surface wash */
+    --accent-edge:   oklch(0.82 0.05 32);
+
+    --ok:        oklch(0.60 0.10 150);
+    --ok-sunk:   oklch(0.97 0.025 150);
+    --warn:      oklch(0.65 0.10 80);
+    --warn-sunk: oklch(0.97 0.030 80);
+    --esc:       var(--accent);
+    --esc-sunk:  var(--accent-sunk);
+
+    --font-sans: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    --font-serif: "Iowan Old Style", "Charter", "Source Serif Pro", Georgia, serif;
+
+    --shadow-row: 0 0 0 1px var(--hairline-soft);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--surface);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ============================================================ */
+  /* Top bar                                                       */
+  /* ============================================================ */
+  .topbar {
+    height: 48px;
+    display: grid;
+    grid-template-columns: 280px 1fr 360px;
+    align-items: center;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar__brand {
+    padding: 0 20px;
+    display: flex; align-items: center; gap: 12px;
+    border-right: 1px solid var(--hairline);
+    height: 100%;
+  }
+  .topbar__mark {
+    width: 22px; height: 22px;
+    background: var(--ink-1);
+    border-radius: 4px;
+    position: relative;
+  }
+  .topbar__mark::after {
+    content: "";
+    position: absolute; inset: 6px;
+    border: 1.5px solid var(--surface);
+    border-radius: 1px;
+  }
+  .topbar__org {
+    font-weight: 600; letter-spacing: -0.01em;
+  }
+  .topbar__tenant {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 6px;
+    background: var(--surface-sunk);
+    border-radius: 3px;
+    margin-left: auto;
+  }
+  .topbar__center {
+    padding: 0 20px;
+    display: flex; align-items: center; gap: 16px;
+    height: 100%;
+  }
+  .search {
+    flex: 1;
+    display: flex; align-items: center; gap: 10px;
+    height: 30px;
+    padding: 0 12px;
+    background: var(--surface-sunk);
+    border-radius: 6px;
+    color: var(--ink-3);
+    font-size: 13px;
+    max-width: 520px;
+  }
+  .search kbd {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border: 1px solid var(--hairline);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--ink-3);
+    margin-left: auto;
+  }
+  .topbar__right {
+    padding: 0 20px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+    border-left: 1px solid var(--hairline);
+    height: 100%;
+    color: var(--ink-3);
+    font-size: 13px;
+  }
+  .topbar__right .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 3px var(--ok-sunk);
+  }
+  .topbar__right .who {
+    color: var(--ink-1);
+    font-weight: 500;
+  }
+
+  /* ============================================================ */
+  /* Three-pane layout                                             */
+  /* ============================================================ */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr 360px;
+    min-height: calc(100vh - 48px);
+  }
+  .rail-left, .rail-right {
+    border-right: 1px solid var(--hairline);
+    background: var(--surface);
+  }
+  .rail-right {
+    border-right: 0;
+    border-left: 1px solid var(--hairline);
+  }
+  .feed {
+    background: var(--surface);
+    min-width: 0;
+  }
+
+  /* ============================================================ */
+  /* Left rail                                                     */
+  /* ============================================================ */
+  .rail-left { padding: 16px 0; }
+  .rail-section {
+    padding: 0 20px;
+    margin-bottom: 18px;
+  }
+  .rail-section h4 {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 8px;
+  }
+  .rail-item {
+    display: flex; align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    margin: 0 -8px;
+    border-radius: 5px;
+    cursor: pointer;
+    color: var(--ink-1);
+    font-size: 13.5px;
+    transition: background 120ms ease-out;
+  }
+  .rail-item:hover { background: var(--surface-sunk); }
+  .rail-item.is-active {
+    background: var(--accent-sunk);
+    color: var(--ink-1);
+    font-weight: 500;
+  }
+  .rail-item .count {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    font-weight: 400;
+    background: var(--surface-sunk);
+    padding: 1px 6px;
+    border-radius: 3px;
+    min-width: 22px;
+    text-align: center;
+  }
+  .rail-item.is-active .count {
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .rail-item .glyph {
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--ink-3);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .rail-item.is-active .glyph {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+  .rail-divider {
+    height: 1px;
+    background: var(--hairline);
+    margin: 18px 20px;
+  }
+  .rail-meta {
+    padding: 16px 20px;
+    margin-top: auto;
+    border-top: 1px solid var(--hairline);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .rail-meta dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+  .rail-meta dt { color: var(--ink-3); font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .rail-meta dd { margin: 0; color: var(--ink-1); }
+
+  /* ============================================================ */
+  /* Feed (center)                                                 */
+  /* ============================================================ */
+  .feed__head {
+    padding: 22px 32px 16px;
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 24px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .feed__title {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: var(--ink-1);
+    margin: 0;
+  }
+  .feed__title small {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink-3);
+    letter-spacing: 0;
+    margin-left: 10px;
+    display: inline-block;
+    vertical-align: 2px;
+  }
+  .feed__filters {
+    display: flex; gap: 4px;
+    font-size: 12.5px;
+  }
+  .filter {
+    padding: 4px 10px;
+    border-radius: 5px;
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: background 120ms ease-out;
+  }
+  .filter:hover { background: var(--surface-sunk); }
+  .filter.is-active {
+    background: var(--ink-1);
+    color: var(--surface);
+  }
+  .filter .count {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    margin-left: 6px;
+    opacity: 0.7;
+  }
+
+  .feed__list {
+    padding: 0;
+  }
+  .feed__day {
+    padding: 14px 32px 6px;
+    display: flex; align-items: baseline; gap: 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-top: 1px solid var(--hairline-soft);
+  }
+  .feed__day:first-of-type { border-top: 0; }
+  .feed__day .day-meta {
+    color: var(--ink-4);
+    font-weight: 400;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 64px 116px 1fr auto;
+    align-items: start;
+    gap: 20px;
+    padding: 16px 32px;
+    border-top: 1px solid var(--hairline-soft);
+    cursor: pointer;
+    transition: background 120ms ease-out;
+    position: relative;
+  }
+  .row:hover { background: var(--surface-sunk); }
+  .row.is-focused { background: var(--accent-sunk); }
+  .row.is-focused::before {
+    content: ""; position: absolute;
+    left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--accent);
+  }
+  .row__time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    padding-top: 3px;
+  }
+  .row__agent {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-2);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding-top: 3px;
+    line-height: 1.4;
+  }
+  .row__agent .agent-fn {
+    display: block;
+    color: var(--ink-3);
+    font-size: 9.5px;
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
+  .row__body {
+    min-width: 0;
+  }
+  .row__decision {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-1);
+    line-height: 1.45;
+    margin: 0 0 6px;
+    letter-spacing: -0.005em;
+  }
+  .row__decision em {
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .row__provenance {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    line-height: 1.55;
+    margin: 0;
+  }
+  .row__provenance a {
+    color: var(--ink-1);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--hairline);
+    padding-bottom: 1px;
+    font-weight: 500;
+  }
+  .row__provenance a:hover { border-bottom-color: var(--accent); color: var(--accent); }
+  .row__shortlist {
+    margin: 10px 0 0;
+    padding: 10px 14px;
+    background: var(--surface-sunk);
+    border-radius: 5px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    font-size: 12.5px;
+  }
+  .row__shortlist .cand {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .row__shortlist .cand strong {
+    font-weight: 500; color: var(--ink-1);
+  }
+  .row__shortlist .cand span {
+    color: var(--ink-3);
+    font-size: 11.5px;
+  }
+  .row__shortlist .cand .score {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .row__status {
+    padding-top: 3px;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 11px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-1);
+  }
+  .chip::before {
+    content: ""; width: 5px; height: 5px; border-radius: 50%;
+  }
+  .chip--ok { background: var(--ok-sunk); color: oklch(0.32 0.06 150); }
+  .chip--ok::before { background: var(--ok); }
+  .chip--warn { background: var(--warn-sunk); color: oklch(0.35 0.06 80); }
+  .chip--warn::before { background: var(--warn); }
+  .chip--esc { background: var(--esc-sunk); color: oklch(0.30 0.10 32); }
+  .chip--esc::before { background: var(--esc); }
+  .chip--ghost { background: var(--surface-sunk); color: var(--ink-3); }
+  .chip--ghost::before { background: var(--ink-4); }
+  .row__age {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-4);
+  }
+
+  /* ============================================================ */
+  /* Right rail — context panel                                    */
+  /* ============================================================ */
+  .rail-right { padding: 22px 24px; }
+  .panel__head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .panel__head h3 {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--ink-1);
+  }
+  .panel__head .kind {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .panel__summary {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    margin: 0 0 18px;
+  }
+  .panel__block { margin-bottom: 20px; }
+  .panel__block h5 {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 8px;
+  }
+  .panel__links {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 0;
+  }
+  .panel__links li {
+    padding: 7px 0;
+    border-top: 1px solid var(--hairline-soft);
+    font-size: 13px;
+    color: var(--ink-1);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  }
+  .panel__links li:first-child { border-top: 0; padding-top: 0; }
+  .panel__links li .meta {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    flex-shrink: 0;
+  }
+  .panel__links li a {
+    color: var(--ink-1); text-decoration: none;
+    border-bottom: 1px dotted transparent;
+  }
+  .panel__links li a:hover { border-bottom-color: var(--accent); color: var(--accent); }
+
+  .panel__entity {
+    background: var(--surface-sunk);
+    border-radius: 6px;
+    padding: 14px;
+    font-size: 12.5px;
+  }
+  .panel__entity dl { margin: 0; display: grid; grid-template-columns: 90px 1fr; gap: 6px 12px; }
+  .panel__entity dt { color: var(--ink-3); font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 1px; }
+  .panel__entity dd { margin: 0; color: var(--ink-1); }
+  .panel__entity dd.mono { font-family: var(--font-mono); font-size: 11.5px; }
+
+  .panel__actions {
+    margin-top: 18px;
+    display: flex; gap: 8px;
+  }
+  .btn {
+    flex: 1;
+    height: 30px;
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 120ms ease-out, border-color 120ms ease-out;
+  }
+  .btn:hover { background: var(--surface-sunk); border-color: var(--ink-4); }
+  .btn--primary {
+    background: var(--ink-1); color: var(--surface);
+    border-color: var(--ink-1);
+  }
+  .btn--primary:hover {
+    background: oklch(0.30 0.015 80);
+    border-color: oklch(0.30 0.015 80);
+  }
+
+  /* ============================================================ */
+  /* Accessibility / reduced motion                                */
+  /* ============================================================ */
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  /* ============================================================ */
+  /* Mockup chrome footer note                                     */
+  /* ============================================================ */
+  .mockup-note {
+    position: fixed;
+    bottom: 12px; right: 16px;
+    background: var(--ink-1); color: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar" role="banner">
+  <div class="topbar__brand">
+    <div class="topbar__mark" aria-hidden="true"></div>
+    <span class="topbar__org">Acme Recruitment Partners</span>
+    <span class="topbar__tenant">acme&middot;uk</span>
+  </div>
+  <div class="topbar__center">
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span>Search the brain &mdash; people, briefs, decisions, vault pages</span>
+      <kbd>&#8984; K</kbd>
+    </div>
+    <span style="font-size:12.5px;color:var(--ink-3);">Today &middot; Wed 22 May</span>
+  </div>
+  <div class="topbar__right">
+    <span class="pip" aria-hidden="true"></span>
+    <span>9 agents online</span>
+    <span style="color:var(--ink-4);">&middot;</span>
+    <span class="who">MR</span>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============================ LEFT RAIL =========================== -->
+  <aside class="rail-left" aria-label="Agent navigation">
+    <div class="rail-section">
+      <h4>Workspace</h4>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Decisions</span><span class="count">37</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Vault</span><span class="count">214</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Backlinks</span><span class="count">1.8k</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Briefs in flight</span><span class="count">12</span>
+      </div>
+    </div>
+
+    <div class="rail-divider"></div>
+
+    <div class="rail-section">
+      <h4>Sourcing</h4>
+      <div class="rail-item is-active">
+        <span class="glyph"></span><span>Brief Decoder</span><span class="count">4</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Shortlister</span><span class="count">7</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Outreach</span><span class="count">3</span>
+      </div>
+    </div>
+
+    <div class="rail-section">
+      <h4>Compliance</h4>
+      <div class="rail-item">
+        <span class="glyph"></span><span>RTW Check</span><span class="count">2</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>IR35 SDS</span><span class="count">5</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Companies House</span><span class="count">0</span>
+      </div>
+    </div>
+
+    <div class="rail-section">
+      <h4>Ops</h4>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Placement Onboarding</span><span class="count">8</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Contracts</span><span class="count">1</span>
+      </div>
+      <div class="rail-item">
+        <span class="glyph"></span><span>Timesheets</span><span class="count">11</span>
+      </div>
+    </div>
+
+    <div class="rail-meta">
+      <dl>
+        <dt>Instance</dt><dd>ifos-v2</dd>
+        <dt>Brain</dt><dd>v1.1.0-rc4</dd>
+        <dt>Vault</dt><dd>214 pages &middot; clean</dd>
+      </dl>
+    </div>
+  </aside>
+
+  <!-- ============================ FEED ================================ -->
+  <section class="feed" aria-label="Decisions feed">
+
+    <div class="feed__head">
+      <h1 class="feed__title">
+        Brief Decoder
+        <small>shows decisions made by this agent for the Acme tenant</small>
+      </h1>
+      <div class="feed__filters" role="tablist">
+        <span class="filter is-active">All<span class="count">37</span></span>
+        <span class="filter">Pending<span class="count">4</span></span>
+        <span class="filter">Escalations<span class="count">2</span></span>
+        <span class="filter">Approved<span class="count">31</span></span>
+      </div>
+    </div>
+
+    <div class="feed__list">
+
+      <div class="feed__day">
+        <span>Today</span>
+        <span class="day-meta">Wed 22 May &middot; 7 decisions</span>
+      </div>
+
+      <article class="row is-focused" aria-current="true">
+        <div class="row__time">11:42</div>
+        <div class="row__agent">
+          Brief&nbsp;Decoder
+          <span class="agent-fn">/ shortlist</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Shortlisted <em>3</em> candidates for the
+            <strong>Senior FP&amp;A Contractor &mdash; Manchester</strong> brief from
+            <strong>Northgate Holdings</strong>.
+          </p>
+          <p class="row__provenance">
+            Brief opened by <a href="#">Sarah Whittaker</a> at 11:28
+            &middot; sourced from <a href="#">talent pool</a>, <a href="#">prior placements</a>, <a href="#">LinkedIn 1st-degree</a>
+            &middot; <a href="#">12 candidates considered</a>, 3 ranked above the 0.78 confidence gate
+          </p>
+          <div class="row__shortlist">
+            <div class="cand">
+              <strong>James Okafor</strong>
+              <span>ex-Centrica, 8yr FP&amp;A &middot; available now</span>
+              <span class="score">match&nbsp;0.91</span>
+            </div>
+            <div class="cand">
+              <strong>Priya Iyer</strong>
+              <span>contract closing 30 May &middot; group reporting</span>
+              <span class="score">match&nbsp;0.84</span>
+            </div>
+            <div class="cand">
+              <strong>Tom Reilly</strong>
+              <span>placed twice via Acme &middot; prior client overlap</span>
+              <span class="score">match&nbsp;0.81</span>
+            </div>
+          </div>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--warn">awaiting&nbsp;review</span>
+          <span class="row__age">2m ago</span>
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row__time">11:18</div>
+        <div class="row__agent">
+          IR35&nbsp;SDS
+          <span class="agent-fn">/ flag</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Escalated &mdash; brief lacks an IR35 SDS for an inside-IR35 likely
+            engagement. Cannot issue contract until client provides determination.
+          </p>
+          <p class="row__provenance">
+            Brief <a href="#">NHG-0518</a> &middot; client
+            <a href="#">Northgate Holdings</a>
+            &middot; trigger: day-rate &gt; &pound;500 &amp; supervision implied
+            &middot; <a href="#">ESC_BRIEF_AMBIGUITY</a> raised to <a href="#">Sarah Whittaker</a>
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--esc">escalation</span>
+          <span class="row__age">26m ago</span>
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row__time">10:55</div>
+        <div class="row__agent">
+          Placement&nbsp;Onb.
+          <span class="agent-fn">/ kick-off</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Started onboarding workflow for <strong>Hannah Liu</strong> &mdash; placement at
+            <strong>Brightwell Insurance</strong> starts Mon 27 May.
+          </p>
+          <p class="row__provenance">
+            7 tasks queued: <a href="#">RTW check</a>, <a href="#">umbrella selection</a>,
+            <a href="#">contract draft</a>, <a href="#">client induction comms</a>,
+            <a href="#">day-1 kit</a>, <a href="#">payroll setup</a>, <a href="#">first-week check-in</a>
+            &middot; FD dashboard updated
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--ok">approved</span>
+          <span class="row__age">49m ago</span>
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row__time">10:31</div>
+        <div class="row__agent">
+          Outreach
+          <span class="agent-fn">/ sequence</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Held outreach to <strong>Priya Iyer</strong> &mdash; prior conversation
+            within 28-day cooldown.
+          </p>
+          <p class="row__provenance">
+            Last contact <a href="#">14 May, by Tom Bell</a>
+            &middot; brand voice would otherwise read as harassment
+            &middot; resume window opens <strong>11 Jun</strong>
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--ghost">held</span>
+          <span class="row__age">73m ago</span>
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row__time">09:47</div>
+        <div class="row__agent">
+          RTW&nbsp;Check
+          <span class="agent-fn">/ verify</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Right-to-work verified for <strong>Daniel Sanchez</strong>
+            &mdash; share code <em>W12&nbsp;EX9&nbsp;A4T</em>, valid through Dec 2027.
+          </p>
+          <p class="row__provenance">
+            Cross-checked against <a href="#">Home Office API</a>
+            &middot; documented in <a href="#">vault / placements / d-sanchez / compliance.md</a>
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--ok">approved</span>
+          <span class="row__age">2h ago</span>
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row__time">09:22</div>
+        <div class="row__agent">
+          Brief&nbsp;Decoder
+          <span class="agent-fn">/ classify</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Classified <strong>WBX-0517</strong> as a <strong>retained search</strong>,
+            not contingent &mdash; fee structure detected in brief language.
+          </p>
+          <p class="row__provenance">
+            Signals: <em>&ldquo;exclusive 6-week window&rdquo;</em>,
+            <em>&ldquo;first instalment on signature&rdquo;</em>
+            &middot; routed to <a href="#">Retained Search workflow</a>
+            &middot; <a href="#">linked decision: fee-split 50/30/20</a>
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--ok">approved</span>
+          <span class="row__age">3h ago</span>
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row__time">08:14</div>
+        <div class="row__agent">
+          Companies&nbsp;House
+          <span class="agent-fn">/ enrich</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Enriched <strong>Brightwell Insurance Ltd</strong> &mdash; 47 employees,
+            FY24 turnover &pound;9.2m, no adverse filings.
+          </p>
+          <p class="row__provenance">
+            Director changes in last 12 months: <a href="#">2</a>
+            &middot; group structure resolved to <a href="#">Brightwell Holdings</a>
+            &middot; vault page <a href="#">/clients/brightwell-insurance.md</a> updated
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--ok">approved</span>
+          <span class="row__age">5h ago</span>
+        </div>
+      </article>
+
+      <div class="feed__day">
+        <span>Yesterday</span>
+        <span class="day-meta">Tue 21 May &middot; 12 decisions, 1 escalation</span>
+      </div>
+
+      <article class="row">
+        <div class="row__time">17:42</div>
+        <div class="row__agent">
+          Contracts
+          <span class="agent-fn">/ draft</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Drafted Statement of Work for <strong>Northgate &times; Tom Reilly</strong>
+            &mdash; 6-month, &pound;625 day-rate, outside IR35.
+          </p>
+          <p class="row__provenance">
+            Template <a href="#">SOW-outside-v3.2</a>
+            &middot; client legal counterparty <a href="#">Wragge &amp; Co.</a>
+            &middot; ready for <a href="#">Sarah Whittaker&rsquo;s</a> signature
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--warn">awaiting&nbsp;review</span>
+          <span class="row__age">18h ago</span>
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row__time">16:08</div>
+        <div class="row__agent">
+          Timesheets
+          <span class="agent-fn">/ reconcile</span>
+        </div>
+        <div class="row__body">
+          <p class="row__decision">
+            Reconciled <em>11</em> contractor timesheets for week ending Sun 19 May
+            &mdash; <strong>1 anomaly</strong> referred to the FD.
+          </p>
+          <p class="row__provenance">
+            Anomaly: <a href="#">P. Iyer logged 52h vs. contract cap of 45h</a>
+            &middot; auto-flagged before invoice generation
+            &middot; suggested action: confirm with client before raising
+          </p>
+        </div>
+        <div class="row__status">
+          <span class="chip chip--warn">1&nbsp;flag</span>
+          <span class="row__age">20h ago</span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============================ RIGHT RAIL ========================== -->
+  <aside class="rail-right" aria-label="Context for focused decision">
+    <div class="panel__head">
+      <h3>Focused decision</h3>
+      <span class="kind">backlinks</span>
+    </div>
+    <p class="panel__summary">
+      Shortlist for the Northgate FP&amp;A brief. The brain found this candidate
+      pool by cross-referencing the brief text with two prior similar placements
+      and the active talent pool.
+    </p>
+
+    <div class="panel__block">
+      <h5>Linked entities</h5>
+      <ul class="panel__links">
+        <li><a href="#">Brief NHG-0518</a><span class="meta">brief</span></li>
+        <li><a href="#">Northgate Holdings</a><span class="meta">client</span></li>
+        <li><a href="#">Sarah Whittaker</a><span class="meta">consultant</span></li>
+        <li><a href="#">James Okafor</a><span class="meta">candidate</span></li>
+        <li><a href="#">Priya Iyer</a><span class="meta">candidate</span></li>
+        <li><a href="#">Tom Reilly</a><span class="meta">candidate</span></li>
+      </ul>
+    </div>
+
+    <div class="panel__block">
+      <h5>Prior similar shortlists</h5>
+      <ul class="panel__links">
+        <li><a href="#">Northgate &times; FP&amp;A Lead, Jan</a><span class="meta">3 placed</span></li>
+        <li><a href="#">Northgate &times; Group Reporting, Sep '25</a><span class="meta">2 placed</span></li>
+        <li><a href="#">Watershed &times; Snr FP&amp;A, Apr '25</a><span class="meta">cancelled</span></li>
+      </ul>
+    </div>
+
+    <div class="panel__block">
+      <h5>Brief at a glance</h5>
+      <div class="panel__entity">
+        <dl>
+          <dt>Brief</dt>     <dd class="mono">NHG-0518</dd>
+          <dt>Client</dt>    <dd>Northgate Holdings</dd>
+          <dt>Role</dt>      <dd>Senior FP&amp;A Contractor</dd>
+          <dt>Location</dt>  <dd>Manchester, hybrid 2&middot;3</dd>
+          <dt>Day rate</dt>  <dd>&pound;550&ndash;650</dd>
+          <dt>Length</dt>    <dd>6 months, likely extension</dd>
+          <dt>Start</dt>     <dd>Mon 3 Jun</dd>
+          <dt>IR35</dt>      <dd style="color:var(--accent);font-weight:600;">SDS pending</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="panel__actions">
+      <button class="btn">Open in vault</button>
+      <button class="btn btn--primary">Approve shortlist</button>
+    </div>
+  </aside>
+
+</main>
+
+<div class="mockup-note">design-engine &middot; explore v01 &middot; light</div>
+
+</body>
+</html>

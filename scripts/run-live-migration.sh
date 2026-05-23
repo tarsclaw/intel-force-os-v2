@@ -199,6 +199,24 @@ fi
 _pass "Connected to ${DB_NAME} as ${DB_USER}"
 
 # ────────────────────────────────────────────────────────────────────────
+# Tenant prerequisite check
+# ────────────────────────────────────────────────────────────────────────
+# decision_log + entities + entity_links + tenant_adapters have FK to
+# tenants(tenant_slug). hook-helpers + voice-loader writes will fail with
+# FK violation if migration-test tenant row is absent. Day-4 provisioning
+# is supposed to insert this row but didn't always (Day-11 finding).
+
+TENANT_EXISTS=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
+  -c "SELECT count(*) FROM tenants WHERE tenant_slug='${TENANT_SLUG}';" 2>/dev/null || echo "0")
+
+if [[ "${TENANT_EXISTS}" != "1" ]]; then
+  _fail "${TENANT_SLUG} row missing from tenants table" \
+    "Run on VPS as postgres superuser: sudo -u postgres psql -d ${DB_NAME} -c \"INSERT INTO tenants (tenant_slug, tenant_name, metadata) VALUES ('${TENANT_SLUG}', 'Migration Test Tenant', '{\\\"status\\\":\\\"active\\\",\\\"tier\\\":\\\"pilot\\\"}'::jsonb) ON CONFLICT DO NOTHING;\""
+  exit 1
+fi
+_pass "${TENANT_SLUG} tenant row present"
+
+# ────────────────────────────────────────────────────────────────────────
 # Dry-run short-circuit
 # ────────────────────────────────────────────────────────────────────────
 
@@ -271,8 +289,8 @@ TRIGGER_PRESENT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_
   -c "SELECT count(*) FROM pg_trigger WHERE tgname='validate_voice_scores';")
 [[ "${TRIGGER_PRESENT}" == "1" ]] && _pass "validate_voice_scores trigger present" || _fail "validate_voice_scores trigger missing"
 
-SEED_ROW=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
-  -c "SET app.current_tenant='migration-test'; SELECT count(*) FROM voice_corpus WHERE tenant_slug='migration-test' AND version='v0.2-seed';")
+SEED_ROW=$(PGOPTIONS="-c app.current_tenant=migration-test" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
+  -c "SELECT count(*) FROM voice_corpus WHERE tenant_slug='migration-test' AND version='v0.2-seed';")
 [[ "${SEED_ROW}" == "1" ]] && _pass "migration-test seed voice_corpus row present" || _warn "Seed row count: ${SEED_ROW}"
 
 # ────────────────────────────────────────────────────────────────────────
@@ -293,8 +311,8 @@ source "${HOOK_HELPERS}"
 
 # Capture the rowcount before our writes to verify we add exactly the
 # expected number of rows.
-ROWCOUNT_BEFORE=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
-  -c "SET app.current_tenant='${TENANT_SLUG}'; SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
+ROWCOUNT_BEFORE=$(PGOPTIONS="-c app.current_tenant=${TENANT_SLUG}" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
+  -c "SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
 
 hh_decision_trigger "live_smoke_test" "Phase-3+5 integration"
 hh_decision_output "smoke_artefact" "/tmp/sample.md" "smoke run"
@@ -307,8 +325,8 @@ else
 fi
 
 # Verify rows landed
-ROWCOUNT_AFTER=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
-  -c "SET app.current_tenant='${TENANT_SLUG}'; SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
+ROWCOUNT_AFTER=$(PGOPTIONS="-c app.current_tenant=${TENANT_SLUG}" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A \
+  -c "SELECT count(*) FROM decision_log WHERE tenant_slug='${TENANT_SLUG}' AND agent_name='live-smoke';")
 ROWS_ADDED=$((ROWCOUNT_AFTER - ROWCOUNT_BEFORE))
 
 # Expected: 1 trigger + 1 output + 1 green action + 2 red (gating_failed audit + ESC escalation) = 5
@@ -325,14 +343,7 @@ fi
 _step "Step 3 — Kill-criterion Trigger 5 query (red-tier audit shape)"
 
 # Query per autosend-safety-policy §7 + v1.0-kill-criterion.md §2 Trigger 5
-RED_TIER_COUNT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET app.current_tenant='${TENANT_SLUG}';
-SELECT count(*) FROM decision_log
-WHERE tenant_slug = '${TENANT_SLUG}'
-  AND payload->>'tier' = 'red'
-  AND created_at > now() - interval '7 days';
-EOF
-)
+RED_TIER_COUNT=$(PGOPTIONS="-c app.current_tenant=${TENANT_SLUG}" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT count(*) FROM decision_log WHERE tenant_slug = '${TENANT_SLUG}' AND payload->>'tier' = 'red' AND created_at > now() - interval '7 days';")
 
 if [[ "${RED_TIER_COUNT}" -ge 1 ]]; then
   _pass "Trigger 5 query returns red-tier audit rows (count=${RED_TIER_COUNT})"
@@ -341,14 +352,7 @@ else
 fi
 
 # Also verify ESC_AUTOSEND_BLOCKED escalation row queryable
-ESC_BLOCKED_COUNT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET app.current_tenant='${TENANT_SLUG}';
-SELECT count(*) FROM decision_log
-WHERE tenant_slug = '${TENANT_SLUG}'
-  AND payload->>'escalation_code' = 'ESC_AUTOSEND_BLOCKED'
-  AND created_at > now() - interval '1 hour';
-EOF
-)
+ESC_BLOCKED_COUNT=$(PGOPTIONS="-c app.current_tenant=${TENANT_SLUG}" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT count(*) FROM decision_log WHERE tenant_slug = '${TENANT_SLUG}' AND payload->>'escalation_code' = 'ESC_AUTOSEND_BLOCKED' AND created_at > now() - interval '1 hour';")
 
 [[ "${ESC_BLOCKED_COUNT}" -ge 1 ]] && _pass "ESC_AUTOSEND_BLOCKED row queryable" || _fail "ESC_AUTOSEND_BLOCKED row missing"
 
@@ -392,11 +396,7 @@ fi
 _step "Step 5 — RLS isolation sanity (cross-tenant blocked)"
 
 # Try to read migration-test rows while claiming to be a different tenant — must return 0
-WRONG_TENANT_COUNT=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET app.current_tenant='not-the-real-tenant';
-SELECT count(*) FROM voice_corpus;
-EOF
-)
+WRONG_TENANT_COUNT=$(PGOPTIONS="-c app.current_tenant=not-the-real-tenant" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT count(*) FROM voice_corpus;")
 
 if [[ "${WRONG_TENANT_COUNT}" == "0" ]]; then
   _pass "RLS blocks cross-tenant read (not-the-real-tenant sees 0 rows in migration-test corpus)"
@@ -405,11 +405,7 @@ else
 fi
 
 # Same for decision_log
-WRONG_TENANT_LOG=$(psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A <<EOF
-SET app.current_tenant='not-the-real-tenant';
-SELECT count(*) FROM decision_log WHERE agent_name='live-smoke';
-EOF
-)
+WRONG_TENANT_LOG=$(PGOPTIONS="-c app.current_tenant=not-the-real-tenant" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT count(*) FROM decision_log WHERE agent_name='live-smoke';")
 
 if [[ "${WRONG_TENANT_LOG}" == "0" ]]; then
   _pass "RLS blocks cross-tenant decision_log read"
