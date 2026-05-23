@@ -65,7 +65,7 @@ Honest accounting of which sub-decisions can land tonight from technical analysi
 
 | Sub-decision | Commercial gate question | Who answers | When | Notes |
 |---|---|---|---|---|
-| A | "Is Intel Force Ltd in the Bullhorn Marketplace Partner Programme, or what's the application timeline + first-year cost?" | Bullhorn partnerships team — `partnerships@bullhorn.com` is the public alias; founder may have a named partner manager contact from prior conversations | Sunday outreach (likely Monday response given UK weekend) | If founder has no existing partner-rep relationship, this is a cold inbound; ETA on first response 2-5 business days |
+| A | "Is Intel Force Ltd in the Bullhorn Marketplace Partner Programme, or what's the application timeline + first-year cost?" | Bullhorn partnerships team — submit via Marketo form at `https://www.bullhorn.com/become-a-partner/` (verified 2026-05-23). Earlier draft cited `partnerships@bullhorn.com` which does NOT exist (mail bounced). | Submit any weekday; response 2-5 business days | Cold inbound via form; routes internally. UK office at 7 Devonshire Square, London EC2M 4YH for escalation. |
 | A | "What are the API rate-limit / scope deltas between marketplace tier and direct API at our expected 3-6 tenant pilot volume?" | Same Bullhorn partnerships team, or escalation to developer support | Same conversation | The answer determines whether direct-API can serve v1.0 or marketplace registration is a v1.0 blocker |
 | A + C | "Which ATS does design partner #1 use — Bullhorn, Vincere, Voyager Infinity, or another?" | **Founder** — Sunday design-partner conversation 2 per master brief §6 Day 2 line 467 | Sunday/Monday | If Bullhorn: Sub-decision A path proceeds as analysed. If non-Bullhorn: the v1.0 ATS anchor changes, this document's Sub-decisions are scoped to "Bullhorn is the second-tenant ATS" rather than "v1.0 first-tenant ATS" |
 | B | "Does Bullhorn's OAuth implementation support client_credentials grant against the sandbox environment?" | Bullhorn developer support — `developer.bullhorn.com` portal contact form, or via the partnerships rep once Sub-decision A's contact path is open | Monday-Tuesday | Used to verify that the §6 Day 2 line 466 recommendation ("browser dance for production, service-account for dev") is implementable end-to-end |
@@ -83,7 +83,7 @@ Stated explicitly so the founder knows what's landable tonight vs what waits for
   - Recommendation block (§5) names the technical preference, the commercial-answer conditions that flip Status to Accepted, and the documented v1.0-scope-cut contingency if commercial answers go badly.
 - **Sunday (2026-05-17):**
   - Founder runs design-partner conversation 2 — primary gate is "which ATS does the first pilot use?". Result lands as a one-line update to this document's §1.3 row 3.
-  - Founder runs Bullhorn partnerships outreach — likely email to `partnerships@bullhorn.com` or named contact if any. Result may not come back same-day.
+  - Founder runs Bullhorn partnerships outreach — submission via Marketo form at `https://www.bullhorn.com/become-a-partner/` (verified 2026-05-23; the earlier `partnerships@bullhorn.com` draft was wrong — that mailbox does not exist). Result may not come back same-day.
 - **Monday (2026-05-18):**
   - Founder runs Bullhorn developer-support outreach for Sub-decision B specifics if not already covered by partnerships rep.
   - Final Status flip on Sub-decisions A and B based on commercial answers landed.
