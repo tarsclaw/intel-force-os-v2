@@ -1,0 +1,101 @@
+# Diagnostic fixture — 02-edge-case-no-online-footprint
+#
+# Edge case: firm exists at Companies House but has placeholder website,
+# dead LinkedIn page (no posts in 12+ months), no job posts. Tests how
+# the agent degrades gracefully — sections 1 (Companies House) populated;
+# sections 2-11 mostly "no signal found" content; section 12 still
+# generates a voice-classified opener despite thin context.
+#
+# Status: Proposed (pre-W3-build; data shape verified).
+# Reading order: agent.md §3 + agent.md §9 Q1-Q6 open questions.
+
+fixture_id: 02-edge-case-no-online-footprint
+description: Real firm; minimal online presence; tests graceful degradation
+tenant_slug: migration-test
+agent: diagnostic
+expected_gate_a: PASS  # Gate A passes; just thinner content
+
+invocation:
+  command: ifosctl diagnostic
+  flags:
+    - --firm
+    - "Quietfield Resourcing"
+    - --sector
+    - manufacturing
+    - --tenant
+    - migration-test
+
+mocked_tool_responses:
+  companies_house:
+    profile:
+      company_number: "06542987"
+      company_name: "Quietfield Resourcing Ltd"
+      incorporation_date: "2008-02-19"
+      registered_office: "12 Mill Lane, Sheffield S1 2AB"
+      latest_accounts_revenue_band: "£1m-£2m"
+      latest_accounts_employees_band: "5-9"
+    officers:
+      - name: "David Quietfield"
+        role: "Director"
+        appointment_date: "2008-02-19"
+    filing_history_last_90d:
+      - filing_type: "annual_accounts"
+        filed_at: "2026-02-10"
+
+  linkedin_readonly:
+    company_page:
+      slug: "quietfield-resourcing"
+      follower_count: 47
+      last_post_at: "2024-11-12"  # 18 months ago
+    job_posts:
+      count_active: 0
+      sectors: []
+      perm_vs_contract_ratio: "n/a"
+      avg_salary_band_gbp: "n/a"
+      locations: []
+    employee_search:
+      head_of_talent: null  # not found
+      head_of_talent_url: null
+      head_of_talent_tenure_years: null
+
+  web_scraper:
+    careers_page:
+      url: "https://quietfield-resourcing.com/"
+      state: "placeholder"  # site exists but says "coming soon"
+      last_updated_signal: "2023-08-04"
+      urgency_phrases_found: []
+
+expected_report:
+  word_count_range: [400, 600]  # min length still met
+  section_count: 12              # all 12 still present
+  citations_per_section_min: 1   # even thin sections cite Companies House
+  voice_classifier_score_min: 0.75
+
+expected_validations:
+  V1_12_sections: PASS
+  V2_per_section_citation: PASS  # thinner sections cite Companies House profile
+  V3_voice_score: PASS
+  V4_word_count: PASS  # close to 400 floor but still meets it
+  V5_banned_phrases: PASS
+  V6_pii_boundary: PASS
+
+# Special expected behaviour: the opener (§12) must avoid claiming
+# pain signals or sector-specific hooks the data doesn't support.
+# This tests the LLM prompt's grounding to evidence per agent.md §3.
+expected_opener_does_not_contain:
+  - "rapid growth"        # no evidence
+  - "scaling fast"        # no evidence
+  - "tripling"            # no evidence
+  - "doubling"            # no evidence
+
+expected_opener_anchors_to:
+  - Companies House
+  - or general industry observation
+
+expected_decision_log_rows:
+  - phase: trigger
+    payload_includes: {trigger_type: "session_start"}
+  - phase: output
+    payload_includes: {output_type: "diagnostic_draft"}
+  - phase: action
+    action_type: diagnostic_report_render

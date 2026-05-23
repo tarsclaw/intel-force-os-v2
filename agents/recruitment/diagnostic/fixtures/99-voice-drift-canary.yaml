@@ -1,0 +1,88 @@
+# Diagnostic fixture — 99-voice-drift-canary
+#
+# Adversarial case. Tests Gate A V3 (voice classifier ≥ 0.75) hard-fail
+# behaviour by forcing a §12 conversation opener that scores BELOW 0.75
+# (LLM-generated using a deliberately off-voice prompt instruction).
+# Expected outcome: validate.sh fails V3 after 3 retries, exits non-zero,
+# ESC_VOICE_DRIFT row emitted, draft NOT written to vault.
+#
+# Per kill-criterion §2 Trigger 5 + agent.md §6: voice drift is an
+# operational signal, not a catastrophic failure. The test verifies the
+# system surfaces it correctly rather than silently shipping bad content.
+#
+# Status: Proposed (pre-W3-build; behaviour design verified).
+
+fixture_id: 99-voice-drift-canary
+description: Adversarial — force voice classifier below 0.75; expect Gate A V3 failure
+tenant_slug: migration-test
+agent: diagnostic
+expected_gate_a: FAIL  # specifically V3
+
+invocation:
+  command: ifosctl diagnostic
+  flags:
+    - --firm
+    - "Test Drift Co"
+    - --sector
+    - generic
+    - --tenant
+    - migration-test
+
+# Forces the voice classifier into a known-low-scoring path by injecting
+# an off-voice opener directly (bypasses LLM in test mode)
+test_mode_overrides:
+  override_opener_text: |
+    Hello! I hope this email finds you well. I am reaching out from
+    Intel Force OS, a leading provider of AI-powered recruitment
+    solutions. I would love to schedule a call at your earliest
+    convenience to discuss how our innovative platform can help
+    streamline your business processes and drive growth. Please
+    let me know when would be a good time to connect.
+  # Why this fails: generic boilerplate, no evidence anchor, no consultant
+  # voice. Voice classifier scores in 0.2-0.4 range against a real tenant
+  # corpus.
+
+mocked_tool_responses:
+  # Skip; this fixture focuses on §12 validation, not §1-§11 generation
+  companies_house:
+    profile:
+      company_number: "12345678"
+      company_name: "Test Drift Co Ltd"
+  linkedin_readonly:
+    company_page:
+      slug: "test-drift-co"
+      follower_count: 100
+  web_scraper:
+    careers_page:
+      state: "active"
+
+expected_validations:
+  V1_12_sections: PASS  # sections present
+  V2_per_section_citation: PASS
+  V3_voice_score: FAIL  # < 0.75 after 3 retries — the canary fires here
+  V4_word_count: PASS
+  V5_banned_phrases: PASS
+  V6_pii_boundary: PASS
+
+# Expected escalation behaviour
+expected_escalation_emissions:
+  - escalation_code: ESC_VOICE_DRIFT
+    severity: warn
+    routing: operator_chat_id
+    after_n_retries: 3
+
+# Expected side effects
+expected_side_effects:
+  vault_write: false  # NOTHING written to vault — Gate A blocked it
+  draft_file_at_tmp: true  # /tmp/ draft persists temporarily for postmortem
+  decision_log_rows_min: 4  # trigger + output + validate_gate_a_fail action + cleanup
+
+# Special: this fixture also verifies the operator notification path:
+# operator must receive a Telegram message (if --notify-via telegram) AND
+# an audit row regardless. Failure mode mustn't be silent.
+expected_operator_notification:
+  telegram_sent: true  # if telegram available
+  payload_includes:
+    - "voice_classifier_score"
+    - "ESC_VOICE_DRIFT"
+    - "Test Drift Co"

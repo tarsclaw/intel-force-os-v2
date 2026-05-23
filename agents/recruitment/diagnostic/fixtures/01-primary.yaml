@@ -1,0 +1,110 @@
+# Diagnostic fixture — 01-primary
+#
+# Golden case. Well-formed UK fintech recruitment firm with all 12 sections
+# producing real content + real evidence links. This is the happy-path
+# test for the agent: validate.sh V1-V6 all PASS, vault write succeeds,
+# Gate A clean.
+#
+# Status: Proposed (pre-W3-build; data structure verified, content TBD).
+# Reading order: agent.md §3 (12 sections) + validate.sh V1-V6.
+
+fixture_id: 01-primary
+description: Well-formed UK fintech recruitment firm; golden case
+tenant_slug: migration-test
+agent: diagnostic
+expected_gate_a: PASS
+
+# Invocation that produces this fixture's output
+invocation:
+  command: ifosctl diagnostic
+  flags:
+    - --firm
+    - "Charterhouse Partners"
+    - --sector
+    - fintech
+    - --tenant
+    - migration-test
+
+# Mocked tool responses (W3 build replaces with real connector outputs)
+mocked_tool_responses:
+  companies_house:
+    profile:
+      company_number: "08732145"
+      company_name: "Charterhouse Partners Ltd"
+      incorporation_date: "2013-09-14"
+      registered_office: "23 King William Street, London EC4R 9AT"
+      latest_accounts_revenue_band: "£5m-£10m"
+      latest_accounts_employees_band: "20-49"
+    officers:
+      - name: "Sarah Bowen"
+        role: "Director"
+        appointment_date: "2013-09-14"
+      - name: "James Marshall"
+        role: "Director"
+        appointment_date: "2019-04-12"
+    filing_history_last_90d:
+      - filing_type: "annual_accounts"
+        filed_at: "2026-04-21"
+      - filing_type: "share_allotment"
+        filed_at: "2026-03-08"
+
+  linkedin_readonly:
+    company_page:
+      slug: "charterhouse-partners"
+      follower_count: 8420
+      last_post_at: "2026-05-19"
+    job_posts:
+      count_active: 14
+      sectors: [fintech, payments, regtech]
+      perm_vs_contract_ratio: "70/30"
+      avg_salary_band_gbp: "£70k-£120k"
+      locations:
+        - London (8)
+        - Manchester (3)
+        - Remote (3)
+    employee_search:
+      head_of_talent: "Jane Smith"
+      head_of_talent_url: "https://linkedin.com/in/janesmith"
+      head_of_talent_tenure_years: 3.2
+
+  web_scraper:
+    careers_page:
+      url: "https://charterhouse-partners.com/careers"
+      state: "active"
+      last_updated_signal: "2026-05-15"
+      urgency_phrases_found:
+        - "we're tripling our engineering team this year"
+        - "rapid growth in our payments practice"
+
+# Expected report attributes
+expected_report:
+  word_count_range: [700, 900]
+  section_count: 12
+  citations_per_section_min: 1
+  voice_classifier_score_min: 0.78
+  vault_path_template: "/vault/migration-test/diagnostic-reports/charterhouse-partners-{ISO_DATE}.md"
+
+# Validation expectations
+expected_validations:
+  V1_12_sections: PASS
+  V2_per_section_citation: PASS
+  V3_voice_score: PASS  # ≥ 0.75 required
+  V4_word_count: PASS   # 400-2000
+  V5_banned_phrases: PASS
+  V6_pii_boundary: PASS
+
+# Decision-log audit rows expected after run
+expected_decision_log_rows:
+  - phase: trigger
+    agent_name: diagnostic
+    payload_includes: {trigger_type: "session_start"}
+  - phase: output
+    agent_name: diagnostic
+    payload_includes: {output_type: "diagnostic_draft"}
+  - phase: action
+    agent_name: diagnostic
+    action_type: diagnostic_report_render
+    payload_includes: {firm_name: "Charterhouse Partners"}
+  - phase: action
+    agent_name: diagnostic
+    action_type: diagnostic_cleanup

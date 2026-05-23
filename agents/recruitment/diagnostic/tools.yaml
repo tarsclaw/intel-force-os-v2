@@ -1,0 +1,186 @@
+# Diagnostic agent — MCP tool declarations
+#
+# Status: Proposed (pre-W3-build scaffold; Day-11 author, awaits W3-4 build).
+# Author: Claude Code (initial scaffold) + W3 build slice
+# Ratifies as part of full bundle via review-agent-bundle.md skill.
+#
+# Reading order: agent.md §3 (12 required sections) + §4 (10-step workflow) +
+# §6 (escalation codes). Each tool below maps to one or more workflow steps.
+#
+# Schema: per packages/agents-runtime/_shared/common-base.json#/definitions/tools_v1
+# Required keys per tool entry: name, kind, description, required_env, capabilities
+
+version: v1
+agent: diagnostic
+tier: 2  # request-driven; no persistent PTY (per sequencing-target.md §2.1)
+
+tools:
+  # ── §4 Step 2: Companies House lookup ─────────────────────────────────
+  - name: companies_house
+    kind: mcp_connector
+    description: |
+      Read-only access to Companies House UK API. Used in §4 Step 2 for
+      firm registration data, latest filed accounts, director changes,
+      share-class moves. Rate-limited: 600 requests per 5-minute window per IP.
+      Cache responses for 7 days per (company_number) per gotcha §6.2.
+    required_env:
+      - COMPANIES_HOUSE_API_KEY  # provisioned at W3 build start
+    capabilities:
+      - companies_house.search       # name → CRN
+      - companies_house.profile       # CRN → company profile
+      - companies_house.officers      # CRN → directors + appointments
+      - companies_house.filing_history # CRN → filing dates last 90 days
+    rate_limit:
+      per_window: 600
+      window_seconds: 300
+    cache:
+      ttl_seconds: 604800  # 7 days
+      key_template: 'companies_house:{company_number}:{capability}'
+    failure_modes:
+      - code: 429
+        action: backoff_60s_retry_once
+        escalation: ESC_RATE_LIMIT_HIT
+      - code: 404
+        action: log_and_continue
+        escalation: none
+      - code: 5xx
+        action: fail_fast
+        escalation: ESC_SCHEMA_VIOLATION
+
+  # ── §4 Step 3+4+5+7+8+10+11: LinkedIn read-only ───────────────────────
+  - name: linkedin_readonly
+    kind: mcp_connector
+    description: |
+      Read-only LinkedIn API (provider TBD at W3 build start — Proxycurl
+      candidate per agent.md §9 Q3). Used across §4 steps 3 (online footprint),
+      4 (job posts harvest), 5 (director scan), 7 (ICP fit), 8 (recent activity),
+      10 (decision-maker map), 11 (operator notification — N/A here).
+      ToS critical: PROFILE DATA MUST NOT BE STORED beyond report generation.
+      Cleanup.sh enforces post-render purge of any cached profile data.
+    required_env:
+      - LINKEDIN_API_KEY  # provider-specific; Proxycurl or alternative
+    capabilities:
+      - linkedin.company_page         # firm slug → company page metadata
+      - linkedin.company_posts        # firm slug → last N posts
+      - linkedin.job_posts            # firm slug → current job listings (up to 50)
+      - linkedin.employee_search      # firm slug + title filter → employees
+      - linkedin.profile_fetch        # profile URL → profile data (transient)
+    rate_limit:
+      per_window: 100  # Proxycurl default per second
+      window_seconds: 60
+    cache:
+      ttl_seconds: 0   # NO PERSISTENCE per ToS — gotcha §6.1
+      key_template: 'linkedin:{capability}:{slug}'  # in-memory only, no disk
+    failure_modes:
+      - code: 429
+        action: backoff_60s_retry_once
+        escalation: ESC_RATE_LIMIT_HIT
+      - code: 403
+        action: fail_fast
+        escalation: ESC_SCHEMA_VIOLATION
+      - code: 5xx
+        action: fail_fast
+        escalation: ESC_SCHEMA_VIOLATION
+
+  # ── §4 Step 3+6+8: web scraper utility ───────────────────────────────
+  - name: web_scraper
+    kind: builtin_utility
+    description: |
+      Lightweight HTTP HEAD + first-200-lines fetch utility. Used in §4 Step 3
+      (careers page state, last-updated signal) + §6 (pain signal regex on
+      careers page) + §8 (Google search for recent activity). Not a full
+      browser — does NOT execute JS. Failures on JS-heavy sites are
+      gracefully degraded to "no signal found" in the report.
+    required_env: []
+    capabilities:
+      - http.head              # status + last-modified header
+      - http.fetch_first_n_lines # first N lines of HTML body
+      - google.web_search       # via SerpAPI or similar (provider TBD)
+    rate_limit:
+      per_window: 30
+      window_seconds: 60
+    cache:
+      ttl_seconds: 3600  # 1 hour for careers pages
+      key_template: 'webscrape:{url_hash}'
+    failure_modes:
+      - code: timeout
+        action: log_and_continue
+        escalation: none
+      - code: 4xx
+        action: log_and_continue
+        escalation: none
+      - code: blocked_by_robots_txt
+        action: skip
+        escalation: none
+
+  # ── §4 Step 9 + §7 voice classifier ───────────────────────────────────
+  - name: voice_classifier
+    kind: internal_service
+    description: |
+      Per-tenant voice classifier for the §12 conversation opener.
+      Scores §12 output against tenant's voice corpus + tone rules. Gate A
+      hard-fails on score < 0.75 (after 3 retries). Backs onto _shared/
+      voice-loader.sh for tenant corpus + tone rules + recent_edits.
+    required_env:
+      - IFOS_VOICE_CLASSIFIER_URL  # local microservice; OR fallback to LLM
+    capabilities:
+      - voice.classify  # text + tenant_slug → score in [0,1]
+      - voice.tone_rule_check  # text + tone_rule_set → list of violations
+    rate_limit:
+      per_window: 1000
+      window_seconds: 60
+    cache:
+      ttl_seconds: 0  # always fresh — score depends on current corpus state
+    failure_modes:
+      - code: timeout
+        action: fail_fast
+        escalation: ESC_VOICE_DRIFT
+      - code: 5xx
+        action: fail_fast
+        escalation: ESC_VOICE_DRIFT
+
+  # ── §4 Step 11 notification (optional) ────────────────────────────────
+  - name: telegram_notify
+    kind: cortextos_primitive
+    description: |
+      Per master brief primitive 5 — Telegram notification on report
+      completion if --notify-via telegram flag set at CLI invocation.
+      Sends summary first 200 chars + vault path. No PII in summary.
+    required_env:
+      - TELEGRAM_BOT_TOKEN  # per-tenant; from _secrets.env
+      - TELEGRAM_OPERATOR_CHAT_ID
+    capabilities:
+      - telegram.send_message
+    rate_limit:
+      per_window: 30
+      window_seconds: 60
+    cache:
+      ttl_seconds: 0
+    failure_modes:
+      - code: 401
+        action: fail_fast
+        escalation: ESC_SCHEMA_VIOLATION
+      - code: 429
+        action: backoff_60s_retry_once
+        escalation: ESC_RATE_LIMIT_HIT
+
+# ── No-touch declarations ─────────────────────────────────────────────
+# Tools NOT in this manifest that Diagnostic must NEVER call:
+no_touch:
+  - bullhorn       # Diagnostic is sales-tool tier; no ATS touch per sequencing-target.md §2.1
+  - xero           # Cash Conductor's territory (W7-8)
+  - quickbooks     # Cash Conductor's territory
+  - sage           # Cash Conductor's territory
+  - open_banking   # Cash Conductor's territory
+  - email_send     # No external sends — vault write only per agent.md §1
+  - linkedin_send  # No external sends per agent.md §1
+
+# ── Build prerequisites (per agent.md §8) ─────────────────────────────
+# These must exist before W3 build slice can wire up the tools above:
+build_prerequisites:
+  - companies_house_mcp_connector  # ~1 day at W3 start
+  - linkedin_readonly_mcp_connector  # ~2 days at W3 start (Proxycurl wrapper)
+  - web_scraper_utility  # ~0.5 day at W3 start
+  - voice_classifier_microservice  # ~2 days at W3 start (OR LLM fallback)
+
+# End of tools.yaml
