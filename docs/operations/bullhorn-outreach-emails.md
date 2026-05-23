@@ -43,6 +43,8 @@ Per `bullhorn-integration-path.md` §1.3:
 > **4. Per-tenant onboarding friction:**
 > If marketplace tier grants Intel Force OS application-level credentials (one client_id per IFOS app), per-tenant onboarding could be reduced to a single OAuth dance per pilot tenant. Confirming this is the marketplace model (vs each tenant raising their own support ticket as documented for direct-tier).
 >
+> I also have technical questions about OAuth refresh-token behaviour, sandbox availability, and rate-limit caps that I'd like to route to developer support — happy for you to forward those internally, or to introduce me to the right person.
+>
 > Happy to jump on a call if useful.
 >
 > Best,
@@ -63,8 +65,16 @@ Per `bullhorn-integration-path.md` §1.3:
 
 ## §3 — Email 2: Bullhorn Developer Support (Sub-decision B)
 
-**To:** Use the Bullhorn Developer Portal contact form at `https://developer.bullhorn.com/` (redirects to https://bullhorn.github.io/docs). If no contact form, ask partnerships rep (Email 1) to introduce you to developer support.
-**Subject:** OAuth flow specifics + sandbox availability — Intel Force OS pre-build verification
+**Don't send this independently.** Bullhorn's developer portal at `developer.bullhorn.com` is docs-only — no contact form. The "Bullhorn Resource Center" mentioned in their docs is customer-only (we're not a customer yet). The pragmatic path:
+
+1. Send **Email 1** (partnerships) first.
+2. **In Email 1, mention you have technical questions** that may need developer-support routing — this primes them.
+3. When partnerships responds, ask them to introduce you to developer support OR offer to forward the technical questions internally.
+4. Have the questions below ready to paste into a reply when they're routed to developer support.
+
+If partnerships doesn't engage within 2 weeks, fallback: submit via the main corporate contact form at `https://www.bullhorn.com/contact-us/` with "Developer integration enquiry" in the message body, OR LinkedIn outreach to a Bullhorn developer advocate.
+
+**Subject (when sent):** OAuth flow specifics + sandbox availability — Intel Force OS pre-build verification
 
 > Hi Bullhorn Developer Support,
 >
