@@ -65,12 +65,17 @@ _hh_sql_escape() {
   printf '%s' "${input//\'/\'\'}"
 }
 
-# Current ISO-8601 UTC timestamp with millisecond precision.
+# Current ISO-8601 UTC timestamp with millisecond precision where available.
+# GNU date supports %3N (3-digit nanoseconds → milliseconds). BSD date
+# (macOS default) does NOT error on the spec but outputs the literal
+# string "3N" instead, which Postgres rejects as invalid timestamptz.
+# Detect by checking that %3N produced exactly 3 digits.
 _hh_now_iso() {
-  if date -u +"%Y-%m-%dT%H:%M:%S.%3NZ" >/dev/null 2>&1; then
+  local ms
+  ms=$(date -u +"%3N" 2>/dev/null)
+  if [[ "${ms}" =~ ^[0-9]{3}$ ]]; then
     date -u +"%Y-%m-%dT%H:%M:%S.%3NZ"
   else
-    # macOS BSD date lacks %3N; fall back to whole seconds.
     date -u +"%Y-%m-%dT%H:%M:%SZ"
   fi
 }
