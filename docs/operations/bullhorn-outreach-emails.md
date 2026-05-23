@@ -43,10 +43,7 @@ Per `bullhorn-integration-path.md` §1.3:
 > **4. Per-tenant onboarding friction:**
 > If marketplace tier grants Intel Force OS application-level credentials (one client_id per IFOS app), per-tenant onboarding could be reduced to a single OAuth dance per pilot tenant. Confirming this is the marketplace model (vs each tenant raising their own support ticket as documented for direct-tier).
 >
-> **5. UK data residency:**
-> All our pilot tenants are UK recruitment agencies. Their Bullhorn data must remain within UK or EEA. Can you confirm Bullhorn's UK data centre routing applies to API calls and webhook payloads, not just storage?
->
-> Happy to share more about Intel Force OS, our pilot pipeline, and our compliance posture (GDPR Art. 28 DPA, professional indemnity insurance, PII retention floor of 90 days) on a call if useful.
+> Happy to jump on a call if useful.
 >
 > Best,
 > Maddox Rigby
