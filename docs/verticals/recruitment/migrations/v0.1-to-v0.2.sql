@@ -210,8 +210,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS validate_voice_scores ON entities;
-CREATE TRIGGER validate_voice_scores
+-- Postgres 14+ CREATE OR REPLACE TRIGGER is idempotent without requiring
+-- table ownership. DROP TRIGGER would require ownership (entities is owned
+-- by postgres; ifos_app has only TRIGGER privilege from Day-11 GRANT).
+CREATE OR REPLACE TRIGGER validate_voice_scores
   BEFORE INSERT OR UPDATE ON entities
   FOR EACH ROW
   WHEN (NEW.entity_type IN ('candidate', 'contractor', 'contact', 'brief', 'opportunity', 'placement'))
