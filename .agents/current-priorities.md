@@ -108,6 +108,57 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 
 ## Shipped
 
+### Day 12 (2026-05-23) — Live foundation verified: migration green + tenancy audit 24/24 PASS
+
+**This is the load-bearing close.** First end-to-end execution of run-live-migration.sh + run-tenancy-audit.sh against live Postgres surfaced + fixed 6 Day-4 documentation/code drifts that survived 3 rounds of Codex ratification + Day-9 cohesion review (all of which audited code/docs but never executed against live).
+
+**Final state on Hetzner VPS `ifos-v2-prod-01`:**
+- ✅ v0.2 schema applied (4 tables + HNSW index + trigger + seed row)
+- ✅ Live migration script all 5 acceptance steps green (24 PASS / 0 FAIL)
+- ✅ Tenancy audit all 12 invariants verified empirically (24 PASS / 0 FAIL)
+- ✅ Risks #11/#12/#13 mitigated end-to-end via live verification
+- ✅ Foundation declared correct for Diagnostic W3-4 build
+
+**6 Day-4 drifts surfaced + closed:**
+
+1. **`ifos_app` password drift** — 1Password value didn't match server-side. Rotated via Day-4 §5.4 Path D pattern (VPS-generated, never entered chat). New password in 1Password "IFOS Postgres ifos_app — production".
+2. **DB name hardcoded `ifos` in 3 scripts + README; actual is `ifos_v2`** — Day-4 §6.2 line 670 always created `ifos_v2`. Fixed in commit `49ebc98`.
+3. **`ifos_app` missing TRIGGER privilege on `entities`** — Day-4 §6.3 granted SELECT/INSERT/UPDATE/DELETE but not TRIGGER. Founder ran one-time GRANT on VPS.
+4. **GUC name divergence (`ifos.tenant_slug` → `app.current_tenant`)** — load-bearing. Live RLS used app.current_tenant; Days 8-11 code + ratified docs invented ifos.tenant_slug. Mechanical rename across 15 files (commit `38ded1e`). Risk #13 added + mitigated.
+5. **`migration-test` tenant row absent** — decision_log FK requires it. Founder inserted manually; script now pre-checks at start.
+6. **v0.2 tables owned by `ifos_app` (not `postgres`)** — running migration via SSH-tunnel-as-ifos_app made it the table owner, conferring implicit UPDATE+DELETE (broke T5 append-only) AND RLS owner bypass (broke T11). Fixed via `ALTER TABLE OWNER TO postgres` + `ALTER TABLE FORCE ROW LEVEL SECURITY` + re-grant after ownership transfer.
+
+**Code fixes committed today (10):**
+- `49ebc98` — DB name `ifos` → `ifos_v2`
+- `38ded1e` — GUC rename `ifos.tenant_slug` → `app.current_tenant` across 15 files
+- `7d55e51` — Migration idempotency (DROP POLICY IF EXISTS), SET output parsing (PGOPTIONS), tenant pre-check
+- `55c6a65` — CREATE OR REPLACE TRIGGER (no ownership required)
+- `d2cf4f9` — Surface psql errors from hook-helpers (diagnostic; kept as operational improvement)
+- `bd5dee3` — SQL-vs-JSON escape function (fixed double-escape bug) + ALTER TABLE FORCE ROW LEVEL SECURITY
+- `b873c79` — Robust BSD-vs-GNU date detection for ISO timestamps
+- `4a5adb0` — Tenancy audit T11 PGOPTIONS fix (same SET parsing bug class)
+- `93284b6` — Migration runbook documents ownership transfer requirement
+
+**Test counts post-fixes:**
+- 30/30 vitest unit tests
+- 20/20 hook-helpers bash tests
+- 9/9 voice-loader bash tests
+- **5/5 run-live-migration acceptance steps (live VPS)**
+- **12/12 tenancy invariants (live VPS adversarial audit)**
+
+**Remaining founder VPS operations (Day-11 work that I performed via founder):**
+- 8x ALTER TABLE/SEQUENCE OWNER TO postgres
+- INSERT tenants row for migration-test
+- mkdir /vault/migration-test mode 700
+- 8x re-GRANT after ownership transfer
+
+**Promised follow-up:** consolidated remediation script for next tenant onboarding so the 8-step dance becomes 1.
+
+**State changes:**
+- Risk #13 mitigated post-live-verification
+- New Day-4 lessons-learned: scripts authored at Days 8+ must include "first execution test" milestone, not just unit-test layer
+- T1-T12 verified column added to tenancy-invariants.md §3 (pending edit)
+
 ### Day 11 evening (2026-05-22) — Live migration first-attempt: 4 Day-4 drifts surfaced + fixed
 
 First end-to-end execution of `bash scripts/run-live-migration.sh` against live VPS exposed 4 Day-4 documentation/code drifts that had survived 3 rounds of Codex ratification + the Day-9 cohesion review. **Pattern: scripts authored Days 8-11 were never run against live until today, so divergence from Day-4-executed reality went undetected.**
