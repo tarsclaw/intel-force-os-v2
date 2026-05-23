@@ -115,11 +115,14 @@ VALUES (
 COMMIT;
 EOF
 )
-    if printf '%s\n' "${sql}" | psql -v ON_ERROR_STOP=1 -q "${IFOS_DB_URL}" >/dev/null 2>&1; then
+    local psql_err
+    psql_err=$(printf '%s\n' "${sql}" | psql -v ON_ERROR_STOP=1 -q "${IFOS_DB_URL}" 2>&1)
+    if [[ $? -eq 0 ]]; then
       return 0
     fi
     # psql failed — fall through to fallback append + emit warning to stderr
     printf 'hh_emit_row: psql write failed; appending to fallback\n' >&2
+    printf 'hh_emit_row: psql error: %s\n' "${psql_err}" >&2
   fi
 
   local fallback
