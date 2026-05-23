@@ -44,6 +44,7 @@ _hh_resolve_fallback_path() {
 }
 
 # JSON escape a single string for inclusion in a JSON value.
+# Use this when BUILDING a JSON document from plain text.
 _hh_json_escape() {
   local input="$1"
   input="${input//\\/\\\\}"
@@ -52,6 +53,16 @@ _hh_json_escape() {
   input="${input//$'\r'/\\r}"
   input="${input//$'\t'/\\t}"
   printf '%s' "${input}"
+}
+
+# SQL escape a string for inclusion in a single-quoted SQL string literal.
+# Use this when EMBEDDING values in psql SQL. Doubles single quotes;
+# leaves everything else (incl. backslashes, JSON internal " characters)
+# alone — Postgres standard_conforming_strings=on (default since 9.1)
+# treats backslash as literal.
+_hh_sql_escape() {
+  local input="$1"
+  printf '%s' "${input//\'/\'\'}"
 }
 
 # Current ISO-8601 UTC timestamp with millisecond precision.
@@ -101,15 +112,15 @@ _hh_emit_row() {
     local sql
     sql=$(cat <<EOF
 BEGIN;
-SET LOCAL app.current_tenant = '$(_hh_json_escape "${tenant}")';
+SET LOCAL app.current_tenant = '$(_hh_sql_escape "${tenant}")';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, reason, payload, created_at)
 VALUES (
-  '$(_hh_json_escape "${tenant}")',
-  '$(_hh_json_escape "${agent}")',
-  '$(_hh_json_escape "${phase}")',
-  $([ -z "${outcome}" ] && echo "NULL" || printf "'%s'" "$(_hh_json_escape "${outcome}")"),
-  $([ -z "${reason}" ] && echo "NULL" || printf "'%s'" "$(_hh_json_escape "${reason}")"),
-  '$(_hh_json_escape "${payload_json}")'::jsonb,
+  '$(_hh_sql_escape "${tenant}")',
+  '$(_hh_sql_escape "${agent}")',
+  '$(_hh_sql_escape "${phase}")',
+  $([ -z "${outcome}" ] && echo "NULL" || printf "'%s'" "$(_hh_sql_escape "${outcome}")"),
+  $([ -z "${reason}" ] && echo "NULL" || printf "'%s'" "$(_hh_sql_escape "${reason}")"),
+  '$(_hh_sql_escape "${payload_json}")'::jsonb,
   '${created_at}'::timestamptz
 );
 COMMIT;

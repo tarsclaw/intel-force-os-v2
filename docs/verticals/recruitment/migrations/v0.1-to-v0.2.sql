@@ -67,6 +67,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS voice_corpus_one_active_per_tenant
 CREATE INDEX IF NOT EXISTS voice_corpus_tenant_slug_idx ON voice_corpus (tenant_slug);
 
 ALTER TABLE voice_corpus ENABLE ROW LEVEL SECURITY;
+ALTER TABLE voice_corpus FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS voice_corpus_tenant_isolation ON voice_corpus;
 CREATE POLICY voice_corpus_tenant_isolation ON voice_corpus
   USING (tenant_slug = current_setting('app.current_tenant', TRUE));
@@ -100,6 +101,7 @@ CREATE INDEX IF NOT EXISTS voice_samples_embedded
   WITH (m = 16, ef_construction = 64);
 
 ALTER TABLE voice_corpus_chunks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE voice_corpus_chunks FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS voice_corpus_chunks_tenant_isolation ON voice_corpus_chunks;
 CREATE POLICY voice_corpus_chunks_tenant_isolation ON voice_corpus_chunks
   USING (tenant_slug = current_setting('app.current_tenant', TRUE));
@@ -127,6 +129,7 @@ CREATE TABLE IF NOT EXISTS tone_rule (
 CREATE INDEX IF NOT EXISTS tone_rule_tenant_enabled_idx ON tone_rule (tenant_slug, enabled);
 
 ALTER TABLE tone_rule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tone_rule FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tone_rule_tenant_isolation ON tone_rule;
 CREATE POLICY tone_rule_tenant_isolation ON tone_rule
   USING (tenant_slug = current_setting('app.current_tenant', TRUE));
@@ -159,6 +162,7 @@ CREATE INDEX IF NOT EXISTS recent_edit_tenant_action_idx ON recent_edit (tenant_
 CREATE INDEX IF NOT EXISTS recent_edit_lookback_idx ON recent_edit (tenant_slug, resolved_at DESC);
 
 ALTER TABLE recent_edit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recent_edit FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS recent_edit_tenant_isolation ON recent_edit;
 CREATE POLICY recent_edit_tenant_isolation ON recent_edit
   USING (tenant_slug = current_setting('app.current_tenant', TRUE));
