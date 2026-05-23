@@ -20,10 +20,24 @@ Per `bullhorn-integration-path.md` §1.3:
 
 ---
 
-## §2 — Email 1: Bullhorn Partnerships (Sub-decision A)
+## §2 — Submission 1: Bullhorn Partnerships (Sub-decision A)
 
-**To:** `partnerships@bullhorn.com`
-**Subject:** Partnership programme enquiry — Intel Force OS (UK recruitment AI SaaS)
+**There is NO `partnerships@bullhorn.com` inbox.** Tested 2026-05-23 — bounced. The verified correct path:
+
+**Form URL:** `https://www.bullhorn.com/become-a-partner/`
+
+This is a Marketo form (`mktoForm_8918`) hosted on Bullhorn's site. Scroll down the page; you'll see a multi-field form with name / company / email / phone / message. Fill that out. It routes internally to Bullhorn's partnerships team.
+
+**What to put in the structured fields:**
+- Name: Maddox Rigby
+- Company: Intel Force Ltd
+- Title/Role: Founder
+- Email: [your email]
+- Phone: [your phone]
+- Country: United Kingdom
+- Partner type / Category: closest match to "Technology partner" / "ISV" / "Integration partner"
+
+**What to paste into the message / inquiry-details field** (free text — they want context):
 
 > Hi Bullhorn Partnerships team,
 >
