@@ -481,15 +481,12 @@ fi
 
 _step "T11 — Cross-tenant RLS structural block"
 
-# Set wrong tenant; try to read each tenant-data table
+# Set wrong tenant via PGOPTIONS (avoids "SET\n<count>" output noise);
+# try to read each tenant-data table — RLS must return zero rows
 WRONG_TENANT="not-the-real-tenant"
 T11_FAILED=0
 for table in "${TENANT_TABLES[@]}"; do
-  count=$(_psql_local <<EOF
-SET app.current_tenant='${WRONG_TENANT}';
-SELECT count(*) FROM ${table};
-EOF
-)
+  count=$(PGOPTIONS="-c app.current_tenant=${WRONG_TENANT}" psql -h localhost -p "${LOCAL_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -A -c "SELECT count(*) FROM ${table};")
   count="${count// /}"
   if [[ "${count}" == "0" ]]; then
     :
