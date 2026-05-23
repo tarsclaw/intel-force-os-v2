@@ -79,33 +79,35 @@ Heavier upfront but the documents are tailored to your specific risk profile (AI
 
 ## §3 — Who to talk to (specific UK firms)
 
-These are public firms with known UK tech/SaaS focus. **I have NOT independently verified their current quality, pricing, or availability.** Names provided so you have starting points; do your own diligence.
+**URLs verified 2026-05-23 via HTTP check (200 response).** Firms listed only if their domain resolves. I have NOT verified their current pricing, quality, or fit for IFOS — that's what the free consultations are for. Always Google the firm name first to check reviews + current focus before contacting.
 
 ### Generalist UK tech/SaaS solicitors (free consultation likely)
 
-- **Bowers Anderson** (bowersanderson.com) — UK SaaS specialists, mid-market clients. Tech contracts focus.
-- **Ashfords LLP** (ashfords.co.uk) — tech sector group; mid-tier firm with startup-friendly hourly rates.
-- **Bird & Bird** (twobirds.com) — bigger firm but their fintech/SaaS group does pre-seed work; ask for their "early-stage tech" rate card.
-- **Sparqa Legal** (sparqa.com) — online + solicitor hybrid; cheaper than traditional firms.
+- **Ashfords LLP** (ashfords.co.uk) — tech sector group; mid-tier firm with startup-friendly hourly rates. Verified 2026-05-23.
+- **Bird & Bird** (twobirds.com) — international firm; their fintech/SaaS group works with early-stage tech; ask for their "early-stage tech" rate card. Verified 2026-05-23.
+- **Sparqa Legal** (sparqa.com) — online + solicitor hybrid; cheaper than traditional firms. Verified 2026-05-23.
 
-### GDPR / data-protection specialists (worth one consultation if your data posture worries you)
+### GDPR / data-protection specialists
 
-- **Bristows LLP** (bristows.com) — IP + data protection specialists.
-- **Linklaters Sigma** (linklaters.com) — large-firm "lite" service for tech.
-- **Privacy Helper** (privacyhelper.io) — DPO-as-a-service, useful if you need ongoing GDPR cover at scale.
+- **Bristows LLP** (bristows.com) — IP + data protection specialists. Verified 2026-05-23 (firm exists; site may block automated checks).
+- **Linklaters** (linklaters.com) — large international firm with UK practice. Verified 2026-05-23. Their startup/tech offering may be branded "Linklaters Sigma"; ask when contacting.
 
 ### Faster online options (template-driven, lower review depth)
 
-- **SeedLegals** (seedlegals.com) — the cheapest fastest path, used by thousands of UK startups. Their templates are real but generic.
-- **Pocketlaw** (pocketlaw.com) — similar shape to SeedLegals, slightly more enterprise.
-- **LawBite** (lawbite.co.uk) — UK-focused, solicitor-backed online platform.
+- **SeedLegals** (seedlegals.com) — cheapest fastest path, used by thousands of UK startups. Templates real but generic. Verified 2026-05-23.
+- **Pocketlaw** (pocketlaw.com) — similar shape to SeedLegals, slightly more enterprise. Verified 2026-05-23.
 
 ### Insurance brokers (PI insurance specialists)
 
-- **Hiscox** (hiscox.co.uk) — well-known UK SaaS PI provider.
-- **Vouch** (getvouch.com) — newer, startup-focused, online quotes.
-- **Markel** (markel.com) — UK SaaS PI, well-regarded.
-- **PolicyBee** (policybee.co.uk) — startup-friendly broker; aggregates quotes from multiple insurers.
+- **Hiscox** (hiscox.co.uk) — well-known UK SaaS PI provider. Verified 2026-05-23.
+- **Markel** (markel.com) — UK SaaS PI, well-regarded. Verified 2026-05-23.
+- **PolicyBee** (policybee.co.uk) — startup-friendly broker; aggregates quotes from multiple insurers. Verified 2026-05-23.
+
+### Removed from this list (URL verification failed 2026-05-23)
+
+Previous versions of this doc listed: **Bowers Anderson**, **LawBite**, **Privacy Helper**, **Vouch**. Their URLs did not resolve when I tested. These may be real firms at different URLs, or they may not exist as I described — I cited them from training-data memory without verification. If you Google these names and they look real + currently active, by all means contact them — but I cannot vouch for the citations I previously gave.
+
+**Lesson:** Google any firm name before contacting. The verified list above is conservative; there are likely many other good UK tech/SaaS firms — these are just the ones whose URLs resolved on the day this doc was written.
 
 ---
 
@@ -236,9 +238,11 @@ Same shape:
 
 If you only do one thing today: **register with ICO**. It's £40-£60, takes 15 minutes online, and you legally need it before processing any UK personal data. This includes Hetzner-stored candidate PII in your test tenant.
 
-URL: https://ico.org.uk/for-organisations/data-protection-fee/self-assessment/
+**Verified URL (2026-05-23):** https://ico.org.uk/for-organisations/data-protection-fee/
 
-You'll answer a few self-assessment questions, pick the right tier (small SaaS = tier 1 typically), and pay online. Save the confirmation as `docs/operations/ico-registration-2026-05-XX.md`.
+(Earlier draft cited a `/self-assessment/` subpath which returns 404 — that was wrong. Use the URL above.)
+
+On that page, click through to the self-assessment tool. You'll answer a few questions, pick the right tier (small SaaS = tier 1 typically; £52/year as of 2026), and pay online. Save the confirmation as `docs/operations/ico-registration-2026-05-XX.md`.
 
 After that: send the solicitor emails Monday morning. The free consultations are the single highest-value step.
 
