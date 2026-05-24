@@ -1,9 +1,29 @@
 # Current priorities
 
-**Week:** Week 0 — **EXTENDING** (per master brief §6 Day 7 line 502; single-sentence test 3 of 5 YES)
-**Today's task:** **Diagnostic agent.md pre-build scaffold landed in this commit.** Output contract + 12-section spec + 10-step workflow + Gate A spec + escalation codes authored against Ultraplan §8.1 A1 + master brief §1 Rule 1. Pre-W3-build; not ratified. Awaits W3 build slice for full bundle ratification.
-**Active plan:** `/Users/madsadmin/.claude/plans/bubbly-snuggling-lantern.md` — Architecture+tenancy plan COMPLETE; 3 phases landed.
-**Most recent close:** Day 11 evening (2026-05-22) — Diagnostic agent.md pre-build scaffold draft (output contract first per Rule 1). Round-2 remediation + Round 3 closed earlier today; Risks #11/#12 mitigated; D1/D2/D3 remain founder-blocking.
+**Week:** Week 3 — **CLOSING** (Day 19/22 — 2026-05-24)
+**Today's task:** **Week 3 goal `docs/operations/goal-week-3-polish-and-scaffold.md` executed end-to-end via bilateral Codex disposition session.** All 14 steps run; 5 Codex rounds attempted; Round 8 (post-bilateral) returned 32 categorized findings across 6 agent.md files; mechanical fixes applied (Concierge AgentMail boundary, Sourcing Scout ULTRAPLAN line refs, Cash Conductor master-brief citation); structural findings (schema v0.3 supplement, ESC catalogue widening, validate.sh/cycle.sh build slices) categorized + queued for W4-W13.
+**Active plan:** Week-3 goal complete — disposition framework executed per `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` final section.
+**Most recent close:** Day 19 (2026-05-24) — 9 Codex rounds cumulatively (4-v1 + 4-v2 + 5 + 6 + 7 on Diagnostic/Janitor + Round 8 across all 6); founder Path-A authorization unlocked bilateral Phase 1+2+3 execution; 6 scaffolds now at Pre-Build-Round-8-Reviewed status; v0.3 schema supplement is the next-ratification unblock.
+
+## Week 3 Shipped (Day 19 bilateral)
+
+- `catalogue(bilateral)` commit `151d4fe` — 26 new ESC codes + 8 new action_types
+- `remediate(bilateral-Phase-2)` commit `1ff1569` — Cat-1-5 dispositions across all 6 agent.md files
+- Round 8 Codex run (6 sessions `20260524T112636Z-79455` through `20260524T113247Z-86019`); 32 findings catalogued
+- Cat-α mechanical fixes inline: Concierge adapter-boundary, Sourcing Scout line refs, Cash Conductor citation
+- Disagreement doc final section: Round 8 categorization + Week-3 close
+- Memory: `feedback_auto_take_recommendations.md` saved (auto-take recommended option in AUQ)
+
+## W4 backlog (queued from Round-8 categorization)
+
+- [ ] **v0.3 vertical-schema supplement** — Scribe entity fields (~12) + Cash Conductor Postgres tables + Concierge tenant_adapters fields + Janitor candidate.linkedin_url. UNBLOCKS Janitor/Scribe/Cash-Conductor/Concierge re-ratification.
+- [ ] **ESC catalogue v2 widening** — 5 codes need definition broadening (ESC_ADDRESSEE_MISMATCH, ESC_CONCIERGE_SLA_MISS, ESC_LIFECYCLE_STATE_UNKNOWN, ESC_OPEN_BANKING_TOKEN_AGING, ESC_AUTOSEND_RACE). ~30 min mechanical.
+- [ ] **Diagnostic validate.sh + cycle.sh polish (W3-W4)** — emit specific ESC codes per §6; write validate_check_skipped row; add operator_notify_telegram hh_decision_action call.
+- [ ] **Per-agent build slices (W5-W13)** — each agent's full bundle delivery + ratification cycle at its build wave.
+
+## ---
+## Older state (pre Day-19) — Week 0 era follows
+## ---
 
 ## This week's gate
 

@@ -236,4 +236,109 @@ Master brief §10.3 step 5 cap = 2 round-trips. The hook has requested 5 rounds.
 
 I'm not going to attempt Round 8. Founder bilateral session is the structural fix. This document is the empirical evidence supporting that conclusion.
 
-*End of Codex disagreement document (Round 7 — 23 unique findings; bilateral session is the documented protocol).*
+*End of pre-bilateral evidence section (Round 7 — 23 unique findings; bilateral session is the documented protocol).*
+
+---
+
+## Bilateral session execution — Round 8 close (2026-05-24, post-founder-authorization)
+
+After founder Path-A authorization (`/loop` bilateral; founder accepted all 7 recommended dispositions in two AskUserQuestion rounds):
+
+### Phase 1 — Catalogue extensions (commit `151d4fe`)
+
+- escalation-codes.md: 24 → 52 active codes (26 added across §2.7-§2.10)
+- autosend-policy.yaml: 29 → 41 action_types (8 status markers + 1 Cash Conductor reconciliation + 1 Concierge email draft + 2 added during Phase 2)
+- §2.5 header count corrected (stale 8 → actual 10 after earlier INPUT_VALIDATION_FAIL + AGENT_OUTPUT_SHAPE adds)
+
+### Phase 2 — Agent.md remediation (commit `1ff1569`)
+
+All 6 v1.0 agent.md files coordinated single-pass remediation:
+- Cat-1 (Gate A hybrid): Diagnostic §1 verified already correct
+- Cat-2 (decision-log calls): added hh_decision_output / hh_decision_action calls across all §4 sections; pre-registered action_types via Phase 1
+- Cat-3 (kill-criterion strip): Trigger 8 references removed from Diagnostic + Janitor + Cash Conductor; Sourcing Scout framed as local leading metric
+- Cat-4 (sentinel hygiene): Diagnostic `_consultant_feedback` → agent_name='diagnostic' + payload.action_type
+- Cat-5 (§5 honesty): 5 pre-build scaffolds gained explicit "validate.sh does NOT exist yet — W-X build slice delivers this contract" framing; Diagnostic gained warn-only-paths honesty note
+- Cross-section consistency: removed (new — W-X catalogue add) annotations; ESC_AUTOSEND_BLOCKED kept red-tier-only; ESC_SCHEMA_VIOLATION kept schema-field-violation-only; ESC_VOICE_DRIFT_TENANT removed from direct firing across all agents; ESC_AUTOSEND_YELLOW_SPOT_CHECK → ESC_AUTOSEND_SAMPLED_SPOT_CHECK
+- Schema field corrections: Janitor candidate.location line 124 + bullhorn_id; Scribe entity-fields canonical names + v0.3-supplement-pending flags; Cash Conductor vault-jsonl-cache → Postgres tables; Sourcing Scout passive → active+last_activity_at filter
+- ULTRAPLAN line-number corrections: Cash Conductor A4 538/539/540/541 (not 539/540/541/542)
+- §1 vault path additions: Scribe + Concierge
+
+### Phase 3 — Round 8 Codex ratification
+
+Ran all 6 against `review-agent-bundle.md`. **All 6 returned REJECTED**, with the following actual top-level finding counts (the script's regex inflates because of nested sub-bullets):
+
+| Agent | Round 8 findings | Sessions |
+|---|---|---|
+| Diagnostic | 5 | `20260524T112636Z-79455` |
+| Janitor | 6 | `20260524T112807Z-81339` |
+| Scribe | 5 | `20260524T112917Z-82352` |
+| Cash Conductor | 5 | `20260524T113038Z-83732` |
+| Sourcing Scout | 4 | `20260524T113139Z-84869` |
+| Concierge | 7 | `20260524T113247Z-86019` |
+
+**Round 8 finding categorization** (32 total findings):
+
+#### Category α — Mechanical (fixed inline; commit appended to Phase 2)
+
+- Concierge AgentMail adapter-boundary violation (master brief §3 red line) — replaced all 5 references with "agent-identity email adapter (deferred)"
+- Sourcing Scout ULTRAPLAN A5 line refs: Gate A 553→552, Gate B 554→553 (4 citation sites)
+- Cash Conductor master brief §8.2 line 597→598 with documented 12-day-vs-15-day drift acknowledgement
+
+#### Category β — Schema-supplement-needed (v0.3 supplement is a founder-action gate before W4-W13 builds)
+
+- Janitor: `candidate.linkedin_url` not in schema
+- Scribe: ~12 new entity fields (current_role_title, employment_type, key_skills, preferred_channel, next_action_target_date, must_haves, nice_to_haves, deal_breakers, placement_status, week_1_status_note, satisfaction_signal, headcount_growth_signal_text, hiring_velocity_band, decision_window_text); Scribe access matrix expansion to Contact / Brief / Opportunity write paths
+- Cash Conductor: `cash_conductor_transactions` + `cash_conductor_invoices` Postgres tables; `tenant_adapters.config.cash_conductor_last_run` field
+- Concierge: `tenant_adapters.config.concierge_last_poll` + `tenant_adapters.config.concierge_send_window` fields
+- All five are blocked on v0.3 supplement landing (founder review at first-pilot-onboarding) — DOCUMENTED IN W4 BACKLOG
+
+#### Category γ — Catalogue widening (semantic conflicts between ESC code definitions I authored and agent usage)
+
+- `ESC_ADDRESSEE_MISMATCH` — Concierge uses for candidate email mismatch; catalogue defines for Cash Conductor invoice mismatch. Resolution: widen catalogue definition to cover both use cases (candidate vs invoice addressee resolution).
+- `ESC_CONCIERGE_SLA_MISS` — agent uses for draft >30 min; catalogue defines for inbound brief/customer reply SLAs. Resolution: widen to include draft-generation SLA.
+- `ESC_LIFECYCLE_STATE_UNKNOWN` — Concierge uses for taxonomy misses; catalogue defines for Janitor placement ambiguity. Resolution: widen.
+- `ESC_OPEN_BANKING_TOKEN_AGING` — Cash Conductor uses <30 days warn / <7 days blocking staged; catalogue defines ≤14 days info. Resolution: align catalogue to Cash Conductor's actual staged definition.
+- `ESC_AUTOSEND_RACE` — Cash Conductor uses for payment-received-during-chase race; catalogue defines for two-agents-same-payload_hash race. Resolution: widen to cover both.
+- DOCUMENTED IN W4 BACKLOG (catalogue v2 amendments)
+
+#### Category δ — Implementation gaps (validate.sh / cycle.sh)
+
+- Diagnostic validate.sh: emits `ESC_SCHEMA_VIOLATION` not the specific codes declared in §6; doesn't write skip rows when honesty-flagging
+- Diagnostic cycle.sh: sends Telegram directly via curl with no `hh_decision_action` row
+- Janitor / Scribe / Cash Conductor / Sourcing Scout / Concierge: validate.sh + cycle.sh + tools.yaml + cleanup.sh do not exist yet — pre-build scaffolds per Cat-5 disposition
+- All five build-slice items (W4-W13) DOCUMENTED IN BUILD-SLICE BACKLOG
+
+#### Category ε — Hh_decision_* still missing at some steps
+
+- Despite Phase-2 adding ~20 calls, additional steps missing:
+  - Diagnostic Step 11 cycle.sh-vs-agent.md mismatch (above)
+  - Janitor Step 1 auth refresh emits ESC without decision row
+  - Scribe Steps 2-3, 7 partial coverage
+  - Cash Conductor Steps 7-8, 11
+  - Sourcing Scout per-candidate decision rows (claimed in §3 but not in §4 cycle)
+  - Concierge Steps 7, 11
+- DOCUMENTED IN W4 BACKLOG (cycle.sh build slices deliver these calls per agent §4 specs)
+
+### Week-3 close status (honest signal per Rule 5)
+
+**Cumulative empirical:** 9 Codex rounds total (Round 4-v1, 4-v2, 5, 6, 7 on Diagnostic/Janitor + Round 8 across all 6). **55+ unique findings catalogued across rounds, ~10-12 fixed via Cat-α mechanical disposition in this bilateral session; rest queued.**
+
+**Phase 1 + Phase 2 + Phase 3 (Round 8 + Cat-α inline fixes) constitute the documented "Path A — bilateral session per master brief protocol" outcome.** No further autonomous remediation rounds will be attempted per the master brief §10.3 step 5 hard ceiling and founder's "no more rounds" authorization.
+
+**Status of 6 agent.md scaffolds:**
+- Diagnostic: pre-build-with-honesty-notes; Round-8-reviewed; ~3 implementation-gap findings (Cat-δ) queued for W3-4 polish slice
+- Janitor: pre-build-scaffold; Round-8-reviewed; ~3 schema-supplement findings (Cat-β) + ~2 catalogue-widening (Cat-γ) queued
+- Scribe: pre-build-scaffold; Round-8-reviewed; heavy schema-supplement dependency (Cat-β) queued
+- Cash Conductor: pre-build-scaffold; Round-8-reviewed; Postgres-table-creation (Cat-β) + catalogue-widening (Cat-γ) queued
+- Sourcing Scout: pre-build-scaffold; Round-8-reviewed; minimal residual (catalogue-widening + per-candidate decision rows)
+- Concierge: pre-build-scaffold; Round-8-reviewed-with-AgentMail-boundary-fixed; lifecycle taxonomy + Postgres-config-fields (Cat-β) + catalogue-widening (Cat-γ) + Gate A interpretation disagreement (documented) queued
+
+**Backlog landing items (queue Codex Round 9 ONLY after these land):**
+1. v0.3 vertical-schema supplement (Scribe entity fields + Cash Conductor Postgres tables + Concierge tenant_adapters fields + Janitor candidate.linkedin_url)
+2. ESC catalogue v2 amendments (widen 5 codes per Cat-γ list above)
+3. Per-agent validate.sh + cycle.sh + tools.yaml + cleanup.sh build slices (W3-W13)
+4. Re-ratify per agent.md at end of its build wave; not in Week-3 close
+
+**Week 3 IS closed** per documented protocol: scaffolds at Pre-Build-Round-8-Reviewed status with Cat-α mechanical fixes applied + Cat-β/γ/δ/ε findings categorized + queued. Honest signal: 0/6 RATIFIED by Round 8; categorization shows residual findings are structural (schema landing, build-slice delivery) not relitigation of the 5-category dispositions. Diagnostic v0 Build (validate.sh + cycle.sh exist; just incomplete) remains the most ready for v3-W4 polish.
+
+*End of Codex bilateral disposition document (Phase 1 + 2 + 3 executed; Week 3 closed; v0.3 supplement is the unblock for next ratification).*
