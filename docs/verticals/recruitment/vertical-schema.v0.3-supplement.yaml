@@ -176,16 +176,17 @@ entity_field_additions:
       week_1_status_vault_path:
         type: string
         max_length: 200
-        pattern: '^/vault/[a-z0-9-]+/scribe-notes/[a-zA-Z0-9-]+\.md$'
+        pattern: '^/vault/[a-z0-9_-]+/scribe-notes/[a-zA-Z0-9_-]+\.md$'
         required: false
         notes: |
           POINTER ONLY (per ADR-002 vault/Postgres split). The 7d check-in
           narrative itself lives in vault at `/vault/<tenant>/scribe-notes/
           <call_id>-<ISO-date>.md` (canonical Scribe tacit-note pattern).
-          This field stores the vault path; narrative does NOT enter
-          Postgres. Voice-classifier review at write time applies to the
-          vault file content; Concierge reads the vault file directly via
-          its path resolution.
+          Pattern accepts call_ids + ISO dates (hyphens + underscores +
+          alphanumerics). This field stores the vault path; narrative does
+          NOT enter Postgres. Voice-classifier review at write time applies
+          to the vault file content; Concierge reads the vault file directly
+          via its path resolution.
         source: IFOS-derived (Scribe extracts from 7d check-in call; writes
           to vault then stores pointer here)
         v1_0_agent_access:
@@ -409,6 +410,40 @@ agent_access_matrix:
     voice_corpus_chunks: R
     tone_rule: R           # v0.2
     recent_edit: R         # v0.2
+
+# ============================================================================
+# §2a — v0.2 entity v1_0_agent_access amendments
+# ============================================================================
+#
+# Per review-schema-change §5: matrix changes must be reflected in entity-level
+# v1_0_agent_access lists. v0.3 amends these v0.2 entities:
+
+v0_2_entity_access_amendments:
+
+  tone_rule:
+    v0_2_v1_0_agent_access: [Scribe (R), Cash Conductor (R), Concierge (R)]
+    v0_3_v1_0_agent_access: [Scribe (R), Cash Conductor (R), Concierge (R), Janitor (R)]
+    rationale: |
+      Janitor agent.md §7 calls hh_load_tone_rules filtered by
+      applies_to_agents containing 'janitor' for tacit-note narrative
+      voice-classification. Per Round-8 Cat-β finding for Janitor.
+
+  recent_edit:
+    v0_2_v1_0_agent_access: [voice-drift-canary (W), Concierge (R), LoRA (R)]
+    v0_3_v1_0_agent_access:
+      - voice-drift-canary (W)  # v0.2 unchanged
+      - Concierge (R)            # v0.2 unchanged
+      - LoRA (R)                 # v0.2 unchanged
+      - Janitor (R)              # v0.3 NEW — tacit-note harvest per §4 Step 8
+      - Scribe (W)               # v0.3 NEW — writes own edits for retraining
+      - Cash Conductor (W)       # v0.3 NEW — writes own chase-draft edits
+      - Sourcing Scout (W)       # v0.3 NEW — writes own rationale edits
+    rationale: |
+      v0.2 only granted W to voice-drift-canary. v0.3 expands W to Scribe,
+      Cash Conductor, Sourcing Scout (each writes its own recent_edit rows
+      for retraining queue). Janitor adds R for tacit-note harvest per
+      §4 Step 8. The v0.2 supplement file remains unchanged; this v0.3
+      supplement is the authoritative source for the expanded access list.
 
 # ============================================================================
 # §3 — Auxiliary Postgres tables (NOT entities) for Cash Conductor

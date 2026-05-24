@@ -14,9 +14,10 @@
 --     candidate, contact, brief, placement, opportunity (14 fields across 5
 --     entity_types)
 --   - JSONB validation trigger for tenant_adapters.config: 4 new keys
---   - decision_log.payload extension is documented in autosend-safety-policy.md
---     §7 supplement; no migration needed (JSONB column accepts any keys at write
---     time; validation is in v0.2 trigger)
+--   - decision_log.payload extension is DEFERRED to a future W4-polish ADR
+--     + schema supplement (per ADR-006 Tier 2 + v0.3 supplement §5). v0.3
+--     does NOT extend the payload shape; the W4 ADR will add both the new
+--     payload key and its enforcement (CHECK constraint or trigger).
 --
 -- All v0.3 additions are STRICTLY ADDITIVE. Rollback path: companion
 -- v0.3-to-v0.2.sql.
@@ -309,7 +310,7 @@ BEGIN
         RAISE EXCEPTION 'week_1_status_vault_path must be string or null';
       END IF;
       IF d->>'week_1_status_vault_path' IS NOT NULL
-         AND d->>'week_1_status_vault_path' !~ '^/vault/[a-z0-9-]+/scribe-notes/[a-zA-Z0-9-]+\.md$' THEN
+         AND d->>'week_1_status_vault_path' !~ '^/vault/[a-z0-9_-]+/scribe-notes/[a-zA-Z0-9_-]+\.md$' THEN
         RAISE EXCEPTION 'week_1_status_vault_path must match vault-path pattern (got %)', d->>'week_1_status_vault_path';
       END IF;
       IF d->>'week_1_status_vault_path' IS NOT NULL
