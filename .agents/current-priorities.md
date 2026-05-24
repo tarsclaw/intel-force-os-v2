@@ -108,6 +108,35 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 
 ## Shipped
 
+### Day 13 (2026-05-24) — Diagnostic end-to-end pipeline live (Option C / ADR-005)
+
+**This is the Week-4 milestone arriving on Day 13 of Week 2.** Per ULTRAPLAN line 753-755: "Diagnostic produces a 12-page audit on a real firm; sales motion has its first artefact." Day-13 v0 delivery satisfies the structural form of this milestone — pending Step 7 real-firm smoke run after founder registers Companies House API key.
+
+**4 new packages shipped (1,800+ lines TypeScript):**
+
+- **`@ifos/web-scraper`** (`packages/utilities/web-scraper/`) — HTTP HEAD + first-N-lines fetch, disk cache, robots.txt respect (via robots-parser), in-process token-bucket rate limit (30/60s). 12/12 vitest unit tests + typecheck clean. Commit `860f29c`.
+- **`@ifos/companies-house`** (`packages/mcp-connectors/companies-house/`) — REST connector with HTTP Basic auth, 7-day disk cache, pre-emptive rate-limit backoff at 80% of CH's 600/5min budget. Capabilities: search + profile + officers + filing-history. 13/13 vitest unit tests + typecheck clean. Commit `5614dcb`.
+- **`@ifos/diagnostic-generator`** (`packages/diagnostic-generator/`) — composes the two connectors into a 12-section Markdown report via CLI. Real content for §1 (Companies House profile+officers+filings), §2 (web scraper + LinkedIn HEAD), §6 (ICP fit composite), §8 (careers-page urgency regex), §10 (CH filings), §12 (evidence-anchored opener). Stubs §3/§4/§5/§7/§9/§11 with Companies House anchors. 3/3 vitest tests + typecheck clean. Commit `fd38254`.
+- **`pnpm-workspace.yaml`** at repo root — registers all 4 packages so workspace:* deps resolve.
+
+**cycle.sh rewired** to call the generator CLI instead of bash heredoc stubs. context.sh hardened: resolves `_shared/` helpers across 4 candidate paths (rendered + source-tree); target_patch becomes permissive default if absent.
+
+**End-to-end smoke test verified** Day-13 with fake API key + fake firm: Gate A PASS (V1-V6, only V3 warning for skipped voice classifier), 523-word 12-section report written to vault, decision_log audit rows emitted. Pipeline confirmed working ahead of Step 7 real-firm run.
+
+**ADR-005 ratifies the sequencing change** (commit `e578354`): Week 3 repurposed from Bullhorn-MCP-build to Diagnostic-end-to-end-build per ULTRAPLAN §10 Risk #2 contingency. Bullhorn-touching agents (Janitor W5+) gated on Bullhorn Sub-decisions A+B response (form submitted 2026-05-24) or 2026-06-10 force-fallback.
+
+**Trigger 2 status:** Diagnostic renders cleanly + Gate A passes — 21 days ahead of 2026-06-14 hard deadline.
+
+**LinkedIn integration:** Option A (free unauthenticated public-page HEAD check) wired today per founder pick. Proxycurl signup deferred to W4 polish.
+
+**Pending Step 7 (founder action):**
+- Register for Companies House developer API key at https://developer.company-information.service.gov.uk/ (verified 2026-05-24)
+- Save key to `/vault/migration-test/_secrets.env` mode 0600 (Path A; never enters chat)
+- Pick a real UK recruitment firm name for the smoke run
+- Run `bash scripts/run-diagnostic-smoke.sh` (TODO: small wrapper script) OR direct `bash agents/recruitment/diagnostic/cycle.sh --firm "<name>"`
+
+**Bullhorn form sent** 2026-05-24 via verified Marketo form at `https://www.bullhorn.com/become-a-partner/` (per `docs/operations/bullhorn-outreach-emails.md`). Response 2-5 business days. Earlier `partnerships@bullhorn.com` draft bounced — corrected by commits `dc15692` + `4f40444`.
+
 ### Day 12 (2026-05-23) — Live foundation verified: migration green + tenancy audit 24/24 PASS
 
 **This is the load-bearing close.** First end-to-end execution of run-live-migration.sh + run-tenancy-audit.sh against live Postgres surfaced + fixed 6 Day-4 documentation/code drifts that survived 3 rounds of Codex ratification + Day-9 cohesion review (all of which audited code/docs but never executed against live).
