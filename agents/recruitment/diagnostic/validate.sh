@@ -230,8 +230,29 @@ else
   printf '\nValidate Gate A: \033[1;31mFAIL\033[0m (%d failures, %d warnings)\n' \
     "${#FAILURES[@]}" "${#WARNINGS[@]}"
 
-  # Emit ESC_SCHEMA_VIOLATION row to decision_log with the failure list
-  ESC_PAYLOAD=$(printf '{"escalation_code":"ESC_SCHEMA_VIOLATION","draft_path":"%s","failures":%s}' \
+  # Emit the specific ESC code per agent.md §6 mapping:
+  #   - PII detected outside firm boundary → ESC_PII_LEAKAGE_RISK (blocking)
+  #   - Output-shape violation (section count, per-section citation,
+  #     length, voice-classifier miss) → ESC_AGENT_OUTPUT_SHAPE (warn)
+  # ESC_SCHEMA_VIOLATION is reserved for vertical-schema field-constraint
+  # violations at write time per catalogue line 163 — not for Diagnostic's
+  # output-shape failures.
+  PII_FAILURE_PRESENT=0
+  for failure in "${FAILURES[@]}"; do
+    if [[ "${failure}" == *"PII"* || "${failure}" == *"pii"* ]]; then
+      PII_FAILURE_PRESENT=1
+      break
+    fi
+  done
+
+  if (( PII_FAILURE_PRESENT == 1 )); then
+    ESC_CODE="ESC_PII_LEAKAGE_RISK"
+  else
+    ESC_CODE="ESC_AGENT_OUTPUT_SHAPE"
+  fi
+
+  ESC_PAYLOAD=$(printf '{"escalation_code":"%s","draft_path":"%s","failures":%s}' \
+    "${ESC_CODE}" \
     "${DRAFT}" \
     "$(printf '%s\n' "${FAILURES[@]}" | python3 -c "import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))" 2>/dev/null || echo '[]')")
 

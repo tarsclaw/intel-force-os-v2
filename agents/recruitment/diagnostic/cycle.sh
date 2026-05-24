@@ -193,6 +193,19 @@ printf '\n\033[1;32mDiagnostic report written:\033[0m %s\n' "${REPORT_PATH}"
 if [[ "${NOTIFY_VIA}" == "telegram" ]]; then
   if [[ -n "${TELEGRAM_BOT_TOKEN:-}" && -n "${TELEGRAM_OPERATOR_CHAT_ID:-}" ]]; then
     SUMMARY=$(head -200 "${REPORT_PATH}" | sed 's/[^[:print:][:space:]]//g' | head -c 200)
+
+    # Emit decision_log row BEFORE the send per agent.md §4 Step 11 spec —
+    # operator_notify_telegram is green-tier per autosend-policy.yaml so the
+    # send executes regardless; this row records the action for audit.
+    NOTIFY_PAYLOAD=$(printf '{"recipient":"operator","chat_id":"%s","report_path":"%s","firm":"%s","summary_len":%d}' \
+      "${TELEGRAM_OPERATOR_CHAT_ID}" \
+      "${REPORT_PATH}" \
+      "${FIRM_NAME}" \
+      "${#SUMMARY}")
+    hh_decision_action "operator_notify_telegram" "operator:${TELEGRAM_OPERATOR_CHAT_ID}" \
+      "$(echo "${NOTIFY_PAYLOAD}" | shasum | awk '{print $1}')" \
+      "${NOTIFY_PAYLOAD}" 2>/dev/null || true
+
     curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
       -d "chat_id=${TELEGRAM_OPERATOR_CHAT_ID}" \
       -d "text=Diagnostic report ready: ${FIRM_NAME} → ${REPORT_PATH}%0A%0A${SUMMARY}..." \
