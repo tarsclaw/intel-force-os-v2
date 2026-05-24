@@ -1,6 +1,6 @@
 # Diagnostic — the sales tool
 
-**Status:** Proposed (Day-19; full bundle built — agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures all present; awaits Codex RATIFIED verdict on this agent.md + first production render against pilot tenant. Status flips Proposed → Accepted on Codex RATIFIED. See §10 for the ratification-readiness checklist.)
+**Status:** Proposed (Day-19; full bundle built — agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures all present. Status flips Proposed → Accepted when ALL of these complete: (a) Codex RATIFIED verdict on this agent.md via review-agent-bundle.md skill, AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds (per ADR-003 §4 + ADR-004 Decision 7 audit row), AND (d) Gate B baseline measurement begins (30% target; 4-week window). See §10 for the same checklist.)
 **Date:** 2026-05-22.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W3-4 per master brief §8.2 line 595 (row 1; anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`. **Drift flag:** Ultraplan §8.1 A1 (line 489) calls Diagnostic build wave 4-5; master brief line 595 calls it W3-4. Master brief is authoritative per CLAUDE.md (master brief wins on every conflict); W3-4 is the build wave for IFOS.
@@ -63,9 +63,9 @@ Every report MUST contain these 12 sections in order. Gate A enforces section co
 
 - Fewer than 12 sections present
 - Any section with zero citation links (per-section citation subcheck; ADR-006-canonical)
-- Section 12 (conversation opener) failing voice-classifier with score < 0.75 *(v0 hard-fail when voice-classifier URL reachable; warn + `validate_check_skipped=true` flag when URL unreachable per §5 honesty note; W4 polish closes to unconditional hard-fail)*
+- Section 12 (conversation opener) failing voice-classifier with score < 0.75 *(v0 hard-fail when voice-classifier URL reachable; warn + exit 0 when URL unreachable per §5 honesty note; W4 polish closes to unconditional hard-fail with explicit `validate_check_skipped` audit row)*
 - Output exceeds 2000 words OR is under 400 words (length-discipline boundary)
-- PII detected outside firm boundary *(v0 hard-fail when firm-domain whitelist available; warn + `validate_check_skipped=true` flag when whitelist absent per §5 honesty note; W4 polish closes to unconditional hard-fail)*
+- PII (email-domain mismatch) detected outside firm boundary *(v0 hard-fail when firm-domain whitelist available; warn + exit 0 when whitelist absent per §5 honesty note; W4 polish closes to unconditional hard-fail. v0 PII regex covers emails only; phone-number PII detection deferred to W4 polish.)*
 
 **Per-step audit-row signatures** (per `decision_log`):
 - Step 10 report assembly → `hh_decision_output("diagnostic_report", "<vault_path>", "12-section report on <firm>")`
@@ -76,88 +76,61 @@ Every report MUST contain these 12 sections in order. Gate A enforces section co
 
 ## §4 — Workflow
 
-Per master brief §8.1 Change 2, every workflow step that produces output OR takes action MUST call `hh_decision_*` from `agents/_shared/hook-helpers.sh`.
+Per master brief §8.1 Change 2, every workflow step that produces output OR takes action MUST call `hh_decision_*` from `agents/_shared/hook-helpers.sh`. The v0 cycle.sh implementation uses a generator-level pattern: a single call to `@ifos/diagnostic-generator` (`packages/diagnostic-generator/`) fetches all 12 sections in one process; cycle.sh emits decision-log rows at draft-write + report-write + render-action boundaries, not per-section. Per-section data acquisition is internal to the generator package and not separately audited at v0; W4 polish may add per-section telemetry.
 
 ```
 0. Session start — invocation arrives via CLI ifosctl diagnostic
    → context.sh hydrates: voice corpus + tone rules + recent edits + target_patch.json
    → hh_decision_trigger("session_start", firm_name + sector_hint)
 
-1. Validate input
-   → validate.sh checks: firm name non-empty, sector (if provided) in known list,
-     tenant_slug present, voice corpus reachable
-   → Gate A: hard-fail if any check fails
-   → ESC_INPUT_VALIDATION_FAIL if firm name malformed (new code added to catalogue this round)
+1. Validate input (cycle.sh Step 1)
+   → cycle.sh checks: firm name length ≥ 2 chars
+   → on fail: hh_decision_action("diagnostic_input_invalid", ...) with
+     payload {escalation_code: ESC_INPUT_VALIDATION_FAIL, ...}
+   → exit 1 on validation failure
 
-2. Companies House lookup (Section 1)
-   → companies_house_lookup(firm_name) via Companies House MCP connector
-   → cache result for 7 days per gotcha §6 (rate-limit discipline)
-   → extract: registration + revenue band + headcount band + directors + share moves
-   → ESC_RATE_LIMIT_HIT if Companies House returns 429 (back off 60s, retry once)
-   → hh_decision_output("section_1_data", "firm:<slug>", "companies_house cached:<bool>")
+2-11. Generator run (cycle.sh Steps 2-11 — single generator call)
+   → bash invokes @ifos/diagnostic-generator with firm + sector + target_patch flags
+   → generator fetches all 12 sections internally:
+     - §1 Companies House lookup (cached 7d per gotcha §6.2)
+     - §2 Online footprint via web-scraper + LinkedIn URL discovery
+     - §3-§5-§7 Job posts harvest + tech stack extraction
+     - §6 ICP fit scoring against tenant target_patch
+     - §7-§11 Director + employee scan
+     - §8 Pain signal extraction
+     - §10 Recent activity scan
+     - §12 Conversation opener (LLM-generated, voice-classified)
+   → generator writes complete draft Markdown to /tmp/diagnostic-<firm-slug>-<ISO-date>.draft.md
+   → on empty stdout: hh_decision_action("diagnostic_generator_empty", ...) with
+     payload {escalation_code: ESC_AGENT_OUTPUT_SHAPE, ...}; exit 1
+   → ESC_RATE_LIMIT_HIT raised internally by web-scraper / companies-house on 429
+   → ESC_VOICE_DRIFT raised internally by §12 LLM step if classifier <0.75 after 3 retries
+   → hh_decision_output("diagnostic_draft", "<draft_path>", "<firm> 12-section draft (pre-validate)")
 
-3. Online footprint discovery (Section 2)
-   → web HEAD + first 200 lines fetch on probable URLs:
-     {firm}.com / {firm}.co.uk / linkedin.com/company/{slug}
-   → LinkedIn company-page fetch (Proxycurl or similar)
-   → record careers page state + last-updated signal
-   → hh_decision_output("section_2_data", "firm:<slug>", "urls_found:<N>")
+12. Validate (Gate A) (cycle.sh Step 12)
+   → bash invokes validate.sh against the draft path
+   → per-section citation hard-fail (ADR-006 Tier 1; no warn-only path)
+   → voice classifier + PII subchecks per §5 honesty note (warn-only on
+     upstream-unavailable in v0; W4 closes to hard-fail)
+   → on fail: validate.sh emits hh_decision_action("validate_gate_a_fail", ...)
+     with payload carrying specific ESC code (ESC_AGENT_OUTPUT_SHAPE or
+     ESC_PII_LEAKAGE_RISK) and exit 1
+   → cycle.sh deletes draft on Gate A fail
 
-4. Job posts harvest (Sections 3 + 4 + 5 + 7)
-   → LinkedIn job posts API (filtered to firm) — up to 50 most recent
-   → careers page scrape if accessible
-   → extract: sector, role type, location, salary band, tech stack
-   → Gotcha §6: store summarised data only; do not retain raw profiles per LinkedIn ToS
-   → hh_decision_output("section_3_4_5_7_data", "firm:<slug>", "posts_harvested:<N>")
+13. Atomic vault write + report-render audit row (cycle.sh Step 13)
+   → atomic mv -f /tmp/<draft> → /vault/<tenant>/diagnostic-reports/<firm-slug>-<ISO-date>.md
+   → chmod 600 on the report
+   → hh_decision_output("diagnostic_report", "<vault_path>", "12-section report on <firm>")
+   → hh_decision_action("diagnostic_report_render", "firm:<slug>", payload_hash, payload_preview)
+     — tier: green per autosend-policy.yaml (no external send; vault write only)
 
-5. Director + employee scan (Sections 7 + 11)
-   → LinkedIn search for {firm} employees with titles matching head-of-talent / chro / chief people / hiring-manager / talent-acquisition variants
-   → record name + URL + tenure + recent activity
-   → max 10 named people; deduplicate
-   → hh_decision_output("section_7_11_data", "firm:<slug>", "named_people:<N>")
-
-6. Pain signal extraction (Section 8) — internal computation only (no external actions; no decision-log row required per master brief §8.1 Change 2)
-   → regex pass over careers-page + LinkedIn director posts (data fetched in Steps 3-4) for:
-     - urgency phrases ("rapid growth", "scaling fast", "we need", "tripling", "doubling")
-     - frustration phrases (Glassdoor if accessible: "overworked", "burnout", "no support")
-     - hiring-pressure phrases ("desperately seeking", "high-priority hire", "must hire by")
-   → record each match with quote + source URL + context (in-memory only; folded into Step 10 report assembly)
-
-7. ICP fit scoring (Section 6) — internal computation only
-   → load tenant target_patch from common-target-patch.json (read-only; no decision-log row)
-   → score each dimension (sectors / geographies / size_bands / deal_size_band)
-   → composite score 0-100 + per-dimension breakdown (in-memory only)
-
-8. Recent activity scan (Section 10)
-   → LinkedIn company posts in last 90 days (count + first 100 chars of each)
-   → basic Google search for "{firm} announcement OR funding OR acquisition" last 90 days
-   → Companies House filing history last 90 days
-   → hh_decision_output("section_10_data", "firm:<slug>", "activity_items:<N>")
-
-9. Conversation opener generation (Section 12)
-   → LLM prompt: context = §1-§11 of the report (esp. §8 pain signals);
-                 constraint = consultant voice (hh_load_voice_samples for top-5 ANN match);
-                 constraint = tone rules (hh_load_tone_rules)
-   → output 2-3 sentences with at least one evidence anchor
-   → voice classifier scores the output against tenant style guide
-   → ESC_VOICE_DRIFT if score < 0.75 after 3 retries
-   → hh_decision_output("section_12_opener", "firm:<slug>", "voice_score:<score>")
-
-10. Markdown report assembly
-    → render report from sections 1-12 using Diagnostic-specific template
-    → write to /vault/{tenant_slug}/diagnostic-reports/{firm-slug}-{ISO-date}.md
-    → hh_decision_output("diagnostic_report", "<path>", "12-section report on {firm}")
-
-11. Operator notification (optional, per --notify-via flag)
-    → if telegram: send via primitive 5 with report path + executive summary (first 200 chars)
-      → hh_decision_action("operator_notify_telegram", "operator:{chat_id}", payload_hash, payload_preview)
-      → action tier per autosend-policy.yaml: green (operator-only Telegram; no customer-facing comms)
-    → if no flag: silent completion (consultant checks vault) — no decision-log row needed
-
-12. Session close
-    → hh_decision_action("diagnostic_report_render", "firm:{slug}", payload_hash, payload_preview)
-    → action tier per autosend-policy.yaml: green (no external send; vault write only)
-    → exit code 0
+14. Operator notification (optional, per --notify-via telegram flag) (cycle.sh Step 14)
+   → if telegram: send via curl to api.telegram.org with report path + 200-char summary
+     → hh_decision_action("operator_notify_telegram", "operator:<chat_id>", payload_hash, payload_preview)
+     → tier: green (operator-only Telegram; no customer-facing comms)
+   → if no flag: silent completion (consultant checks vault); no decision-log row
+   → cleanup.sh runs (drops transient LinkedIn cache per ToS gotcha §6.1)
+   → exit 0
 ```
 
 ---
@@ -170,14 +143,14 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4 + `docs/decisions/A
 
 **Per ADR-006 (canonical interpretation of ULTRAPLAN §8.1 A1 line 496 Gate A clause "no claims unsupported by source data"):** Gate A's citation subcheck is per-section hard-fail (every one of the 12 sections has ≥1 evidence link). Per-claim citation analysis is a SEPARATE post-launch quality metric, NOT Gate A — to be authored as a future W4 ADR with schema supplements when the voice-classifier microservice ships + first pilot tenant accumulates ≥30 reports.
 
-**Honesty note (per bilateral-disposition Cat-5):** the v0 `validate.sh` at `agents/recruitment/diagnostic/validate.sh` implements the per-section citation subcheck as hard-fail today (no warn-only path). It also implements the voice classifier and PII subchecks but **prints warnings and exits 0** when upstream services are unreachable (voice-classifier URL down, firm-domain whitelist absent) — these warnings are visible in stdout but are NOT written to `decision_log` as separate rows in v0. W4 polish closes these two cases to (a) hard-fail behaviour AND (b) explicit `validate_check_skipped` audit rows. The spec below describes the W4-complete contract; the W4 build slice closes the voice + PII gaps. ADR-006 does NOT modify the voice + PII subchecks — only the citation subcheck.
+**Honesty note (per bilateral-disposition Cat-5):** the v0 `validate.sh` at `agents/recruitment/diagnostic/validate.sh` implements the per-section citation subcheck as hard-fail today (no warn-only path). It also implements the voice classifier and PII subchecks but **prints warnings to stdout and exits 0** when upstream services are unreachable (voice-classifier URL down, firm-domain whitelist absent) — these warnings are visible in stdout but no separate `decision_log` audit row is written. W4 polish closes these two cases to (a) unconditional hard-fail behaviour AND (b) explicit `validate_check_skipped` audit rows. The spec below describes the W4-complete contract; the W4 build slice closes the voice + PII gaps. ADR-006 does NOT modify the voice + PII subchecks — only the citation subcheck.
 
 - All 12 sections present in the assembled report (count + heading check) — **v0: hard-fails as specified**
 - Every section has ≥ 1 markdown link (regex `\[.+\]\(.+\)` per section) — **v0: hard-fails as specified**
-- Section 12 voice classifier score ≥ 0.75 (`hh_load_voice_samples` returns ANN match + classifier; score computed via tenant's voice classifier per Ultraplan §5.3) — **v0: warns + flags `validate_check_skipped=true` if voice-classifier URL unreachable; W4 polish closes to hard-fail**
+- Section 12 voice classifier score ≥ 0.75. Sample retrieval is via `hh_load_voice_samples` (returns top-N voice corpus chunks); the classifier itself is a separate service called by `validate.sh` via `IFOS_VOICE_CLASSIFIER_URL` per `agents/_shared/voice-loader.sh` design — sample retrieval ≠ classifier scoring. **v0: warns + exit 0 if voice-classifier URL unreachable; W4 polish closes to hard-fail.**
 - Report length 400-2000 words — **v0: hard-fails as specified**
 - No banned phrases per `tone_rule` table (`hh_load_tone_rules` filter) — **v0: hard-fails as specified**
-- No PII outside the firm boundary (regex pass for emails/phones that don't match `{firm}.com` or known director email patterns) — fires `ESC_PII_LEAKAGE_RISK` immediately on hit — **v0: warns + flags `validate_check_skipped=true` if firm-domain whitelist absent; W4 polish closes to hard-fail**
+- No PII (email-domain mismatch) outside the firm boundary (regex pass for emails that don't match `{firm}.com` or known director email patterns) — fires `ESC_PII_LEAKAGE_RISK` immediately on hit when the firm-domain whitelist is available. **v0: warns + exit 0 if firm-domain whitelist absent; W4 polish closes to hard-fail. v0 PII regex covers emails only; phone-number PII detection deferred to W4 polish.**
 
 ### Gate B — Outcome threshold (success metric, not block)
 
@@ -216,16 +189,16 @@ Section 12 (conversation opener) is voice-classified. The agent integrates with 
   - No "I hope this finds you well" or other generic openers
   - No salary or commission anchors in cold outreach
   - Specific evidence anchor required (not generic "great company")
-- **`hh_load_voice_samples` ANN query against tenant's voice_corpus**: top-5 chunks closest to current task context (cold-outreach-to-recruitment-firm-decision-maker). Feeds LLM prompt as voice exemplars.
+- **`hh_load_voice_samples` ANN query against tenant's voice_corpus**: returns top-N voice-corpus chunks closest to current task context (cold-outreach-to-recruitment-firm-decision-maker); feeds LLM prompt as voice exemplars. NOTE: sample retrieval is distinct from classifier scoring — voice classification itself is a separate service called by `validate.sh` via `IFOS_VOICE_CLASSIFIER_URL` per `agents/_shared/voice-loader.sh`.
 - **`hh_load_recent_edits` last 30 days for `diagnostic`** (single agent_name arg per `voice-loader.sh::hh_load_recent_edits`; current `context.sh` passes `"diagnostic"` only): surfaces patterns of how consultant edits Diagnostic drafts. Per-run `ESC_VOICE_DRIFT` fires when the §12 voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` fires per `escalation-codes.md` ESC_VOICE_DRIFT_TENANT trigger — ≥5 `ESC_VOICE_DRIFT` rows from the same tenant within a rolling 7-day window (per the nightly voice-drift cron). Edit-distance metrics are tracked separately for analytics but do NOT fire ESC_VOICE_DRIFT_TENANT directly. v1.1 may add multi-agent edit-history merging (`concierge` + `diagnostic` joint signal); v1.0 is per-agent.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
 ---
 
-## §8 — Build dependencies (W3 prerequisites)
+## §8 — Production-readiness dependencies
 
-Diagnostic build cannot start until ALL of the following are confirmed:
+Full bundle (all 6 files + 3 fixtures) is built as of Day 19. Production readiness — i.e. running against a real pilot tenant — additionally requires the items below resolved to ✅.
 
 | Dependency | Source | Status |
 |---|---|---|
@@ -244,15 +217,15 @@ Diagnostic build cannot start until ALL of the following are confirmed:
 | Other bundle files (cycle.sh, tools.yaml, cleanup.sh) | `agents/recruitment/diagnostic/` | ✅ All built |
 | Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ⚠ 10 rounds attempted; ADR-006 (Accepted) closed Cat-1 Gate A finding; residual mechanical findings tracked in disagreement doc Phase 4-5 |
 
-**Until ALL ratified items have ⏸ → ✅, W3 build slice does not start.**
+**Production-readiness gates:** all ⏸ items above must resolve to ✅ before first production render against a pilot tenant. Bundle code itself is complete.
 
 ---
 
 ## §9 — Status + open questions
 
-**Status:** Proposed. Awaits Q1 LOI + first pilot tenant onboarded + W3 build slice start.
+**Status:** Proposed. Awaits Q1 LOI + first pilot tenant onboarded + Codex RATIFIED verdict + first production render.
 
-**Recommended ratification path:** Author the agent.md draft (this document) Day 11 — frees W3 build to focus on the other 5 bundle files + 3 fixtures, not iterating on output contract under W3 deadline pressure. Founder reviews this draft when convenient; refinements drop in commits between Day 11 and W3 start.
+**Build state:** full bundle (cycle.sh, validate.sh, context.sh, tools.yaml, cleanup.sh, 3 fixtures) shipped Day 13-19. Codex review-agent-bundle ratification in progress (10+ rounds; ADR-006 closed the Cat-1/Cat-ζ Gate A finding; iterating on smaller mechanical findings).
 
 ### Open questions for founder review
 
