@@ -1,25 +1,51 @@
 # Current priorities
 
-**Week:** Week 3 — **CLOSING** (Day 19/22 — 2026-05-24)
-**Today's task:** **Week 3 goal `docs/operations/goal-week-3-polish-and-scaffold.md` executed end-to-end via bilateral Codex disposition session.** All 14 steps run; 5 Codex rounds attempted; Round 8 (post-bilateral) returned 32 categorized findings across 6 agent.md files; mechanical fixes applied (Concierge AgentMail boundary, Sourcing Scout ULTRAPLAN line refs, Cash Conductor master-brief citation); structural findings (schema v0.3 supplement, ESC catalogue widening, validate.sh/cycle.sh build slices) categorized + queued for W4-W13.
-**Active plan:** Week-3 goal complete — disposition framework executed per `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` final section.
-**Most recent close:** Day 19 (2026-05-24) — 9 Codex rounds cumulatively (4-v1 + 4-v2 + 5 + 6 + 7 on Diagnostic/Janitor + Round 8 across all 6); founder Path-A authorization unlocked bilateral Phase 1+2+3 execution; 6 scaffolds now at Pre-Build-Round-8-Reviewed status; v0.3 schema supplement is the next-ratification unblock.
+**Week:** Week 3 — **CLOSED** (Day 19/22 — 2026-05-24)
+**Today's task:** **Week 3 goal `docs/operations/goal-week-3-polish-and-scaffold.md` executed end-to-end. 100+ Codex rounds across 8 artefacts. v0.3 schema supplement RATIFIED ✅ (first ratified artefact). ADR-006 Diagnostic Gate A Accepted (founder-arbitrated). All 6 agent.md scaffolds at Pre-Build-Round-N-Reviewed.**
+**Active plan:** Week-3 goal complete — bilateral disposition framework executed; post-v0.3 re-ratification rounds run for Janitor + Scribe + Concierge.
+**Most recent close:** Day 19 (2026-05-24) — 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
 
-## Week 3 Shipped (Day 19 bilateral)
+## Week 3 Shipped (Day 19 full session)
 
-- `catalogue(bilateral)` commit `151d4fe` — 26 new ESC codes + 8 new action_types
-- `remediate(bilateral-Phase-2)` commit `1ff1569` — Cat-1-5 dispositions across all 6 agent.md files
-- Round 8 Codex run (6 sessions `20260524T112636Z-79455` through `20260524T113247Z-86019`); 32 findings catalogued
-- Cat-α mechanical fixes inline: Concierge adapter-boundary, Sourcing Scout line refs, Cash Conductor citation
-- Disagreement doc final section: Round 8 categorization + Week-3 close
-- Memory: `feedback_auto_take_recommendations.md` saved (auto-take recommended option in AUQ)
+**Substantive wins:**
+- **v0.3 vertical-schema supplement RATIFIED** ✅ (22 Codex rounds; first ratified artefact this Week 3)
+- **ADR-006 Diagnostic Gate A hybrid Accepted** (founder-arbitrated; closes Cat-1/Cat-ζ structural blocker)
+- **Catalogue extended:** 24 → 52 ESC codes; 29 → 47 action_types; 2 new Postgres tables (cash_conductor_transactions + cash_conductor_invoices); 3 new tenant_adapters config keys
+- **Tenancy audit + invariants extended to 11 tables** (v0.3 cash_conductor tables now T1-T12 covered)
+- **All 6 agent.md scaffolds:** post-v0.3 first + second re-ratification rounds run; finding counts:
+  - Diagnostic: R10-R16 (Pre-Build-Round-16-Reviewed; 5 last-mile)
+  - Cash Conductor: R10-R17 (Pre-Build-Round-17-Reviewed; 3 last-mile)
+  - Sourcing Scout: R1-R8 post-v0.3 (Pre-Build-Round-8-Reviewed; 3 last-mile)
+  - Janitor: R11 post-v0.3 (4 baseline, 0 mechanical after R11 fix)
+  - Scribe: R3 post-v0.3 (5 baseline, ~2 mechanical after R3 fix)
+  - Concierge: R3 post-v0.3 (4 baseline, ~2 mechanical after R3 fix)
 
-## W4 backlog (queued from Round-8 categorization)
+**Empirical convergence pattern (consistent across 4 deep-iterated artefacts):** architectural substance closes 5-10 rounds; last-mile cross-reference sync stays at ~3 findings/round steady-state. Master brief §10.3 step 5 hard-ceiling empirically correct.
 
-- [ ] **v0.3 vertical-schema supplement** — Scribe entity fields (~12) + Cash Conductor Postgres tables + Concierge tenant_adapters fields + Janitor candidate.linkedin_url. UNBLOCKS Janitor/Scribe/Cash-Conductor/Concierge re-ratification.
-- [ ] **ESC catalogue v2 widening** — 5 codes need definition broadening (ESC_ADDRESSEE_MISMATCH, ESC_CONCIERGE_SLA_MISS, ESC_LIFECYCLE_STATE_UNKNOWN, ESC_OPEN_BANKING_TOKEN_AGING, ESC_AUTOSEND_RACE). ~30 min mechanical.
+**Commits this session:** ~45 commits across catalogues, dispositions, ADR-006, v0.3 supplement, 6 agent.md scaffolds + sibling files; all pushed to `origin/main`.
+
+## W4 backlog
+
+- [x] **v0.3 vertical-schema supplement** — RATIFIED ✅ at commit `7b4f390`. Migration ready at `migrations/v0.2-to-v0.3.sql` (forward) + `v0.3-to-v0.2.sql` (rollback).
+- [x] **ESC catalogue v2 widening** — 5 codes widened in commit `5e59f9c`. Cat-γ closed.
+- [x] **ADR-006 Diagnostic Gate A hybrid** — Accepted founder-arbitrated at commit `6d2d43e`; ULTRAPLAN line 496 in-band amendment at `aed9d3b`.
 - [ ] **Diagnostic validate.sh + cycle.sh polish (W3-W4)** — emit specific ESC codes per §6; write validate_check_skipped row; add operator_notify_telegram hh_decision_action call.
 - [ ] **Per-agent build slices (W5-W13)** — each agent's full bundle delivery + ratification cycle at its build wave.
+
+## W4 founder-action queue (NEW priorities)
+
+1. **Apply v0.3 migration to migration-test tenant** — Path A founder action: `bash scripts/run-live-migration.sh` (or wrapper for v0.2→v0.3 specifically); `ifos_app` password from 1Password. Run `bash scripts/run-tenancy-audit.sh` after; expect 12/12 invariants pass across 11 tables.
+2. **Bilateral pass on 6 agent.md scaffolds** (60-90 min with founder) — review residual ~3 findings/agent; close all 6 to RATIFIED in single coordinated pass.
+3. **Future ADR — Concierge Gate A 30-min SLA hybrid** (analogous to ADR-006 for Diagnostic; closes Concierge's documented deviation from ULTRAPLAN A6 line 566). ~1 hour.
+4. **D1 founder decision (autosend orange-tier path A/B/C)** — blocks Concierge build slice.
+5. **Companies House API key + Anthropic API key** — original Step 2 + Step 4 founder gates (still pending).
+6. **First pilot tenant onboarding** — unblocks Status flips Pre-Build → Accepted for all 6 agents (founder approves §3 12-section lists + first production render conditions).
+
+## Trigger 2 runway
+
+- DIAGNOSTIC-NO-RENDER-W3 fires 2026-06-14 if no clean Diagnostic render by then
+- Today: 2026-05-24; 21 days runway
+- Bundle code complete; Codex RATIFIED still pending; closely tied to bilateral founder pass
 
 ## ---
 ## Older state (pre Day-19) — Week 0 era follows
