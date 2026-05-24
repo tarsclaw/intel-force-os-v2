@@ -380,6 +380,8 @@ DECLARE
     -- v0.1 + v0.2 keys (forwarded; do not remove)
     'tier_overrides', 'blocked_recipients', 'janitor_dedup_threshold',
     'janitor_last_run',
+    -- autosend-safety-policy.md keys (per §8 + §10 references in that document)
+    'approval_routing', 'approval_timeouts', 'sampling_rates',
     -- v0.3 additions
     'cash_conductor_last_run',
     'concierge_last_poll',

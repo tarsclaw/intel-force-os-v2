@@ -71,7 +71,7 @@ entity_field_additions:
         source: IFOS-derived (Scribe from CV/transcripts; Sourcing Scout from CV-Library + Reed search results)
         v1_0_agent_access:
           - Scribe: W
-          - Sourcing Scout: RW
+          - Sourcing Scout: R+W
 
       linkedin_url:
         type: string
@@ -84,7 +84,7 @@ entity_field_additions:
           outbound — outreach via candidate.email or candidate.phone only).
         source: IFOS-derived (Sourcing Scout from match; Janitor for dedup verification)
         v1_0_agent_access:
-          - Sourcing Scout: RW
+          - Sourcing Scout: R+W
           - Janitor: R   # W only via dedup-merge action
           - Concierge: R
 
@@ -100,7 +100,7 @@ entity_field_additions:
           Concierge reads to route outbound lifecycle comms.
         source: IFOS-derived (Scribe extraction)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Concierge: R
 
       next_action_target_date:
@@ -112,7 +112,7 @@ entity_field_additions:
           nurture.
         source: IFOS-derived (Scribe extraction)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Concierge: R
 
   brief:
@@ -128,7 +128,7 @@ entity_field_additions:
           list. Free-text strings; max 15 items enforced by trigger.
         source: IFOS-derived (Scribe extracts from briefing-call transcripts)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Sourcing Scout: R
 
       nice_to_haves:
@@ -140,7 +140,7 @@ entity_field_additions:
           Soft preferences; Sourcing Scout uses for ranking, not hard filter.
         source: IFOS-derived (Scribe extracts)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Sourcing Scout: R
 
       deal_breakers:
@@ -153,7 +153,7 @@ entity_field_additions:
           item.
         source: IFOS-derived (Scribe extracts)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Sourcing Scout: R
 
   placement:
@@ -169,8 +169,8 @@ entity_field_additions:
           ESC_LIFECYCLE_STATE_UNKNOWN.
         source: IFOS-derived (Scribe + Janitor)
         v1_0_agent_access:
-          - Scribe: RW
-          - Janitor: RW
+          - Scribe: R+W
+          - Janitor: R+W
           - Concierge: R
 
       week_1_status_note:
@@ -182,7 +182,7 @@ entity_field_additions:
           voice-classifier review at write time per Scribe §7.
         source: IFOS-derived (Scribe extracts from 7d check-in call)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Concierge: R
 
       satisfaction_signal:
@@ -195,7 +195,7 @@ entity_field_additions:
           Concierge reads to adjust nurture tone.
         source: IFOS-derived (Scribe LLM extraction)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Concierge: R
 
   opportunity:
@@ -210,7 +210,7 @@ entity_field_additions:
           to ICP-fit-score opportunities.
         source: IFOS-derived (Scribe extraction)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Sourcing Scout: R
 
       hiring_velocity_band:
@@ -223,7 +223,7 @@ entity_field_additions:
           ranking in Sourcing Scout's brief-to-candidate pipeline.
         source: IFOS-derived (Scribe LLM classification)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Sourcing Scout: R
 
       decision_window_text:
@@ -235,7 +235,7 @@ entity_field_additions:
           time outbound comms.
         source: IFOS-derived (Scribe extraction)
         v1_0_agent_access:
-          - Scribe: RW
+          - Scribe: R+W
           - Concierge: R
 
 # ============================================================================
@@ -549,7 +549,7 @@ codex_ratification:
   manifest_queue_position: 44 (after v0.2 supplement at 29)
 
 # ============================================================================
-# §8 — Open questions (structured per review-schema-change §6)
+# §8 — Open questions (structured per review-schema-change §8)
 # ============================================================================
 
 open_questions:
@@ -591,15 +591,23 @@ open_questions:
       escalate to B or C if 1:1 mapping breaks.
 
   Q4_cash_conductor_transactions_retention:
-    question: Indefinite retention for matched transactions UK GDPR-compatible?
+    question: Bank-feed transactions contain PII (payee_name_raw + description).
+      What's the production retention policy?
     options:
-      A: Indefinite as v0.3 default; defer GDPR audit to v1.1.
-      B: 7-year retention then automated pseudonymization (replace payee_name_raw
-         + description with hashes; preserve amount + dates for audit).
+      A: 7-year retention with automated pseudonymization at year 7 (hash
+         payee_name_raw + description; preserve amount + dates for audit).
+      B: Indefinite with pseudonymization at year 7 (same as A but matched
+         rows retained beyond 7 years for cross-period reconciliation).
       C: Per-tenant retention override in tenant_adapters.config.
     v0_3_default: A
-    trigger_for_revisit: Founder + legal review at first-pilot DPA; if pilot
-      tenant requires specific retention policy, escalate to B or C.
+    trigger_for_revisit: First-pilot DPA review (founder + legal); if pilot
+      tenant requires shorter retention, escalate to C with tenant-specific
+      override. Pseudonymization implementation lands in W4-polish slice.
+    production_use_gating: |
+      Until pseudonymization implementation lands, production use of
+      cash_conductor_transactions table is GATED by an explicit per-tenant
+      DPA addendum signed by founder + tenant. Migration-test tenant data
+      is not subject to this gate.
 
   Q5_unknown_config_keys_handling:
     question: validate_tenant_adapters_config_v0_3 trigger behavior on unknown keys?
