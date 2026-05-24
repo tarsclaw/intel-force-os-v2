@@ -2,7 +2,7 @@
 
 **Status:** Proposed (2026-05-24, Day 19)
 **Author:** Founder (Maddox) + Claude Code
-**Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A1 line 497 — Gate A citation requirement
+**Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A1 line 496 — Gate A citation requirement
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
 **Driven by:** `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` Phase 4 Cat-ζ — Codex re-flags Cat-1 every round because bilateral-disposition docs are not auto-trusted as in-band Gate A acceptances; the canonical authoritative path for upstream-spec amendments is an ADR
 
@@ -10,11 +10,13 @@
 
 ## Context
 
-ULTRAPLAN §8.1 A1 line 497 specifies the Diagnostic Gate A citation requirement verbatim:
+ULTRAPLAN §8.1 A1 line 496 specifies the Diagnostic Gate A citation requirement verbatim:
 
-> Gate A: 12 sections present, each with sourced data link; no claims unsupported by source data; voice classifier score ≥ 0.75; no PII outside firm boundary.
+> - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data
 
 The "no claims unsupported by source data" clause implies **per-claim citation validation** — every factual claim in the report must have a backing source link. The Diagnostic v0 implementation at `agents/recruitment/diagnostic/validate.sh` enforces **per-section citation** (regex `\[.+\]\(.+\)` requires ≥1 markdown link per section); per-claim validation is NOT implemented at v0.
+
+(Voice classifier ≥ 0.75 and PII boundary checks are also Gate A requirements per the same v0 contract — implemented separately in `validate.sh`; they're not affected by this ADR. This ADR addresses ONLY the "no claims unsupported by source data" clause from line 496.)
 
 This creates a documented gap between the upstream spec and the v0 implementation. Codex Round 4-9 has flagged this as "Gate A weakens ULTRAPLAN source-data requirement" across 10 ratification rounds (see `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` Round 9 Diagnostic finding #1). Per-claim citation validation requires:
 
@@ -32,7 +34,7 @@ This ADR formalises that disposition as a ratified architectural decision so fut
 
 ## Decision
 
-**Diagnostic Gate A citation validation is a two-tier policy:**
+### Decision 1 — Diagnostic Gate A citation validation is a two-tier policy (per-section v0 hard-fail + per-claim W4 spot-check warn)
 
 ### Tier 1 (v0; hard-fail) — per-section citation coverage
 
@@ -45,9 +47,11 @@ A statistical sample (1-in-N, configurable per tenant; default 1-in-10) of Diagn
 - NLP claim-extraction (sentence-level)
 - Per-claim evidence-link matching (semantic similarity against cited URLs)
 - Per-claim confidence score
-- Aggregate report quality metric written to `decision_log.payload.per_claim_confidence_distribution`
+- Aggregate report quality metric written to `decision_log.payload.per_claim_confidence_distribution` (NEW payload key — W4-polish schema work; not registered in `agents/_shared/autosend-policy.yaml` §7 today; W4-polish lands a payload-schema supplement before this key is written)
 
 Below threshold (e.g. <80% of claims with confidence ≥0.6) → warn (not block); operator review queue entry.
+
+The per-tenant sample-rate override (`tenant_adapters.config.diagnostic_per_claim_sample_rate`) is also a NEW config field — W4-polish-blocked: `tenant_adapters` schema does not include it today; v0.3 vertical-schema supplement work needs to add it before Tier 2 activates.
 
 ### W4 polish trigger
 
@@ -57,15 +61,15 @@ When the voice classifier microservice ships + first pilot tenant accumulates �
 
 ## ULTRAPLAN amendment
 
-`docs/specs/ULTRAPLAN.md` §8.1 A1 line 497 reads (verbatim, before this ADR):
+`docs/specs/ULTRAPLAN.md` §8.1 A1 line 496 reads (verbatim, before this ADR):
 
-> Gate A: 12 sections present, each with sourced data link; no claims unsupported by source data; voice classifier score ≥ 0.75; no PII outside firm boundary.
+> - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data
 
-After this ADR ratifies, the canonical reading is:
+After this ADR ratifies, the canonical interpretation is:
 
-> Gate A: 12 sections present, each with sourced data link (per-section hard-fail at v0); per-claim citation spot-check via 1-in-N sampling (W4 polish; warn-only); voice classifier score ≥ 0.75; no PII outside firm boundary. See `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` for the two-tier framing.
+> **Gate A (per ADR-006):** report contains all 12 required sections; each section has at least 1 evidence link (per-section, Tier 1, hard-fail at v0 — already implemented); "no claims unsupported by source data" is enforced via per-claim citation spot-check sampling (Tier 2, W4 polish, warn-only). See `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` for the two-tier framing.
 
-The ULTRAPLAN file itself is not edited (no rewriting of master specs in-place); ADR-006 is the binding authoritative interpretation. Reviewers consulting ULTRAPLAN §8.1 A1 see line 497 + the ADR-006 reference in commit history + the Diagnostic agent.md §5 explicit citation.
+The ULTRAPLAN file itself is not edited (no rewriting of master specs in-place); ADR-006 is the binding authoritative interpretation. Reviewers consulting ULTRAPLAN §8.1 A1 see line 496 + the ADR-006 reference in commit history + the Diagnostic agent.md §5 explicit citation.
 
 ---
 
@@ -93,8 +97,12 @@ The ULTRAPLAN file itself is not edited (no rewriting of master specs in-place);
 ### Immediate (this ADR commit)
 
 - `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` (this file) lands as Proposed
-- `agents/recruitment/diagnostic/agent.md` §1 + §5 framing now explicitly references ADR-006 (next commit after this ratifies)
 - `agents/recruitment/diagnostic/validate.sh` retains current per-section enforcement (no implementation change)
+
+### Next commit (after this ADR ratifies)
+
+- `agents/recruitment/diagnostic/agent.md` §1 + §5 framing edited to explicitly reference ADR-006 (Tier 1 hard-fail / Tier 2 W4 polish per-claim spot-check). NOT yet present in agent.md as of this commit; lands in the post-ratify commit.
+- `docs/decisions/2026-05-18-codex-ratification-manifest.md` queue updated to include this ADR. NOT yet updated as of this commit; lands in the post-ratify commit.
 
 ### After Codex ratifies this ADR (Status flips Proposed → Accepted)
 
@@ -108,12 +116,14 @@ The ULTRAPLAN file itself is not edited (no rewriting of master specs in-place);
 - Aggregate metric writes to `decision_log.payload.per_claim_confidence_distribution`
 - Threshold breach → `ESC_AGENT_OUTPUT_SHAPE` warn (info-only; no block)
 
-### Downstream artefact references
+### Downstream artefact references (queued for post-ratify commit)
 
-- `agents/recruitment/diagnostic/agent.md` §1 lines 16+ explicitly cite "Per ADR-006, Gate A is two-tier..."
-- `agents/recruitment/diagnostic/agent.md` §5 lines 156+ explicitly cite "Tier 1 hard-fail (per-section); Tier 2 W4 polish (per-claim spot-check) per ADR-006"
-- `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` Phase 4 Cat-ζ section references ADR-006 as the closure mechanism
-- `docs/decisions/2026-05-18-codex-ratification-manifest.md` adds this ADR as ratification queue item
+- `agents/recruitment/diagnostic/agent.md` §1 → will cite "Per ADR-006, Gate A is two-tier..."
+- `agents/recruitment/diagnostic/agent.md` §5 → will cite "Tier 1 hard-fail (per-section); Tier 2 W4 polish (per-claim spot-check) per ADR-006"
+- `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` Phase 4 Cat-ζ section → references ADR-006 as the closure mechanism (already cross-referenced in commit `1f8c92f`)
+- `docs/decisions/2026-05-18-codex-ratification-manifest.md` → adds this ADR as ratification queue item
+
+These edits all land in the next commit AFTER this ADR ratifies (no point updating agent.md to cite a Proposed ADR; cite once ratified).
 
 ---
 
