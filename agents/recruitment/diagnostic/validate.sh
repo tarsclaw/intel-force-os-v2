@@ -232,21 +232,27 @@ else
 
   # Emit the specific ESC code per agent.md §6 mapping:
   #   - PII detected outside firm boundary → ESC_PII_LEAKAGE_RISK (blocking)
+  #   - Voice classifier score <0.75 (V3) → ESC_VOICE_DRIFT (warn, per
+  #     fixture 99-voice-drift-canary.yaml expectation)
   #   - Output-shape violation (section count, per-section citation,
-  #     length, voice-classifier miss) → ESC_AGENT_OUTPUT_SHAPE (warn)
+  #     length) → ESC_AGENT_OUTPUT_SHAPE (warn)
   # ESC_SCHEMA_VIOLATION is reserved for vertical-schema field-constraint
   # violations at write time per catalogue line 163 — not for Diagnostic's
   # output-shape failures.
   PII_FAILURE_PRESENT=0
+  VOICE_FAILURE_PRESENT=0
   for failure in "${FAILURES[@]}"; do
     if [[ "${failure}" == *"PII"* || "${failure}" == *"pii"* ]]; then
       PII_FAILURE_PRESENT=1
-      break
+    elif [[ "${failure}" == *"voice"* || "${failure}" == *"Voice"* || "${failure}" == *"V3"* ]]; then
+      VOICE_FAILURE_PRESENT=1
     fi
   done
 
   if (( PII_FAILURE_PRESENT == 1 )); then
     ESC_CODE="ESC_PII_LEAKAGE_RISK"
+  elif (( VOICE_FAILURE_PRESENT == 1 )); then
+    ESC_CODE="ESC_VOICE_DRIFT"
   else
     ESC_CODE="ESC_AGENT_OUTPUT_SHAPE"
   fi
