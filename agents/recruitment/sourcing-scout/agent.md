@@ -122,15 +122,22 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 
 2. Multi-source auth refresh
    → bullhorn (read-only); LinkedIn/Proxycurl; Reed; CV-Library
-   → per-source auth FAILURE is BLOCKING per catalogue §2.3/§2.7:
-     ESC_BULLHORN_AUTH | ESC_LINKEDIN_AUTH | ESC_REED_AUTH | ESC_CVLIBRARY_AUTH
-     — each routes to operator + ifos_oncall. v1.0 v0.3 disposition: if
-     ANY source is down, Sourcing Scout halts (any failed source = blocked
-     run); waits for operator reauth before retry. Single-source-failure-
-     soft-fallback would require a separate ESC_SOURCING_SOURCE_DEGRADED
-     catalogue code (W4-polish; not v0.3).
+   → per-source auth failure fires the catalogue-specified ESC code with
+     its catalogue-specified degraded-mode behavior:
+     - ESC_BULLHORN_AUTH (catalogue §2.3): blocking → Sourcing Scout
+       enters degraded mode (skip Bullhorn source; continue with other 3)
+     - ESC_LINKEDIN_AUTH (catalogue §2.7): blocking → degraded mode
+       (Sourcing Scout: cached LinkedIn search only; live profile fetches
+       skipped)
+     - ESC_REED_AUTH (catalogue §2.7): blocking → degraded mode (cached
+       Reed search results only)
+     - ESC_CVLIBRARY_AUTH (catalogue §2.7): blocking → degraded mode
+       (cached CV-Library search only)
+   → if MULTIPLE sources are in degraded mode AND the remaining live
+     sources cannot produce ≥5 candidates: ESC_AGENT_OUTPUT_SHAPE +
+     return partial report with exception note (Gate A floor violated)
    → hh_decision_output("auth_refresh_complete", "tenant:<slug>",
-     "sources_ok:<N>/4; failed:<list>")
+     "sources_ok:<N>/4; degraded:<list>")
 
 3. Bullhorn passive-match query
    → bullhorn.search_candidates(filter=brief_key_dimensions,
@@ -247,7 +254,7 @@ Per ULTRAPLAN A5 line 553 verbatim: **"≥6 of 10 candidates advance past first 
 
 Measured via consultant feedback loop: each candidate in a Sourcing Scout report gets a "useful / not useful" tag from the consultant via Brain UI v1.1 OR Telegram reply OR Bullhorn note. Aggregate over rolling 30-day window per tenant.
 
-Per bilateral-disposition Cat-3: Gate B is a local leading metric for Sourcing Scout quality; NOT mapped to any v1.0 kill-criterion trigger. Below 6-of-10 for 30 consecutive days → `ESC_GATE_B_MISS` → founder + operator review (likely indicates ranking heuristic drift, source-mix imbalance, OR brief-input quality issue).
+Per bilateral-disposition Cat-3: Gate B is a local leading metric for Sourcing Scout quality; NOT mapped to any v1.0 kill-criterion trigger. Below 6-of-10 for 30 consecutive days → `ESC_GATE_B_MISS` → operator_chat_id (per catalogue routing) — operator review (likely indicates ranking heuristic drift, source-mix imbalance, OR brief-input quality issue).
 
 Shared target with Night Sourcer (v1.1) means: both agents are measured against the same 6-of-10 bar, and the source-abstraction layer (per gotcha of ULTRAPLAN A5 line 555) ensures rank+rationale logic is shared not duplicated.
 
@@ -268,7 +275,7 @@ Sourcing Scout uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in rationale | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) | warn | operator_chat_id |
-| `ESC_GATE_B_MISS` | Below 6-of-10 for 30 consecutive days | warn | founder + operator |
+| `ESC_GATE_B_MISS` | Below 6-of-10 for 30 consecutive days | warn | operator_chat_id (per catalogue routing) |
 
 Sourcing Scout does NOT use:
 
@@ -341,7 +348,7 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 | Q4 | Rationale length — 50 words feels short for high-quality match explanation. Bump to 100? | Founder review with first pilot consultant feedback. ULTRAPLAN A5 line 552 says "≥ 50 words" — using as floor. |
 | Q5 | Gate B 6-of-10 metric — measured via consultant feedback. Brain UI v1.0 doesn't have feedback UX yet. Telegram reply? | v1.0: Telegram reply with "/scout-feedback <candidate-id> useful|not-useful". v1.1: Brain UI button. |
 | Q6 | Source-abstraction layer design — Night Sourcer v1.1 reuses this. Should the design be ratified separately (its own ADR)? | Recommend: yes. New ADR-006 at W9 build start documenting source-abstraction interface. |
-| Q7 | Bullhorn passive-match query — what's the right SEARCH filter? Per §4 Step 3 + vertical-schema candidate.status enum (`[active, archived, do_not_contact, placed, contractor_promoted]` — line 84-88 of vertical-schema.yaml; "passive" is NOT a canonical enum value), Sourcing Scout queries Bullhorn for `status='active'` candidates with `last_activity_at < now() - 90 days` to derive "passive" semantically. The question is whether Bullhorn's native search API supports this composite filter efficiently, or whether we need a 2-stage query (status=active first, then client-side activity-recency filter). | Founder + Bullhorn-rep clarification during Sub-decision B response. |
+| Q7 | Bullhorn passive-match query — what's the right SEARCH filter? Per §4 Step 3 + vertical-schema candidate.status enum (`[active, archived, do_not_contact, placed, contractor_promoted]` — line 84-88 of vertical-schema.yaml; "passive" is NOT a canonical enum value), Sourcing Scout queries Bullhorn for `status='active'` candidates with `date_last_modified_at < now() - 90 days` (per schema line 100) to derive "passive" semantically. The question is whether Bullhorn's native search API supports this composite filter efficiently, or whether we need a 2-stage query (status=active first, then client-side modification-recency filter). | Founder + Bullhorn-rep clarification during Sub-decision B response. |
 
 ### Gotchas (carried forward from ULTRAPLAN A5 line 555)
 
