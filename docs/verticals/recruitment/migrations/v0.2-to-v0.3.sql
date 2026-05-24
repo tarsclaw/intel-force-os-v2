@@ -175,17 +175,30 @@ RETURNS TRIGGER AS $$
 DECLARE
   d JSONB := NEW.data;
   et TEXT := NEW.entity_type;
+  arr_item JSONB;
 BEGIN
-  -- v0.2 voice-score keys (forwarded; do not remove)
+  -- v0.2 voice-score keys (forwarded; preserves v0.2 [0.0, 1.0] range check)
   IF d ? 'voice_classifier_score' THEN
     IF jsonb_typeof(d->'voice_classifier_score') NOT IN ('number', 'null') THEN
       RAISE EXCEPTION 'voice_classifier_score must be number or null';
+    END IF;
+    IF d->'voice_classifier_score' != 'null'::jsonb THEN
+      IF (d->>'voice_classifier_score')::numeric < 0.0
+         OR (d->>'voice_classifier_score')::numeric > 1.0 THEN
+        RAISE EXCEPTION 'voice_classifier_score out of [0.0, 1.0] range: %', d->>'voice_classifier_score';
+      END IF;
     END IF;
   END IF;
 
   IF d ? 'voice_drift_at_close' THEN
     IF jsonb_typeof(d->'voice_drift_at_close') NOT IN ('number', 'null') THEN
       RAISE EXCEPTION 'voice_drift_at_close must be number or null';
+    END IF;
+    IF d->'voice_drift_at_close' != 'null'::jsonb THEN
+      IF (d->>'voice_drift_at_close')::numeric < 0.0
+         OR (d->>'voice_drift_at_close')::numeric > 1.0 THEN
+        RAISE EXCEPTION 'voice_drift_at_close out of [0.0, 1.0] range: %', d->>'voice_drift_at_close';
+      END IF;
     END IF;
   END IF;
 
@@ -206,6 +219,12 @@ BEGIN
       IF jsonb_array_length(d->'key_skills') > 20 THEN
         RAISE EXCEPTION 'key_skills max length 20 (got %)', jsonb_array_length(d->'key_skills');
       END IF;
+      -- Every element must be a string
+      FOR arr_item IN SELECT * FROM jsonb_array_elements(d->'key_skills') LOOP
+        IF jsonb_typeof(arr_item) != 'string' THEN
+          RAISE EXCEPTION 'key_skills items must be strings; got %', jsonb_typeof(arr_item);
+        END IF;
+      END LOOP;
     END IF;
 
     IF d ? 'linkedin_url' THEN
@@ -245,18 +264,33 @@ BEGIN
       IF jsonb_array_length(d->'must_haves') > 15 THEN
         RAISE EXCEPTION 'must_haves max length 15';
       END IF;
+      FOR arr_item IN SELECT * FROM jsonb_array_elements(d->'must_haves') LOOP
+        IF jsonb_typeof(arr_item) != 'string' THEN
+          RAISE EXCEPTION 'must_haves items must be strings';
+        END IF;
+      END LOOP;
     END IF;
 
     IF d ? 'nice_to_haves' THEN
       IF jsonb_typeof(d->'nice_to_haves') != 'array' THEN
         RAISE EXCEPTION 'nice_to_haves must be array';
       END IF;
+      FOR arr_item IN SELECT * FROM jsonb_array_elements(d->'nice_to_haves') LOOP
+        IF jsonb_typeof(arr_item) != 'string' THEN
+          RAISE EXCEPTION 'nice_to_haves items must be strings';
+        END IF;
+      END LOOP;
     END IF;
 
     IF d ? 'deal_breakers' THEN
       IF jsonb_typeof(d->'deal_breakers') != 'array' THEN
         RAISE EXCEPTION 'deal_breakers must be array';
       END IF;
+      FOR arr_item IN SELECT * FROM jsonb_array_elements(d->'deal_breakers') LOOP
+        IF jsonb_typeof(arr_item) != 'string' THEN
+          RAISE EXCEPTION 'deal_breakers items must be strings';
+        END IF;
+      END LOOP;
     END IF;
   END IF;
 
