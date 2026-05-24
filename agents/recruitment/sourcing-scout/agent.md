@@ -13,7 +13,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Sourcing Scout ingests a brief description (free-text role description + optional Bullhorn brief_id reference) and produces a ranked list of 5-15 passive candidate matches aggregated from FOUR sources** (Bullhorn ATS passive-match read; LinkedIn via Proxycurl; Reed.co.uk API; CV-Library API). Output is a Markdown report at `/vault/<tenant>/sourcing-scout-reports/<brief-slug>-<ISO-date>.md` containing the ranked candidates, per-candidate match rationale (≥50 words each per Gate A), confidence score [0,1], contact method, and source attribution. Typical runtime: 60-120 seconds per brief. Triggered via Brain UI button, Telegram command (`@ifos_bot scout <brief-id>`), OR webhook from a "new brief" event in Bullhorn (per ULTRAPLAN A5 line 547). Gate A hard-fails any run that returns <5 OR >15 candidates, any candidate without a working contact method, any rationale <50 words, OR any candidate flagged "do not contact" in tenant vault (per ULTRAPLAN A5 line 552 verbatim). Gate B success threshold: ≥6 of 10 candidates advance past first consultant review (per ULTRAPLAN A5 line 553 — shared target with Night Sourcer v1.1). Source-abstraction layer designed for Night Sourcer reuse (per ULTRAPLAN A5 line 555 gotcha).
+> **Sourcing Scout ingests a brief description (free-text role description + optional Bullhorn brief_id reference) and produces a ranked list of 5-15 passive candidate matches aggregated from FOUR sources** (Bullhorn ATS passive-match read; LinkedIn via Proxycurl; Reed.co.uk API; CV-Library API). Output is a Markdown report at `/vault/<tenant>/sourcing-scout-reports/<brief-slug>-<ISO-date>.md` containing the ranked candidates, per-candidate match rationale (≥50 words each per Gate A), confidence score [0,1], contact method, and source attribution. Typical runtime: 60-120 seconds per brief. Triggered via Brain UI button, Telegram command (`@ifos_bot scout <brief-id>`), OR webhook from a "new brief" event in Bullhorn (per ULTRAPLAN A5 line 547). Gate A hard-fails any run that returns <5 OR >15 candidates, any candidate without a working contact method, any rationale <50 words, OR any candidate matching the tenant's DNC list (`tenant_adapters.config.blocked_recipients` — Postgres-backed per ADR-002; per ULTRAPLAN A5 line 552 wording "do not contact in tenant vault" is interpreted per v0.3 supplement as the Postgres-backed config key, not a vault markdown file — ADR-002 vault/Postgres split puts structured state in Postgres). Gate B success threshold: ≥6 of 10 candidates advance past first consultant review (per ULTRAPLAN A5 line 553 — shared target with Night Sourcer v1.1). Source-abstraction layer designed for Night Sourcer reuse (per ULTRAPLAN A5 line 555 gotcha).
 
 ---
 
@@ -106,7 +106,9 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 ```
 0. Session start
    → context.sh hydrates: tenant config + multi-source auth + voice corpus
-     + "do not contact" list from tenant vault
+     + DNC list from `tenant_adapters.config.blocked_recipients` (Postgres-
+     backed per ADR-002 vault/Postgres split; canonical v0.1 + v0.2 + v0.3
+     registered config key)
    → hh_decision_trigger("session_start", "scout <brief-id-or-slug>")
 
 1. Brief ingestion
@@ -230,7 +232,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Sourcing Scout's `
 - **"5–15 candidates returned per brief"** (count within range)
 - **"each has a working contact method"** (email format + MX check OR E.164 phone OR LinkedIn URL OR Bullhorn bullhorn_id-with-contact)
 - **"each has rationale ≥ 50 words"**
-- **"no candidate flagged 'do not contact' in tenant vault"** (DNC list scan)
+- **"no candidate flagged 'do not contact' in tenant config"** (DNC scan against `tenant_adapters.config.blocked_recipients` Postgres-stored list per ADR-002 vault/Postgres split)
 - All rationales pass voice classifier ≥0.75
 - No PII outside firm boundary in rationale text
 - No source contributed 0 candidates (suggests source auth failure undetected by Step 2)
@@ -264,7 +266,6 @@ Sourcing Scout uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_RATE_LIMIT_HIT` | Any source 429 (payload.upstream identifies which: bullhorn / linkedin / reed / cv-library) | warn | operator_chat_id |
 | `ESC_BRIEF_AMBIGUITY` | LLM brief-parse yields <3 key dimensions (canonical code per catalogue §2.5) | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries | warn | operator_chat_id |
-(Sourcing Scout does NOT use `ESC_DNC_FILTER_HIT` — per catalogue §2.10 that code is reserved for outbound send refusal; Sourcing Scout's DNC filter is a sourcing-time pre-outbound filter. Drops are logged in §3 exception list without ESC fire. v0.3 disposition; W4-polish adds ESC_SOURCING_DNC_FILTER.)
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in rationale | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | Below 6-of-10 for 30 consecutive days | warn | founder + operator |
@@ -275,6 +276,7 @@ Sourcing Scout does NOT use:
 - `ESC_BULLHORN_WRITE_FAIL` — Bullhorn read-only
 - `ESC_SCHEMA_VIOLATION` — reserved for vertical-schema field-constraint violations at write time per catalogue line 163; Sourcing Scout's Gate A misses are output-shape failures (use `ESC_AGENT_OUTPUT_SHAPE`)
 - `ESC_VOICE_DRIFT_TENANT` — fired by the nightly voice-drift cron per catalogue §2.5; Sourcing Scout fires only per-run `ESC_VOICE_DRIFT`, never the aggregate
+- `ESC_DNC_FILTER_HIT` — per catalogue §2.10 reserved for outbound send refusal specifically; Sourcing Scout's DNC filter is a sourcing-time pre-outbound filter. Drops logged in §3 exception list without ESC fire. v0.3 disposition; W4-polish backlog: add ESC_SOURCING_DNC_FILTER.
 
 ---
 
@@ -314,7 +316,7 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 | CV-Library MCP connector | W9 build start (~2 days) | ⏸ |
 | Source-abstraction layer (Night Sourcer reuse) | W9 build start (~2 days) | ⏸ |
 | Per-tenant source credentials in `_secrets.env` | Tenant onboarding | ⏸ |
-| Tenant DNC list at `/vault/<slug>/do-not-contact.list` | Tenant onboarding | ⏸ |
+| Tenant DNC list populated in `tenant_adapters.config.blocked_recipients` (Postgres-backed structured state per ADR-002 vault/Postgres split) | Tenant onboarding | ⏸ |
 | Voice corpus seeded for first pilot tenant | Tenant-admin onboarding | ⏸ |
 | `validate.sh` Gate A logic | Build at W9 start (~1 day) | ⏸ |
 | `context.sh` hydration | Build at W9 start (~0.5 day) | ⏸ |
