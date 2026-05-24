@@ -34,7 +34,7 @@ The 12 invariants below apply to **tenant-data tables**. The `tenants` meta tabl
 
 - **Definition:** Every row in every tenant-data table carries a non-null `tenant_slug` identifying which tenant the row belongs to.
 - **Enforcement:** Migration SQL `CREATE TABLE` statement uses `tenant_slug TEXT NOT NULL` (no DEFAULT, no nullable).
-- **Documentation source:** Day-4 §6.3 lines 708-797 (5 tables) + v0.2 §2-§5 (4 tables).
+- **Documentation source:** Day-4 §6.3 lines 708-797 (5 tables) + v0.2 §2-§5 (4 tables) + v0.3 supplement §3 (2 tables: cash_conductor_transactions + cash_conductor_invoices). Total: 11 tenant-data tables.
 - **Subtle case:** `recent_edit.original_text` was originally `TEXT NOT NULL` in v0.2; v0.3 (post Round-2 remediation) drops that NOT NULL constraint to allow PII purge to set `original_text=NULL`. This does not weaken T1: `recent_edit.tenant_slug` remains `TEXT NOT NULL`.
 - **Verification command:**
   ```sql
@@ -68,7 +68,7 @@ The 12 invariants below apply to **tenant-data tables**. The `tenants` meta tabl
   SELECT tablename, policyname FROM pg_policies
   WHERE schemaname='public' ORDER BY tablename;
   ```
-  Expected: 9 rows, one per tenant-data table, policy name follows naming convention.
+  Expected: 11 rows (post-v0.3), one per tenant-data table, policy name follows naming convention.
 - **Acceptance:** Every tenant-data table has its `_tenant_isolation` policy.
 
 ### T4 — Every app-code write to a tenant-data table calls `SET LOCAL app.current_tenant` first
@@ -199,7 +199,7 @@ The 12 invariants below apply to **tenant-data tables**. The `tenants` meta tabl
 
 | Invariant | Status | Verified by | Last verified | Notes |
 |---|---|---|---|---|
-| T1 | Partial → Verified | Day-4 §7 schema-creation gate + tenancy audit | 2026-05-17 Day-4 (Day-4 tables); pending Day-9 (v0.2 tables + cross-validation) | All 9 tables expected to pass; v0.2 tables structurally identical pattern |
+| T1 | Partial → Verified | Day-4 §7 schema-creation gate + tenancy audit | 2026-05-17 Day-4 (Day-4 tables); Day-12 (v0.2 tables); pending v0.3 migration apply (cash_conductor tables) | All 11 tables expected to pass; v0.3 cash_conductor tables follow v0.2 RLS pattern verbatim |
 | T2 | Partial → Verified | Day-4 §7 RLS-enable check + tenancy audit | 2026-05-17 Day-4 (Day-4 tables); pending Day-9 (v0.2 + cross-validation) | Same |
 | T3 | Partial → Verified | Day-4 §7 policy attach check + tenancy audit | Same as T2 | Same |
 | T4 | **NOT verified** | Tenancy audit Step T4 (adversarial) | Pending Day-9 | This is the most likely place for a silent bug — app code that forgets the guard |

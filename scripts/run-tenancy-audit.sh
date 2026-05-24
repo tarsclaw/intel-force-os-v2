@@ -66,9 +66,13 @@ FAIL_STEPS=0
 declare -a FAILED_TESTS=()
 
 # Expected tenant-data tables (T1, T2, T3 expect ALL of these)
+# v0.3 supplement adds 2 auxiliary tables: cash_conductor_transactions +
+# cash_conductor_invoices (both RLS-isolated; same tenant_isolation policy
+# pattern as v0.1 + v0.2 tables)
 readonly TENANT_TABLES=(
   entities entity_links decision_log tenant_eval_sets tenant_adapters
   voice_corpus voice_corpus_chunks tone_rule recent_edit
+  cash_conductor_transactions cash_conductor_invoices
 )
 
 # ────────────────────────────────────────────────────────────────────────
