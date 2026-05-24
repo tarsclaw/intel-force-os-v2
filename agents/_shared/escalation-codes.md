@@ -294,12 +294,15 @@ Source: derived from v1.0 agent.md adapter references (Bullhorn, Reed, CV-Librar
 - **Recovery:** founder completes Open Banking SCA reauthentication flow
 
 #### `ESC_OPEN_BANKING_TOKEN_AGING`
-- **Severity:** info — warning before blocking
-- **Trigger:** Open Banking PSD2 consent ≤14 days from 90-day expiry; emitted by nightly health check
+- **Severity:** staged — info → warn → blocking as expiry approaches (per Cash Conductor agent.md §6)
+- **Trigger:** Open Banking PSD2 consent approaching 90-day expiry. Three stages:
+  - **≤30 days remaining:** info — non-urgent operator awareness; nightly health check emits this
+  - **≤14 days remaining:** warn — operator nudge to schedule reauth this week
+  - **≤7 days remaining:** blocking — Cash Conductor enters degraded mode (cached balance only; no fresh bank-feed reads); operator must complete SCA reauth before token expires
 - **Phase:** `gating_failed`
-- **Routing:** `operator_chat_id` (no oncall CC — non-urgent)
-- **Payload fields:** `consent_expires_at`, `days_remaining`, `bank_provider`
-- **Recovery:** founder schedules reauth within remaining window
+- **Routing:** `operator_chat_id` (info + warn stages); ADD `ifos_oncall_chat_id` at blocking stage
+- **Payload fields:** `consent_expires_at`, `days_remaining`, `bank_provider`, `stage` (`info` | `warn` | `blocking`)
+- **Recovery:** founder schedules + completes Open Banking SCA reauth via tenant's bank login
 
 ### 2.8 — Provider read/write failures (4 codes)
 Source: derived from v1.0 agent.md adapter call sites
@@ -351,12 +354,14 @@ Source: `docs/decisions/autosend-safety-policy.md` §5 extensions; runtime orche
 - **Recovery:** action converts to manual reconciliation; operator handles offline
 
 #### `ESC_AUTOSEND_RACE`
-- **Severity:** warn — concurrency violation
-- **Trigger:** Two agents attempted to send the same `payload_hash` within same tenant within `race_window_seconds` (default 60s); second attempt detected by `decision_log` UPSERT-conflict
+- **Severity:** warn — concurrency / state-change race
+- **Trigger:** A send is about to fire when the underlying state has changed in a way that should suppress it. Two canonical use cases:
+  - **Duplicate-payload race:** two agents attempted to send the same `payload_hash` within same tenant within `race_window_seconds` (default 60s); second attempt detected by `decision_log` UPSERT-conflict; second wins-suppressed (first sends; idempotency by payload_hash)
+  - **State-change race (Cash Conductor):** payment received between chase-draft and chase-send window; the invoice is no longer overdue when the orange-tier approval fires; chase cancelled (do NOT send) per Cash Conductor §4 Step 12
 - **Phase:** `gating_failed`
 - **Routing:** `operator_chat_id`
-- **Payload fields:** `payload_hash`, `first_agent_name`, `second_agent_name`, `time_delta_ms`, `action_type`
-- **Recovery:** second attempt suppressed; first wins (idempotency by payload_hash)
+- **Payload fields:** `race_class` (`duplicate_payload` | `state_change_cancellation`), `payload_hash`, class-specific: duplicate → `first_agent_name`, `second_agent_name`, `time_delta_ms`, `action_type`; state-change → `entity_id`, `state_before`, `state_after`, `time_delta_ms`
+- **Recovery:** duplicate → second suppressed; state-change → cancelled draft logged; no operator action required beyond informational review
 
 #### `ESC_AUTOSEND_SAMPLED_SPOT_CHECK`
 - **Severity:** info — quality sampling, not a failure
@@ -400,12 +405,14 @@ Source: v1.0 agent.md draft specs across Diagnostic, Janitor, Scribe, Sourcing S
 - **Payload fields:** `candidate_id`, `missing_fields` (list), `shortlist_id`, `brief_id`
 
 #### `ESC_ADDRESSEE_MISMATCH`
-- **Severity:** **blocking** — Cash Conductor refuses to send reminder/invoice
-- **Trigger:** Outbound reminder/invoice addressee does not match Bullhorn placement client OR Xero contact (cross-system reconciliation failure)
+- **Severity:** **blocking** — outbound send refused (whichever agent firing)
+- **Trigger:** Outbound recipient resolution failed — addressee does not match the entity whose lifecycle/event triggered the send. Two canonical use cases:
+  - **Cash Conductor:** chase/reminder/invoice addressee does not match Bullhorn placement client OR Xero contact (cross-system reconciliation failure between accounting + ATS)
+  - **Concierge:** lifecycle-event email recipient does not match the candidate_id whose state is changing (per ULTRAPLAN A6 line 566 verbatim "no candidates emailed under another's name")
 - **Phase:** `gating_failed`
 - **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
-- **Payload fields:** `bullhorn_client_id`, `xero_contact_id`, `xero_contact_name`, `bullhorn_client_name`, `invoice_id`, `mismatch_dimension` (e.g. `name`, `email`, `address`)
-- **Recovery:** founder reviews; either reconciles manually OR updates one system to match
+- **Payload fields:** `agent_name`, `mismatch_class` (one of `cash_conductor_xero_bullhorn` | `concierge_candidate_email` | future variant), plus class-specific fields: Cash Conductor → `bullhorn_client_id`, `xero_contact_id`, `xero_contact_name`, `bullhorn_client_name`, `invoice_id`, `mismatch_dimension` (e.g. `name`, `email`, `address`); Concierge → `expected_candidate_bullhorn_id`, `actual_recipient_email`, `event_type`
+- **Recovery:** operator reviews; either reconciles manually OR updates one system to match
 
 #### `ESC_RECONCILIATION_AMBIGUOUS`
 - **Severity:** warn — Cash Conductor cannot confidently match incoming payment to a specific invoice
@@ -422,11 +429,14 @@ Source: v1.0 agent.md draft specs across Diagnostic, Janitor, Scribe, Sourcing S
 - **Payload fields:** `recipient_id_hash`, `dnc_list_source`, `dnc_match_reason` (e.g. `explicit_opt_out`, `previous_complaint`, `gdpr_objection`), `action_type_attempted`
 
 #### `ESC_CONCIERGE_SLA_MISS`
-- **Severity:** warn
-- **Trigger:** Concierge SLA breached (default: inbound brief acknowledged within 4h; customer reply within 24h)
+- **Severity:** warn — aggregated to Gate B (not a per-event block)
+- **Trigger:** Concierge SLA breached. Three canonical sla_types:
+  - `brief_ack`: inbound brief not acknowledged within 4h (default)
+  - `customer_reply`: customer reply not actioned within 24h (default)
+  - `draft_generation`: lifecycle event → draft generated >30 min (per ULTRAPLAN A6 line 566; aggregated to Gate B per Concierge §1 disposition rather than per-event hard fail)
 - **Phase:** `gating_failed`
 - **Routing:** `operator_chat_id`
-- **Payload fields:** `brief_id`, `sla_type` (`brief_ack` | `customer_reply`), `sla_threshold_seconds`, `actual_elapsed_seconds`, `tenant_slug`
+- **Payload fields:** `brief_id` or `candidate_bullhorn_id` or `lifecycle_event_id` (per sla_type), `sla_type` (one of the three above), `sla_threshold_seconds`, `actual_elapsed_seconds`, `tenant_slug`
 
 #### `ESC_SCRIBE_SLA_MISS`
 - **Severity:** warn
@@ -436,11 +446,13 @@ Source: v1.0 agent.md draft specs across Diagnostic, Janitor, Scribe, Sourcing S
 - **Payload fields:** `call_id`, `sla_type` (`summary_render` | `note_attach`), `sla_threshold_seconds`, `actual_elapsed_seconds`, `tenant_slug`
 
 #### `ESC_LIFECYCLE_STATE_UNKNOWN`
-- **Severity:** warn — Janitor cannot determine placement state for cleanup
-- **Trigger:** Placement record has ambiguous lifecycle markers (e.g. start_date present but no end_date AND no `active` flag AND no recent activity); Janitor cannot safely tag or update
+- **Severity:** warn — agent cannot determine entity state for downstream action
+- **Trigger:** Lifecycle state is ambiguous or outside the agent's known taxonomy. Two canonical use cases:
+  - **Janitor:** placement record has ambiguous lifecycle markers (e.g. start_date present but no end_date AND no `active` flag AND no recent activity); Janitor cannot safely tag or update
+  - **Concierge:** Bullhorn state transition is outside the 12-event v1.0 taxonomy (acknowledgement / prep / debrief / placement / rejection / withdrawal / on-hold / start-confirm / 7d-checkin / 30d-checkin / 90d-checkin / nurture); handler logs + skips draft
 - **Phase:** `gating_failed`
 - **Routing:** `operator_chat_id`
-- **Payload fields:** `placement_id`, `last_activity_at`, `start_date`, `end_date`, `tag_status`, `ambiguity_class`
+- **Payload fields:** `agent_name`, `entity_type` (`placement` | `candidate_lifecycle_event`), `entity_id`, `ambiguity_class` (Janitor: e.g. `missing_end_date`, `stale_activity`; Concierge: e.g. `unknown_transition`, `out_of_taxonomy`), plus class-specific fields
 
 ---
 
