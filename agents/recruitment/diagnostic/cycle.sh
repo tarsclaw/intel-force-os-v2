@@ -101,7 +101,7 @@ mkdir -p "${REPORT_DIR}" 2>/dev/null || {
 if [[ ${#FIRM_SLUG} -lt 2 ]]; then
   hh_decision_action "diagnostic_input_invalid" "firm:${FIRM_NAME}" \
     "$(printf '%s' "${FIRM_NAME}" | shasum | awk '{print $1}')" \
-    '{"escalation_code":"ESC_SCHEMA_VIOLATION","reason":"firm name too short"}' >/dev/null
+    '{"escalation_code":"ESC_INPUT_VALIDATION_FAIL","input_field":"firm","input_value_preview":"<malformed>","validation_rule_violated":"min_length_2"}' >/dev/null
   exit 1
 fi
 
@@ -155,7 +155,7 @@ if [[ ! -s "${DRAFT_PATH}" ]]; then
   printf 'cycle.sh: generator produced empty output\n' >&2
   hh_decision_action "diagnostic_generator_empty" "firm:${FIRM_SLUG}" \
     "$(date +%s)" \
-    '{"escalation_code":"ESC_SCHEMA_VIOLATION","reason":"generator stdout empty"}' >/dev/null
+    '{"escalation_code":"ESC_AGENT_OUTPUT_SHAPE","agent_name":"diagnostic","shape_rule_violated":"non_empty_output","expected_value":"non-empty stdout","actual_value":"empty"}' >/dev/null
   exit 1
 fi
 
@@ -178,6 +178,10 @@ fi
 
 mv -f "${DRAFT_PATH}" "${REPORT_PATH}"
 chmod 600 "${REPORT_PATH}"
+
+# Final report output row per agent.md §3 audit-row signature
+hh_decision_output "diagnostic_report" "${REPORT_PATH}" \
+  "12-section report on ${FIRM_NAME}" >/dev/null
 
 hh_decision_action "diagnostic_report_render" "firm:${FIRM_SLUG}" \
   "$(shasum "${REPORT_PATH}" | awk '{print $1}')" \
