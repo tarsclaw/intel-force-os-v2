@@ -1,6 +1,6 @@
 # Sourcing Scout — request-response passive sourcing
 
-**Status:** Proposed (2026-05-24 pre-W9-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice + tenant_adapters.config v0.4-supplement adding blocked_recipients + auto_source_on_brief_create).
+**Status:** Proposed (2026-05-24 pre-W9-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice. tenant_adapters.config.blocked_recipients is registered in v0.2-to-v0.3.sql §5 allowlist; auto_source_on_brief_create is v0.4-supplement-pending — webhook auto-source code path blocked until v0.4 lands.)
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W9 per master brief §8.2 line 599 + ULTRAPLAN §8.1 A5 line 545 (master brief says W9; ULTRAPLAN says W8-9; master brief authoritative).
@@ -13,7 +13,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Sourcing Scout ingests a brief description (free-text role description + optional Bullhorn brief_id reference) and produces a ranked list of 5-15 passive candidate matches aggregated from FOUR sources** (Bullhorn ATS passive-match read; LinkedIn via Proxycurl; Reed.co.uk API; CV-Library API). Output is a Markdown report at `/vault/<tenant>/sourcing-scout-reports/<brief-slug>-<ISO-date>.md` containing the ranked candidates, per-candidate match rationale (≥50 words each per Gate A), confidence score [0,1], contact method, and source attribution. Typical runtime: 60-120 seconds per brief. Triggered via Brain UI button, Telegram command (`@ifos_bot scout <brief-id>`), OR webhook from a "new brief" event in Bullhorn (per ULTRAPLAN A5 line 547). Gate A hard-fails any run that returns <5 OR >15 candidates, any candidate without a working contact method, any rationale <50 words, OR any candidate matching the tenant's DNC list (`tenant_adapters.config.blocked_recipients (v0.4-supplement-pending — v0.3 §4 does not include this key; runs against pilot tenants blocked until v0.4 lands)` — Postgres-backed per ADR-002; per ULTRAPLAN A5 line 552 wording "do not contact in tenant vault" is interpreted per v0.3 supplement as the Postgres-backed config key, not a vault markdown file — ADR-002 vault/Postgres split puts structured state in Postgres). Gate B success threshold: ≥6 of 10 candidates advance past first consultant review (per ULTRAPLAN A5 line 553 — shared target with Night Sourcer v1.1). Source-abstraction layer designed for Night Sourcer reuse (per ULTRAPLAN A5 line 555 gotcha).
+> **Sourcing Scout ingests a brief description (free-text role description + optional Bullhorn brief_id reference) and produces a ranked list of 5-15 passive candidate matches aggregated from FOUR sources** (Bullhorn ATS passive-match read; LinkedIn via Proxycurl; Reed.co.uk API; CV-Library API). Output is a Markdown report at `/vault/<tenant>/sourcing-scout-reports/<brief-slug>-<ISO-date>.md` containing the ranked candidates, per-candidate match rationale (≥50 words each per Gate A), confidence score [0,1], contact method, and source attribution. Typical runtime: 60-120 seconds per brief. Triggered via Brain UI button, Telegram command (`@ifos_bot scout <brief-id>`), OR webhook from a "new brief" event in Bullhorn (per ULTRAPLAN A5 line 547). Gate A hard-fails any run that returns <5 OR >15 candidates, any candidate without a working contact method, any rationale <50 words, OR any candidate matching the tenant's DNC list (`tenant_adapters.config.blocked_recipients (registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist — Postgres-backed structured state per ADR-002; canonical source for v1.0 DNC list)` — Postgres-backed per ADR-002; per ULTRAPLAN A5 line 552 wording "do not contact in tenant vault" is interpreted per v0.3 supplement as the Postgres-backed config key, not a vault markdown file — ADR-002 vault/Postgres split puts structured state in Postgres). Gate B success threshold: ≥6 of 10 candidates advance past first consultant review (per ULTRAPLAN A5 line 553 — shared target with Night Sourcer v1.1). Source-abstraction layer designed for Night Sourcer reuse (per ULTRAPLAN A5 line 555 gotcha).
 
 ---
 
@@ -106,7 +106,7 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 ```
 0. Session start
    → context.sh hydrates: tenant config + multi-source auth + voice corpus
-     + DNC list from `tenant_adapters.config.blocked_recipients (v0.4-supplement-pending — v0.3 §4 does not include this key; runs against pilot tenants blocked until v0.4 lands)` (Postgres-
+     + DNC list from `tenant_adapters.config.blocked_recipients (registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist — Postgres-backed structured state per ADR-002; canonical source for v1.0 DNC list)` (Postgres-
      backed per ADR-002 vault/Postgres split; canonical v0.1 + v0.2 + v0.3
      registered config key)
    → hh_decision_trigger("session_start", "scout <brief-id-or-slug>")
@@ -188,7 +188,7 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
      "pre_dedupe:<N>; post_dedupe:<N>")
 
 8. "Do not contact" filter (pre-outbound sourcing filter; NOT outbound refusal)
-   → load tenant DNC list from `tenant_adapters.config.blocked_recipients (v0.4-supplement-pending — v0.3 §4 does not include this key; runs against pilot tenants blocked until v0.4 lands)`
+   → load tenant DNC list from `tenant_adapters.config.blocked_recipients (registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist — Postgres-backed structured state per ADR-002; canonical source for v1.0 DNC list)`
      (concept referenced by autosend-policy.yaml red-tier
      `send_to_blocked_recipient` action_type + ESC_DNC_FILTER_HIT catalogue
      §2.10; the actual config-key SCHEMA registration is v0.4-supplement-
@@ -248,7 +248,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Sourcing Scout's `
 - **"5–15 candidates returned per brief"** (count within range)
 - **"each has a working contact method"** (email format + MX check OR E.164 phone OR LinkedIn URL OR Bullhorn bullhorn_id-with-contact)
 - **"each has rationale ≥ 50 words"**
-- **"no candidate flagged 'do not contact' in tenant config"** (DNC scan against `tenant_adapters.config.blocked_recipients (v0.4-supplement-pending — v0.3 §4 does not include this key; runs against pilot tenants blocked until v0.4 lands)` Postgres-stored list per ADR-002 vault/Postgres split)
+- **"no candidate flagged 'do not contact' in tenant config"** (DNC scan against `tenant_adapters.config.blocked_recipients (registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist — Postgres-backed structured state per ADR-002; canonical source for v1.0 DNC list)` Postgres-stored list per ADR-002 vault/Postgres split)
 - All rationales pass voice classifier ≥0.75
 - No PII outside firm boundary in rationale text → fires `ESC_PII_LEAKAGE_RISK` (BLOCKING per catalogue §2.5 lines 148-154; halts immediately, not warn-only output-shape)
 - No enabled live source returns 0 candidates WITHOUT a recorded degradation exception note (sources in degraded mode per §4 Step 2 are expected to return 0 and don't trip Gate A)
@@ -264,7 +264,7 @@ Draft to `/tmp`; operator review.
 
 Per ULTRAPLAN A5 line 553 verbatim: **"≥6 of 10 candidates advance past first consultant review (shared target with Night Sourcer)"**.
 
-Measured via consultant feedback loop: each candidate in a Sourcing Scout report gets a "useful / not useful" tag from the consultant via Brain UI v1.1 OR Telegram reply OR Bullhorn note. Aggregate over rolling 30-day window per tenant.
+Measured via consultant feedback loop: each candidate in a Sourcing Scout report gets a "useful / not useful" tag from the consultant via Brain UI v1.1 OR Telegram reply (v1.0). Aggregate over rolling 30-day window per tenant. NOTE: Bullhorn-note feedback is NOT a v1.0 path (Sourcing Scout is read-only on Bullhorn per §1 + §6 contracts; would require write capability not in v1.0 scope).
 
 Per bilateral-disposition Cat-3: Gate B is a local leading metric for Sourcing Scout quality; NOT mapped to any v1.0 kill-criterion trigger. Below 6-of-10 for 30 consecutive days → `ESC_GATE_B_MISS` → operator_chat_id (per catalogue routing) — operator review (likely indicates ranking heuristic drift, source-mix imbalance, OR brief-input quality issue).
 
@@ -335,14 +335,14 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 | CV-Library MCP connector | W9 build start (~2 days) | ⏸ |
 | Source-abstraction layer (Night Sourcer reuse) | W9 build start (~2 days) | ⏸ |
 | Per-tenant source credentials in `_secrets.env` | Tenant onboarding | ⏸ |
-| Tenant DNC list populated in `tenant_adapters.config.blocked_recipients (v0.4-supplement-pending — v0.3 §4 does not include this key; runs against pilot tenants blocked until v0.4 lands)` (Postgres-backed structured state per ADR-002 vault/Postgres split) | Tenant onboarding | ⏸ |
+| Tenant DNC list populated in `tenant_adapters.config.blocked_recipients (registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist — Postgres-backed structured state per ADR-002; canonical source for v1.0 DNC list)` (Postgres-backed structured state per ADR-002 vault/Postgres split) | Tenant onboarding | ⏸ |
 | Voice corpus seeded for first pilot tenant | Tenant-admin onboarding | ⏸ |
 | `validate.sh` Gate A logic | Build at W9 start (~1 day) | ⏸ |
 | `context.sh` hydration | Build at W9 start (~0.5 day) | ⏸ |
 | `cycle.sh` orchestration (11-step) | Build at W9 start (~2 days) | ⏸ |
 | 3 fixtures with golden outputs | Build at W9 start (~1 day) | ⏸ |
 
-**Until ALL ⏸ items resolve to ✅, W9 build slice does not start.**
+**Pre-W9-build prerequisites (must resolve to ✅ before W9 starts):** all items listed up to and including "Tenant DNC list populated", "Voice corpus seeded", and "Per-tenant source credentials in _secrets.env" — these are FOUNDER/TENANT-ADMIN actions that the W9 build cannot deliver itself. The four sibling-bundle items below (validate.sh, context.sh, cycle.sh, fixtures) ARE the W9 build slice itself — those are deliverables not prerequisites. Their completion is the W9-build-end Status-flip criterion (Proposed → Accepted), not the W9-build-start gate.
 
 ---
 
@@ -356,9 +356,9 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 |---|---|---|
 | Q1 | All three external sources required for v1.0? Reed + CV-Library are UK-recruitment-specific; Proxycurl is LinkedIn-via-API. Could v1.0 ship with Bullhorn + Proxycurl only (2 sources)? | Founder strategic. Recommend 3 sources minimum for 5-15 candidate Gate A coverage; Reed if tenant focused on perm; CV-Library if tenant focused on contract. |
 | Q2 | Proxycurl pricing — ~$39/mo for 5,000 credits at low volume; scales with usage. Per pilot tenant budget? | ~5-10 briefs/day per consultant × 50 calls/brief = up to 2,500 credits/day per consultant. Cost: ~$20-50/day at peak. |
-| Q3 | DNC list source — tenant_adapters.config.blocked_recipients (v0.4-supplement-pending — v0.3 §4 does not include this key; runs against pilot tenants blocked until v0.4 lands) (Postgres-stored, already-registered config key), with v1.1 derivation from Bullhorn candidate.status='do_not_contact'? | v1.0: tenant-admin manages via tenant_adapters.config.blocked_recipients (v0.4-supplement-pending — v0.3 §4 does not include this key; runs against pilot tenants blocked until v0.4 lands) (per ADR-002 vault/Postgres split — structured state in Postgres). v1.1: auto-sync from Bullhorn candidate.status='do_not_contact'. |
+| Q3 | DNC list source — tenant_adapters.config.blocked_recipients (registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist — Postgres-backed structured state per ADR-002; canonical source for v1.0 DNC list) (Postgres-stored, already-registered config key), with v1.1 derivation from Bullhorn candidate.status='do_not_contact'? | v1.0: tenant-admin manages via tenant_adapters.config.blocked_recipients (registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist — Postgres-backed structured state per ADR-002; canonical source for v1.0 DNC list) (per ADR-002 vault/Postgres split — structured state in Postgres). v1.1: auto-sync from Bullhorn candidate.status='do_not_contact'. |
 | Q4 | Rationale length — 50 words feels short for high-quality match explanation. Bump to 100? | Founder review with first pilot consultant feedback. ULTRAPLAN A5 line 552 says "≥ 50 words" — using as floor. |
-| Q5 | Gate B 6-of-10 metric — measured via consultant feedback. Brain UI v1.0 doesn't have feedback UX yet. Telegram reply? | v1.0: Telegram reply with "/scout-feedback <candidate-id> useful|not-useful". v1.1: Brain UI button. |
+| Q5 | Gate B 6-of-10 metric — measured via consultant feedback (Brain UI v1.0 doesn't have feedback UX yet) | v1.0: Telegram reply with "/scout-feedback <candidate-id> useful|not-useful" → `decision_log` row via `consultant_feedback` green-tier action_type. v1.1: Brain UI button. NOTE: Bullhorn-note-based feedback is NOT a v1.0 path — Sourcing Scout is read-only on Bullhorn (no write capability); Bullhorn note creation would require tools.yaml write capability + autosend/decision logging which v1.0 explicitly excludes. |
 | Q6 | Source-abstraction layer design — Night Sourcer v1.1 reuses this. Should the design be ratified separately (its own ADR)? | Recommend: yes. New ADR-006 at W9 build start documenting source-abstraction interface. |
 | Q7 | Bullhorn passive-match query — what's the right SEARCH filter? Per §4 Step 3 + vertical-schema candidate.status enum (`[active, archived, do_not_contact, placed, contractor_promoted]` — line 84-88 of vertical-schema.yaml; "passive" is NOT a canonical enum value), Sourcing Scout queries Bullhorn for `status='active'` candidates with `date_last_modified_at < now() - 90 days` (per schema line 100) to derive "passive" semantically. The question is whether Bullhorn's native search API supports this composite filter efficiently, or whether we need a 2-stage query (status=active first, then client-side modification-recency filter). | Founder + Bullhorn-rep clarification during Sub-decision B response. |
 
