@@ -380,24 +380,35 @@ agent_access_matrix:
     timesheet: R           # reads for placement-state inference
 
   scribe:
-    candidate: R+W         # call-summary field extraction
-    contractor: R+W        # call-summary field extraction
-    client: R
-    contact: R+W           # v0.3 CHANGED (was none); preferred_channel + next_action_target_date writes only (NOT decision_authority — that remains v0.1-owned by founder/v1.1 Triage)
-    brief: R+W             # v0.3 CHANGED (was R); must_haves + nice_to_haves + deal_breakers writes only (existing salary_min/max + start_date_target remain Bullhorn-sourced, R-only)
-    opportunity: R+W       # v0.3 CHANGED (was none); 3 new prospecting-call fields
-    placement: R+W         # check-in field extraction
-    timesheet: R           # reads for placement-context resolution on check-in calls
+    # Scribe's Bullhorn endpoint access (Candidate / ClientCorporation /
+    # JobOrder / Note / Placement) per bullhorn-integration-path.md §4.1
+    # row A3. opportunity + timesheet access below is to IFOS-cached
+    # Postgres rows ONLY (not direct Bullhorn endpoint calls). Scribe
+    # uses Bullhorn endpoints for the 5 v1.0-supported entities; other
+    # entity access in this matrix is via Postgres cache.
+    candidate: R+W         # call-summary field extraction (Bullhorn endpoint A3)
+    contractor: R+W        # call-summary field extraction (Bullhorn endpoint A3 — candidate entity)
+    client: R              # IFOS-cached read (Bullhorn endpoint A3 — ClientCorporation)
+    contact: R+W           # v0.3 CHANGED (was none); preferred_channel + next_action_target_date writes only (NOT decision_authority); via Bullhorn Note endpoint A3
+    brief: R+W             # v0.3 CHANGED (was R); must_haves + nice_to_haves + deal_breakers writes only; via Bullhorn JobOrder endpoint A3
+    opportunity: R+W       # v0.3 CHANGED (was none); 3 new prospecting-call fields written to IFOS-cached Postgres rows only (Bullhorn Opportunity endpoint NOT used at v1.0 per integration-path §4.1)
+    placement: R+W         # check-in field extraction (Bullhorn Placement endpoint A3)
+    timesheet: R           # IFOS-cached read; placement-context resolution (Bullhorn Timesheet endpoint NOT used at v1.0)
 
   cash_conductor:
+    # NOTE: Cash Conductor has NO direct Bullhorn endpoint access per
+    # bullhorn-integration-path.md §1.2 A4 ("No direct Bullhorn"). All
+    # entity reads below are against IFOS-cached Postgres rows
+    # (populated by Janitor + Scribe + Concierge from their Bullhorn
+    # sync paths). Cash Conductor never calls Bullhorn endpoints directly.
     candidate: none        # no Bullhorn dependency
     contractor: none
-    client: R              # reads client billing details
-    contact: R             # reads for invoice addressee resolution
+    client: R              # IFOS-cached read; client billing details
+    contact: R             # IFOS-cached read; invoice addressee resolution
     brief: none
-    opportunity: R         # v0.3 NEW — reads opportunity for invoice-context
-    placement: R           # reads for client linkage on invoice
-    timesheet: R           # reads to verify billable hours match invoiced amounts
+    opportunity: R         # v0.3 NEW — IFOS-cached read; invoice-context (NOT a direct Bullhorn call; only cached rows)
+    placement: R           # IFOS-cached read; client linkage on invoice
+    timesheet: R           # IFOS-cached read; verify billable hours match invoice (NOT a direct Bullhorn call)
     # (auxiliary-table access is documented in auxiliary_table_access_matrix below)
 
   sourcing_scout:
@@ -416,14 +427,18 @@ agent_access_matrix:
     timesheet: none
 
   concierge:
-    candidate: R+W         # CORRECTED v0.3 (was R); writes lifecycle-state-derived fields + activity-log links per concierge §4 Step 13-14
-    contractor: R+W        # writes lifecycle states for contractor placements too
-    client: R
-    contact: R             # reads for outbound recipient resolution
-    brief: R
-    opportunity: R
-    placement: R+W         # CORRECTED v0.3 (was R); writes Bullhorn state advancement per concierge §4 Step 14
-    timesheet: R           # reads to verify placement-progress for 7d/30d/90d nurture
+    # Concierge's Bullhorn endpoint access (Candidate / ClientCorporation /
+    # JobOrder / Note / Placement) per bullhorn-integration-path.md §4.1
+    # row A6. opportunity + timesheet access below is IFOS-cached Postgres
+    # only (not Bullhorn endpoint calls).
+    candidate: R+W         # CORRECTED v0.3 (was R); writes lifecycle-state-derived fields + activity-log links per concierge §4 Step 13-14 (Bullhorn endpoint A6)
+    contractor: R+W        # writes lifecycle states for contractor placements too (Bullhorn endpoint A6 — candidate entity)
+    client: R              # IFOS-cached read (Bullhorn endpoint A6 — ClientCorporation)
+    contact: R             # IFOS-cached read; outbound recipient resolution (Bullhorn endpoint A6 — Note context)
+    brief: R               # IFOS-cached read (Bullhorn endpoint A6 — JobOrder)
+    opportunity: R         # IFOS-cached read; outbound lifecycle-event context (Bullhorn Opportunity endpoint NOT used at v1.0)
+    placement: R+W         # CORRECTED v0.3 (was R); writes Bullhorn state advancement per concierge §4 Step 14 (Bullhorn endpoint A6)
+    timesheet: R           # IFOS-cached read; placement-progress for 7d/30d/90d nurture (Bullhorn Timesheet endpoint NOT used at v1.0)
 
 # ============================================================================
 # §2a — v0.2 entity v1_0_agent_access amendments
@@ -607,7 +622,7 @@ auxiliary_tables:
       match_confidence: {type: number, required: false, source: IFOS-derived (Cash Conductor algorithm), notes: "range [0.00, 1.00]"}
       match_dimensions: {type: array, items: {type: string}, required: false, source: IFOS-derived}
       ingested_at: {type: timestamp, required: true, default: now(), source: IFOS-internal}
-      raw_payload: {type: object, required: false, source: Open Banking provider, pii: true, notes: Full Open Banking response; pseudonymized at year 7}
+      raw_payload: {type: object, required: false, source: Open Banking provider, pii: true, free_form: true, notes: "Free-form provider JSON; no shape contract — provider-specific. Full Open Banking response cached for audit; pseudonymized at year 7"}
     indexes:
       - "(tenant_slug, posted_at DESC)"
       - "(tenant_slug, match_status, posted_at DESC) WHERE match_status IN ('unmatched','ambiguous')"
@@ -645,7 +660,7 @@ auxiliary_tables:
       last_chase_position: {type: integer, required: true, default: 0, source: IFOS-derived (Cash Conductor escalation ladder), notes: 0-4 per Cash Conductor §3.2}
       last_chase_sent_at: {type: timestamp, required: false, source: IFOS-derived}
       ingested_at: {type: timestamp, required: true, default: now(), source: IFOS-internal}
-      raw_payload: {type: object, required: false, source: Accounting provider, pii: true}
+      raw_payload: {type: object, required: false, source: Accounting provider, pii: true, free_form: true, notes: "Free-form provider JSON; no shape contract — provider-specific (Xero / QuickBooks / Sage). Full provider response cached for audit"}
     indexes:
       - "(tenant_slug, due_at)"
       - "(tenant_slug, status, due_at) WHERE status IN ('open','partial','overdue')"
@@ -812,7 +827,7 @@ migration_sequence:
   rollback: migrations/v0.3-to-v0.2.sql
 
   pre_conditions:
-    - v0.2 migration applied (voice_corpus + tone_rule + recent_edit tables exist)
+    - v0.2 migration applied (voice_corpus + voice_corpus_chunks + tone_rule + recent_edit tables exist)
     - validate_voice_scores trigger active on entities table
     - RLS + ifos_app grants from Day-4 §6.3 in place
     - migration-test tenant row exists in tenants table
