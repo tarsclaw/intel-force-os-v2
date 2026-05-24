@@ -294,16 +294,29 @@ EOF
 
   _ok "Prompt assembled at ${prompt_file}"
 
-  # Run codex non-interactively
-  if ! codex exec --output-format text < "${prompt_file}" > "${output_file}" 2>&1; then
+  # Run codex non-interactively.
+  # NOTE: --output-format flag was removed in codex-cli 0.132.0+ (text is the
+  # default for non-TTY stdout). Day-19 patch: omit the flag.
+  if ! codex exec < "${prompt_file}" > "${output_file}" 2>&1; then
     _fail "codex exec failed" "See ${output_file} for stderr"
     return 1
   fi
   _ok "Codex returned response (${output_file})"
 
-  # Parse verdict
+  # Parse verdict. codex-cli 0.132.0+ structure:
+  #   metadata header (Reading prompt..., session id, ...)
+  #   user (echoed prompt — contains SKILL.md template that mentions
+  #         both RATIFIED and REJECTED literals)
+  #   codex (the actual response — starts with the verdict)
+  #   tokens used (summary footer)
+  # We extract the LAST RATIFIED/REJECTED line that precedes "tokens used",
+  # which lands inside the codex response section.
   local first_token
-  first_token=$(head -1 "${output_file}" | awk '{print $1}' | tr -d ':')
+  first_token=$(awk '
+    /^tokens used/ { stop=1 }
+    !stop && /^(RATIFIED|REJECTED)([[:space:]]|$|:)/ { v=$1 }
+    END { print v }
+  ' "${output_file}" 2>/dev/null | tr -d ':')
   if [[ "${first_token}" == "RATIFIED" ]]; then
     printf 'RATIFIED\n' > "${verdict_file}"
     _ok "Verdict: RATIFIED"

@@ -174,6 +174,20 @@ Source: master brief §8.1 Change 3 lines 585-592
 - **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id` (CSM may need to retrain voice corpus)
 - **Payload fields:** `tenant_slug`, `drift_event_count`, `window_days`, `affected_agents` (list of agent_name)
 
+#### `ESC_INPUT_VALIDATION_FAIL`
+- **Severity:** warn
+- **Trigger:** Agent rejected its input at the validation gate (e.g. malformed firm name, missing required CLI argument, brief description too short). Detected at Step 1 of the agent's workflow BEFORE any tool calls or LLM invocations
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `input_field`, `input_value_preview` (truncated to 80 chars), `validation_rule_violated`
+
+#### `ESC_AGENT_OUTPUT_SHAPE`
+- **Severity:** warn
+- **Trigger:** Agent produced output that doesn't match its declared output shape (e.g. Diagnostic report with section count != 12, missing per-section citation, validate.sh V1/V2 check fail). Distinct from `ESC_SCHEMA_VIOLATION` which is for vertical-schema field-constraint violations at write-time
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `agent_name`, `output_path`, `shape_rule_violated`, `expected_value`, `actual_value`
+
 ### 2.6 — Cross-cutting infrastructure (6 codes)
 Source: derived from operational discipline + sequencing-target §5
 

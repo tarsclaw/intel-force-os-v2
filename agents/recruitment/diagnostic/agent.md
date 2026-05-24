@@ -13,7 +13,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Diagnostic produces a single Markdown report at `/vault/<tenant>/diagnostic-reports/<firm-slug>-<ISO-date>.md`** that diagnoses one named UK firm's recruitment-buying signals. The report has exactly **12 sections** (enumerated in §3 below). Each section MUST contain at least one evidence link (Companies House URL, LinkedIn URL, or careers-page URL) backing every factual claim — Gate A hard-fails on missing citations. The report ends with a **2-3 sentence conversation opener** written in the consultant's voice (voice-classifier ≥ 0.75 per `common-voice.json`) suitable for cold outreach to the firm's hiring decision-maker. **No external sends** — Diagnostic writes to vault only; consultant reads + uses for prospect calls or directly pastes the conversation opener into LinkedIn/email manually. Typical report length: 600-1000 words. Gate B (success threshold): ≥ 30% of Diagnostic reports result in a discovery call booked within 14 days of generation (per Ultraplan §8.1 A1).
+> **Diagnostic produces a single Markdown report at `/vault/<tenant>/diagnostic-reports/<firm-slug>-<ISO-date>.md`** that diagnoses one named UK firm's recruitment-buying signals. The report has exactly **12 sections** (enumerated in §3 below). Each section MUST contain at least **one** evidence link (Companies House URL, LinkedIn URL, or careers-page URL) — Gate A hard-fails on any section missing its citation. (Per-claim citation validation is a W4 polish item; the v0 contract requires per-section coverage as a tractable Gate-A check.) The report ends with a **2-3 sentence conversation opener** written in the consultant's voice (voice-classifier ≥ 0.75 per `common-voice.json`) suitable for cold outreach to the firm's hiring decision-maker. **No external sends** — Diagnostic writes to vault only; consultant reads + uses for prospect calls or directly pastes the conversation opener into LinkedIn/email manually. Typical report length: 600-1000 words. Gate B (success threshold): ≥ 30% of Diagnostic reports result in a discovery call booked within 14 days of generation (per Ultraplan §8.1 A1).
 
 ---
 
@@ -81,7 +81,7 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
    → validate.sh checks: firm name non-empty, sector (if provided) in known list,
      tenant_slug present, voice corpus reachable
    → Gate A: hard-fail if any check fails
-   → ESC_SCHEMA_VIOLATION if firm name malformed
+   → ESC_INPUT_VALIDATION_FAIL if firm name malformed (new code added to catalogue this round)
 
 2. Companies House lookup (Section 1)
    → companies_house_lookup(firm_name) via Companies House MCP connector
@@ -164,9 +164,9 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Diagnostic's `vali
 
 ### Gate B — Outcome threshold (success metric, not block)
 
-Per Ultraplan §8.1 A1: ≥ 30% of Diagnostic reports lead to a discovery call booked within 14 days of generation. Measured by tagging the report's outcome in `decision_log.payload.gate_b_outcome` when the consultant updates status (via Telegram or Brain UI v1.1).
+Per Ultraplan §8.1 A1: ≥ 30% of Diagnostic reports lead to a discovery call booked within 14 days of generation. Measured by consultant feedback loop — Telegram reply `/diagnostic-feedback <report-id> booked|not-booked` (v1.0) or Brain UI button (v1.1). Aggregated as `decision_log` rows with `agent_name='_consultant_feedback'` + `phase='action'`; outcome metric computed by Gate-B rollup query at the weekly review (not stored as a single `decision_log.payload` field).
 
-Gate B doesn't block the agent — it's the v1.0 kill criterion §2 Trigger 5 metric. Below 30% sustained for 4 weeks → revisit Diagnostic's output quality.
+Gate B doesn't block the agent. It contributes to v1.0 kill-criterion §2 Trigger 8 ("Gate-B revenue uplift" — Diagnostic's discovery-call conversion is one of three signals feeding Trigger 8, alongside Janitor day-30 reports and Cash Conductor DSO improvement). Below 30% sustained for 4 weeks → revisit Diagnostic's output quality at next Sunday review (not an immediate trigger fire).
 
 ---
 
@@ -179,7 +179,8 @@ Diagnostic uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_VOICE_DRIFT` | Section 12 voice classifier < 0.75 after 3 retries | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_RATE_LIMIT_HIT` | Companies House or LinkedIn 429 | warn | operator_chat_id |
-| `ESC_SCHEMA_VIOLATION` | Section count != 12 OR malformed input | warn | operator_chat_id |
+| `ESC_INPUT_VALIDATION_FAIL` | Malformed firm name input (Step 1 validation) | warn | operator_chat_id |
+| `ESC_AGENT_OUTPUT_SHAPE` | Section count != 12 OR Gate-A per-section citation missing | warn | operator_chat_id |
 | `ESC_RENDERER_FAILED` | (not Diagnostic's concern; renderer escalation only) | — | — |
 
 Diagnostic does NOT use:
@@ -199,7 +200,7 @@ Section 12 (conversation opener) is voice-classified. The agent integrates with 
   - No salary or commission anchors in cold outreach
   - Specific evidence anchor required (not generic "great company")
 - **`hh_load_voice_samples` ANN query against tenant's voice_corpus**: top-5 chunks closest to current task context (cold-outreach-to-recruitment-firm-decision-maker). Feeds LLM prompt as voice exemplars.
-- **`hh_load_recent_edits` last 30 days for `concierge` + `diagnostic`**: surfaces patterns of how consultant edits agent drafts. If drift is detected (edit-distance > 200 chars on >50% of recent_edit rows), `ESC_VOICE_DRIFT_TENANT` fires (per `escalation-codes.md` §2.5).
+- **`hh_load_recent_edits` last 30 days for `concierge` + `diagnostic`**: surfaces patterns of how consultant edits agent drafts. Per-run `ESC_VOICE_DRIFT` fires when the §12 voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` fires per `escalation-codes.md` ESC_VOICE_DRIFT_TENANT trigger — ≥5 `ESC_VOICE_DRIFT` rows from the same tenant within a rolling 7-day window (per the nightly voice-drift cron). Edit-distance metrics are tracked separately for analytics but do NOT fire ESC_VOICE_DRIFT_TENANT directly.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
