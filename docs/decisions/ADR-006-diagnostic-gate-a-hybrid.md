@@ -1,6 +1,6 @@
 # ADR-006 — Diagnostic Gate A hybrid (per-section v0 + per-claim W4 spot-check)
 
-**Status:** Accepted (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b`; awaiting Codex `review-architecture-decision` ratification confirmation)
+**Status:** Proposed (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b` as the binding text; Status flips to Accepted on Codex `review-architecture-decision` RATIFIED verdict + per the §Status section criteria below)
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A1 line 496 — Gate A citation requirement
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
@@ -51,11 +51,13 @@ A statistical sample (1-in-N, configurable per tenant; default 1-in-10) of Diagn
 - NLP claim-extraction (sentence-level)
 - Per-claim evidence-link matching (semantic similarity against cited URLs)
 - Per-claim confidence score
-- Aggregate report quality metric written to `decision_log.payload.per_claim_confidence_distribution` (NEW payload key — W4-polish schema work; not present in the `decision_log.payload` shape documented at `docs/decisions/autosend-safety-policy.md` §7 audit row schema today, which lists `tier`, `action_type`, `target`, `payload_hash`, `payload_preview`, `override_applied`, approval fields, `block_reason`, and `policy_version_sha` only). **Owner:** Claude Code authors the autosend-safety-policy §7 supplement adding this key. **Trigger:** W4-polish work (after Diagnostic v0 first-pilot launch); estimated 2026-06-21 to 2026-06-28. Tier 2 sampling MUST NOT activate until this supplement lands + Codex ratifies it.
+- Aggregate report quality metric written to `decision_log.payload` (a NEW payload key, name to be specified by the autosend-safety-policy §7 supplement that lands as part of W4-polish — this ADR does NOT name the key; concrete schema work belongs in the supplement, not this ADR)
 
 Below threshold (e.g. <80% of claims with confidence ≥0.6) → warn (not block); operator review queue entry.
 
-The per-tenant sample-rate override (`tenant_adapters.config.diagnostic_per_claim_sample_rate`) is also a NEW config field — `tenant_adapters` schema does not include it today. **Owner:** Claude Code authors the v0.3 vertical-schema supplement adding this field. **Trigger:** W4-polish (same delivery window as the payload-schema supplement; 2026-06-21 to 2026-06-28). Tier 2 sampling MUST NOT activate until v0.3 supplement lands + Codex ratifies it.
+The per-tenant sample-rate override is also a NEW config field whose name + type lands with the v0.3 vertical-schema supplement (this ADR does NOT name the field; concrete schema work belongs in the supplement).
+
+**Owner of both schema supplements:** Claude Code. **Trigger:** W4-polish (after Diagnostic v0 first-pilot launch); estimated 2026-06-21 to 2026-06-28. **Sequencing constraint:** Tier 2 sampling MUST NOT activate until BOTH supplements (autosend-safety-policy §7 audit-shape supplement + v0.3 vertical-schema supplement) land AND ratify via Codex. This ADR's Decision 1 stands; Decision 1's Tier 2 mechanism is architecturally specified, but the concrete payload + config-field shapes are downstream schema work outside this ADR's scope.
 
 ### W4 polish trigger
 
@@ -120,8 +122,8 @@ This is the explicit in-band amendment Codex `review-architecture-decision` rati
 ### W4-polish slice (after voice-classifier microservice ships + first pilot tenant data accumulates)
 
 - Per-claim spot-check pipeline lands as Tier 2 validate.sh extension
-- Sample rate configurable per tenant in `tenant_adapters.config.diagnostic_per_claim_sample_rate`
-- Aggregate metric writes to `decision_log.payload.per_claim_confidence_distribution`
+- Sample rate configurable per tenant via field landing in v0.3 vertical-schema supplement (concrete field name + type specified there, not in this ADR)
+- Aggregate metric writes to `decision_log.payload` via key landing in autosend-safety-policy §7 supplement (concrete key name specified there, not in this ADR)
 - Threshold breach → `ESC_AGENT_OUTPUT_SHAPE` warn (info-only; no block)
 
 ### Downstream artefact references (queued for post-ratify commit)
