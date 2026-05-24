@@ -14,7 +14,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Cash Conductor produces THREE outputs continuously:** (1) real-time invoice ↔ bank-deposit reconciliation rows written to the tenant's accounting system (Xero / QuickBooks / Sage per tenant config), (2) consultant-approved orange-tier payment-chase email drafts queued to Concierge for send (Concierge handles the actual send; Cash Conductor only drafts), and (3) a weekly cash-flow Markdown report at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md` (generated Monday 06:00 UTC). NO Bullhorn dependency — Cash Conductor operates entirely against the tenant's accounting + Open Banking stack, making it the most-independent v1.0 agent (per ADR-005 §5.1: this independence is its strategic value when Bullhorn paths are delayed). Gate A hard-fails any chase draft that doesn't reference the correct invoice number AND correct amount AND correct contact (per ULTRAPLAN A4 line 538). Gate A also blocks any chase for an invoice paid in last 24 hours (per ULTRAPLAN A4 line 538 verbatim). Gate B success threshold: tenant DSO at month-3 ≥ 12 days lower than month-0 baseline (per ULTRAPLAN A4 line 539) — the FD-tier closer metric. Chase drafts are orange-tier (`xero_reminder_draft_internal` per `autosend-safety-policy.yaml` line 104; consultant approval required before send via Concierge); reconciliation writes are yellow-tier (`accounting_reconciliation_write` per autosend-policy.yaml; registered as part of 2026-05-24 bilateral catalogue extension).
+> **Cash Conductor produces THREE outputs continuously:** (1) real-time invoice ↔ bank-deposit reconciliation rows written to the tenant's accounting system (Xero / QuickBooks / Sage per tenant config), (2) consultant-approved orange-tier payment-chase email drafts queued to Concierge for send (Concierge handles the actual send; Cash Conductor only drafts), and (3) a weekly cash-flow Markdown report at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md` (generated Monday 06:00 UTC). NO Bullhorn dependency — Cash Conductor operates entirely against the tenant's accounting + Open Banking stack, making it the most-independent v1.0 agent (per ADR-005 §5.1: this independence is its strategic value when Bullhorn paths are delayed). Gate A hard-fails any chase draft that doesn't reference the correct invoice number AND correct amount AND correct contact (per ULTRAPLAN A4 line 538). Gate A also blocks any chase for an invoice paid in last 24 hours (per ULTRAPLAN A4 line 538 verbatim). Gate B success threshold: tenant DSO at month-3 ≥ 12 days lower than month-0 baseline (per ULTRAPLAN A4 line 539) — the FD-tier closer metric. Chase drafts are yellow-tier `xero_reminder_draft_internal` (per `agents/_shared/autosend-policy.yaml` lines 182-187 — internal draft sampled for spot-check); the customer-facing send routed via Concierge is orange-tier `xero_reminder_send_customer` (per `agents/_shared/autosend-policy.yaml` lines 257-262; consultant approval required before send). Reconciliation writes are yellow-tier (`accounting_reconciliation_write` per autosend-policy.yaml; registered as part of 2026-05-24 bilateral catalogue extension).
 
 ---
 
@@ -145,9 +145,11 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
 1. Provider auth refresh
    → accounting: Xero/QuickBooks/Sage OAuth refresh per provider
    → Open Banking: TrueLayer/Plaid UK 90-day token refresh (CRITICAL —
-     gotcha per ULTRAPLAN A4 line 541); if <30 days until expiry,
-     fire ESC_OPEN_BANKING_TOKEN_AGING (operator must re-authorise)
-   → ESC_ACCOUNTING_AUTH or ESC_OPEN_BANKING_AUTH on failure
+     gotcha per ULTRAPLAN A4 line 541); staged ESC_OPEN_BANKING_TOKEN_AGING:
+     ≤30d info, ≤14d warn, ≤7d blocking (operator must re-authorise)
+   → ESC_ACCOUNTING_AUTH or ESC_OPEN_BANKING_AUTH on auth failure
+   → hh_decision_output("auth_refresh_complete", "tenant:<slug>",
+     "accounting:<ok|fail>; open_banking:<ok|fail>; token_aging_stage:<info|warn|blocking|fresh>")
 
 2. Event router (mode-dependent)
    → if mode=webhook: parse event_type → routes to Step 3-7 path
@@ -201,6 +203,8 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
    → voice classifier scores against tenant style (≥0.75 for position 1-2;
      ≥0.80 for position 3 per §3.2)
    → ESC_VOICE_DRIFT if classifier <threshold after 3 retries
+   → hh_decision_output("chase_draft_generated", "invoice:<id>",
+     "position:<N>; voice_score:<N>; words:<N>")
 
 9. Chase-draft validation (Gate A specifics)
    → verify: invoice_number cited matches invoice_id
@@ -301,7 +305,7 @@ Cash Conductor uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A miss (invoice/amount/contact validation OR paid-invoice precondition violated) — output-shape constraint per catalogue line 184 | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | DSO improvement below 12-day target for 2 consecutive months | warn | founder + operator |
 | `ESC_RATE_LIMIT_HIT` | Accounting OR Open Banking 429 | warn | operator_chat_id |
-| `ESC_AUTOSEND_ORANGE_PENDING` | Chase draft awaiting consultant approval >24h | info | (logged; weekly report) |
+| `ESC_AUTOSEND_ORANGE_PENDING` | Chase draft awaiting consultant approval — heartbeat at ≥50% of declared timeout (per catalogue §2.9 trigger) | info | (logged; weekly report) |
 
 Cash Conductor does NOT use:
 
@@ -345,7 +349,7 @@ Cash Conductor build cannot start until ALL of the following are confirmed:
 | Open Banking MCP connector | W7 build start (~3 days; harder due to 90-day token rotation) | ⏸ |
 | Per-tenant accounting credentials in `_secrets.env` | Tenant onboarding | ⏸ |
 | Per-tenant Open Banking credentials in `_secrets.env` | Tenant onboarding | ⏸ |
-| Concierge agent in production (for chase-send routing) | W10-13 build | ⏸ |
+| Concierge agent.md ratified Accepted (for chase-send routing contract; full Concierge production-build at W10-13, but Cash Conductor only depends on the Concierge agent.md contract being Accepted, not the full bundle being In Force) | Post-Concierge agent.md re-ratification | ⏸ |
 | Voice corpus seeded for first pilot tenant | Tenant-admin onboarding | ⏸ |
 | `validate.sh` Gate A logic | Build at W7 start (~1 day; complex due to 4 validators) | ⏸ |
 | `context.sh` hydration | Build at W7 start (~0.5 day) | ⏸ |
