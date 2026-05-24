@@ -111,7 +111,12 @@ escalation_ladder_position: 1-4 per §3.2 below
 expected_send_window: orange-tier approval expected within 24h
 ```
 
-Each draft: `decision_log` row `agent_name='cash_conductor'`, `phase='output'`, `action_type='xero_reminder_draft_internal'` (yellow tier per autosend-policy.yaml lines 182-187). When Cash Conductor decides to actually send (after draft validation passes Gate A), it also writes a second row `phase='action'`, `action_type='xero_reminder_send_customer'` (orange tier per autosend-policy.yaml line 257; Cash Conductor owns this action_type) — this row OPENS the orange-tier approval bridge. Concierge then handles the approval + transport. After Concierge confirms send, Cash Conductor receives the webhook + writes a green-tier `phase='output'` status marker recording the completion.
+Each draft produces TWO `decision_log` rows on the cash-conductor agent_name:
+
+1. `phase='output'`, `output_type='chase_draft_generated'`, payload includes the draft body + voice score + position (phase=output rows do NOT carry an autosend action_type; they're internal artefact-render markers).
+2. `phase='action'`, `action_type='xero_reminder_draft_internal'` (yellow tier per autosend-policy.yaml lines 182-187), payload links to the draft from row 1 — this row records that Cash Conductor classified the draft as yellow-tier internal.
+
+When Cash Conductor decides to actually send (after Gate A passes), it writes a third row: `phase='action'`, `action_type='xero_reminder_send_customer'` (orange tier per autosend-policy.yaml line 257; Cash Conductor owns this action_type) — this row OPENS the orange-tier approval bridge. Concierge then handles the approval + transport. After Concierge confirms send, Cash Conductor receives the webhook + writes a fourth row: `phase='output'`, `output_type='cash_conductor_chase_sent_recorded'`, recording state-mutation completion (no action_type; this is a state-marker output).
 
 ### §3.2 — Chase escalation ladder
 
@@ -382,7 +387,12 @@ Cash Conductor build cannot start until ALL of the following are confirmed:
 | `validate.sh` Gate A logic | Build at W7 start (~1 day; complex due to 4 validators) | ⏸ |
 | `context.sh` hydration | Build at W7 start (~0.5 day) | ⏸ |
 | `cycle.sh` orchestration (14-step) | Build at W7 start (~3 days; most complex of v1.0 agents) | ⏸ |
+| `tools.yaml` MCP capability declarations (xero_oauth, quickbooks_oauth, sage_oauth, open_banking_truelayer / plaid, telegram_notify) | Build at W7 start (~1 day) | ⏸ |
+| `cleanup.sh` post-run state purge (transient OAuth tokens; provider rate-limit caches) | Build at W7 start (~0.5 day) | ⏸ |
 | 3 fixtures with golden outputs | Build at W7 start (~1 day) | ⏸ |
+| **Founder Decision D1 (autosend orange-tier path) RESOLVED** — blocking for Cash Conductor's xero_reminder_send_customer action_type | Founder decision per `docs/decisions/2026-05-20-codex-round-1-founder-decisions.md` D1 (currently Proposed) | ⏸ |
+| **Autosend bridge implementation** (per D1 outcome) — Concierge W10 build delivers; blocking for orange-tier send writes | Concierge W10 build slice (~2 days for D1-A; less for D1-B/C) | ⏸ |
+| Fallback: if D1 + bridge not ready by W7-8, Cash Conductor v1.0 downgrades to drafts-only (yellow-tier `xero_reminder_draft_internal` only; no orange-tier `xero_reminder_send_customer` writes until D1 resolves + bridge ships) | v1.0 contingency | n/a |
 
 **ADR-005 framing:** ADR-005 (Week-3 Diagnostic acceleration) notes Cash Conductor is unaffected by Bullhorn slips because it has zero Bullhorn dependency. v0.3 supplement: Cash Conductor pull-forward (from W7-8 to W4-5) is NOT explicitly authorised by ADR-005 §5.1 (that section number doesn't exist; earlier draft mis-cited). Pull-forward would require a separate ADR (e.g. ADR-007 if/when needed); accounting + Open Banking commercial signups remain founder-action gates regardless of timing.
 
