@@ -3,8 +3,8 @@
 **Status:** Proposed (Day-11 pre-W3-build draft; awaits Q1 LOI + Codex ratification at first render).
 **Date:** 2026-05-22.
 **Author:** Founder (Maddox) + Claude Code.
-**Build wave:** v1.0 W3-4 per master brief §8.2 row 1 (anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`.
-**Build complexity:** M (1 week) per Ultraplan §8.1 A1.
+**Build wave:** v1.0 W3-4 per master brief §8.2 line 595 (row 1; anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`. **Drift flag:** Ultraplan §8.1 A1 (line 489) calls Diagnostic build wave 4-5; master brief line 595 calls it W3-4. Master brief is authoritative per CLAUDE.md (master brief wins on every conflict); W3-4 is the build wave for IFOS.
+**Build complexity:** M (1 week) per Ultraplan §8.1 A1 line 489.
 **Tier:** 2 (request-driven; no persistent PTY) per sequencing-target.md §2.1.
 
 ---
@@ -59,12 +59,18 @@ Every report MUST contain these 12 sections in order. Gate A enforces section co
 | 11 | **Decision-maker map** | Named people likely to be buyers: head of talent / chief people officer / hiring manager equivalents. LinkedIn profile URL per person. Tenure at firm. Recent activity. | LinkedIn employee search filtered by title |
 | 12 | **Conversation opener** | 2-3 sentence cold outreach pitch. Tailored to surfaced pain signals (§8). Written in consultant's voice (voice-classified). Includes specific evidence anchor (e.g., "I noticed you've doubled engineering headcount in 6 months based on your LinkedIn — congrats on the Series A. Curious how you're handling sourcing pressure at that pace.") | LLM-generated; voice-classified against tenant style guide |
 
-**Gate A hard-fails:**
+**Gate A hard-fails** (per ADR-006 + §5 spec):
 
 - Fewer than 12 sections present
-- Any section with zero citation links
-- Section 12 (conversation opener) failing voice-classifier with score < 0.75
+- Any section with zero citation links (per-section citation subcheck; ADR-006-canonical)
+- Section 12 (conversation opener) failing voice-classifier with score < 0.75 *(v0 hard-fail when voice-classifier URL reachable; warn + `validate_check_skipped=true` flag when URL unreachable per §5 honesty note; W4 polish closes to unconditional hard-fail)*
 - Output exceeds 2000 words OR is under 400 words (length-discipline boundary)
+- PII detected outside firm boundary *(v0 hard-fail when firm-domain whitelist available; warn + `validate_check_skipped=true` flag when whitelist absent per §5 honesty note; W4 polish closes to unconditional hard-fail)*
+
+**Per-step audit-row signatures** (per `decision_log`):
+- Step 10 report assembly → `hh_decision_output("diagnostic_report", "<vault_path>", "12-section report on <firm>")`
+- Step 11 (optional) operator notify → `hh_decision_action("operator_notify_telegram", "operator:<chat_id>", payload_hash, payload_preview)` — green tier per autosend-policy.yaml
+- Step 12 session close → `hh_decision_action("diagnostic_report_render", "firm:<slug>", payload_hash, payload_preview)` — green tier
 
 ---
 
@@ -88,41 +94,45 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
    → cache result for 7 days per gotcha §6 (rate-limit discipline)
    → extract: registration + revenue band + headcount band + directors + share moves
    → ESC_RATE_LIMIT_HIT if Companies House returns 429 (back off 60s, retry once)
+   → hh_decision_output("section_1_data", "firm:<slug>", "companies_house cached:<bool>")
 
 3. Online footprint discovery (Section 2)
    → web HEAD + first 200 lines fetch on probable URLs:
      {firm}.com / {firm}.co.uk / linkedin.com/company/{slug}
    → LinkedIn company-page fetch (Proxycurl or similar)
    → record careers page state + last-updated signal
+   → hh_decision_output("section_2_data", "firm:<slug>", "urls_found:<N>")
 
 4. Job posts harvest (Sections 3 + 4 + 5 + 7)
    → LinkedIn job posts API (filtered to firm) — up to 50 most recent
    → careers page scrape if accessible
    → extract: sector, role type, location, salary band, tech stack
    → Gotcha §6: store summarised data only; do not retain raw profiles per LinkedIn ToS
+   → hh_decision_output("section_3_4_5_7_data", "firm:<slug>", "posts_harvested:<N>")
 
 5. Director + employee scan (Sections 7 + 11)
    → LinkedIn search for {firm} employees with titles matching head-of-talent / chro / chief people / hiring-manager / talent-acquisition variants
    → record name + URL + tenure + recent activity
    → max 10 named people; deduplicate
+   → hh_decision_output("section_7_11_data", "firm:<slug>", "named_people:<N>")
 
-6. Pain signal extraction (Section 8)
-   → regex pass over careers-page + LinkedIn director posts for:
+6. Pain signal extraction (Section 8) — internal computation only (no external actions; no decision-log row required per master brief §8.1 Change 2)
+   → regex pass over careers-page + LinkedIn director posts (data fetched in Steps 3-4) for:
      - urgency phrases ("rapid growth", "scaling fast", "we need", "tripling", "doubling")
      - frustration phrases (Glassdoor if accessible: "overworked", "burnout", "no support")
      - hiring-pressure phrases ("desperately seeking", "high-priority hire", "must hire by")
-   → record each match with quote + source URL + context
+   → record each match with quote + source URL + context (in-memory only; folded into Step 10 report assembly)
 
-7. ICP fit scoring (Section 6)
-   → load tenant target_patch from common-target-patch.json
+7. ICP fit scoring (Section 6) — internal computation only
+   → load tenant target_patch from common-target-patch.json (read-only; no decision-log row)
    → score each dimension (sectors / geographies / size_bands / deal_size_band)
-   → composite score 0-100 + per-dimension breakdown
-   → no external action; compute only
+   → composite score 0-100 + per-dimension breakdown (in-memory only)
 
 8. Recent activity scan (Section 10)
    → LinkedIn company posts in last 90 days (count + first 100 chars of each)
    → basic Google search for "{firm} announcement OR funding OR acquisition" last 90 days
    → Companies House filing history last 90 days
+   → hh_decision_output("section_10_data", "firm:<slug>", "activity_items:<N>")
 
 9. Conversation opener generation (Section 12)
    → LLM prompt: context = §1-§11 of the report (esp. §8 pain signals);
@@ -131,6 +141,7 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
    → output 2-3 sentences with at least one evidence anchor
    → voice classifier scores the output against tenant style guide
    → ESC_VOICE_DRIFT if score < 0.75 after 3 retries
+   → hh_decision_output("section_12_opener", "firm:<slug>", "voice_score:<score>")
 
 10. Markdown report assembly
     → render report from sections 1-12 using Diagnostic-specific template
@@ -219,18 +230,19 @@ Diagnostic build cannot start until ALL of the following are confirmed:
 | Dependency | Source | Status |
 |---|---|---|
 | Renderer + `_shared/` substrate | Day-8 + Round-3 commits | ✅ Ratified (Round 3) |
-| Live VPS migration applied | `bash scripts/run-live-migration.sh` | ⏸ Founder action |
-| Tenancy audit passes 12 invariants | `bash scripts/run-tenancy-audit.sh` | ⏸ Founder action |
+| Live VPS migration applied | `bash scripts/run-live-migration.sh` | ✅ Applied Day 12 |
+| Tenancy audit passes 12 invariants | `bash scripts/run-tenancy-audit.sh` | ✅ 24/24 invariants verified Day 12 |
 | Q1 design partner LOI signed | Risk #3 + kill-criterion §2 Trigger 1 | ⏸ Jack's lane |
 | `target_patch.json` for the first pilot tenant | Pilot onboarding | ⏸ Post-LOI (per tenant-lifecycle.md §2) |
 | Voice corpus seeded for the first pilot tenant | Pilot onboarding | ⏸ Post-LOI |
-| Companies House MCP connector | Build at W3 start (~1 day) | ⏸ Not built |
-| LinkedIn read-only MCP connector (or Proxycurl wrapper) | Build at W3 start (~2 days) | ⏸ Not built |
-| Web scraper utility (HEAD + first-N-lines) | Build at W3 start (~0.5 day) | ⏸ Not built |
-| `validate.sh` Gate A logic (12-section check) | Build at W3 start (~0.5 day) | ⏸ Not built |
-| `context.sh` hydration | Build at W3 start (~0.5 day) | ⏸ Not built |
-| 3 fixtures with golden outputs (01-primary + 02-edge-case-no-online-footprint + 99-voice-drift-canary) | Build at W3 start (~1 day) | ⏸ Not built |
-| Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ✅ Skill built Day 19 (`.codex/ratification/review-agent-bundle.md`) |
+| Companies House MCP connector | `packages/mcp-connectors/companies-house/` | ✅ Shipped Day 13; 13/13 tests passing |
+| LinkedIn read-only via web-scraper | `packages/utilities/web-scraper/` | ✅ Shipped Day 13; 12/12 tests passing (Proxycurl deferred to W4) |
+| Web scraper utility (HEAD + first-N-lines) | `packages/utilities/web-scraper/` | ✅ Shipped Day 13 |
+| `validate.sh` Gate A logic (12-section check) | `agents/recruitment/diagnostic/validate.sh` | ✅ Built; per-section subcheck hard-fail per ADR-006; voice + PII subchecks warn-only on upstream-unavailable per §5 honesty note (W4 polish closes) |
+| `context.sh` hydration | `agents/recruitment/diagnostic/context.sh` | ✅ Built |
+| 3 fixtures with golden outputs | `agents/recruitment/diagnostic/fixtures/` | ✅ Built (01-primary + 02-edge-case + 99-voice-drift-canary) |
+| Other bundle files (cycle.sh, tools.yaml, cleanup.sh) | `agents/recruitment/diagnostic/` | ✅ All built |
+| Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ⚠ 10 rounds attempted; ADR-006 (Accepted) closed Cat-1 Gate A finding; residual mechanical findings tracked in disagreement doc Phase 4-5 |
 
 **Until ALL ratified items have ⏸ → ✅, W3 build slice does not start.**
 
