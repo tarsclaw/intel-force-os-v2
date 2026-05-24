@@ -493,7 +493,7 @@ Gotchas (the things that will bite us)
 - **MCP tools required:** Companies House, LinkedIn (read-only), web scraper for careers pages
 - **Shared modules required:** Voice loader (uses Maddox's voice for the audit narrative), decision log writer
 - **External APIs:** Companies House API (free), LinkedIn (via Proxycurl or similar), basic HTTP fetch
-- **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data
+- **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data *(see `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` for two-tier framing — per-section hard-fail at v0; per-claim spot-check at W4 polish)*
 - **Gate B target:** ≥30% of diagnostics produced lead to a discovery call booked
 - **Build complexity:** **M** (1 week)
 - **Gotchas:** LinkedIn ToS — we cannot store profile data beyond the audit. Companies House rate limits — cache aggressively.
