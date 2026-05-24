@@ -65,14 +65,14 @@ Bullhorn entity inferred from call participants + tenant Bullhorn lookup:
 - 1:1 call with client contact → Contact entity update
 - Briefing call (consultant + client) → Brief entity update
 - Placement check-in (consultant + placed candidate) → Placement entity update
-- Opportunity scoping (consultant + prospect) → Opportunity entity update
+- Opportunity scoping (consultant + prospect) → Opportunity entity update (NOTE: Bullhorn endpoint A3 row covers Candidate / ClientCorporation / JobOrder / Note / Placement only at v1.0; Opportunity writes are to IFOS-cached Postgres entity rows for the v0.3-added fields headcount_growth_signal_text + hiring_velocity_band + decision_window_text per v0.3 supplement §1, NOT direct Bullhorn endpoint calls)
 
 Minimum 3 fields extracted per call (Gate A). Canonical fields by entity (names per `vertical-schema.yaml` v0.1 + v0.2):
 
 | Entity | Canonical fields (schema-verified) |
 |---|---|
-| Candidate | `location`, `current_role_title`, `notice_period_weeks`, `salary_expectation_min` + `salary_expectation_max`, `employment_type` (perm/contract/hybrid), `key_skills` (list) |
-| Contact | `seniority`, `decision_authority` (enum: yes/no/influencer/blocker/unknown per Q5 v0.1), `preferred_channel`, `next_action_target_date` |
+| Candidate | `location`, `current_role`, `notice_period_weeks`, `salary_expectation_min` + `salary_expectation_max`, `employment_type` (v0.3; enum per supplement §1), `key_skills` (v0.3; list) |
+| Contact | `decision_authority` (enum per v0.1 Q5; R-only for Scribe per v0.3 §2 access matrix), `preferred_channel` (v0.3), `next_action_target_date` (v0.3) |
 | Brief | `salary_min` + `salary_max`, `start_date`, `role_type`, `must_haves` (list), `nice_to_haves` (list), `deal_breakers` (list) |
 | Placement | `start_date`, `placement_status`, `week_1_status_note` (free-text), `satisfaction_signal` (enum) |
 | Opportunity | `sector`, `headcount_growth_signal_text`, `hiring_velocity_band`, `decision_window_text` |
@@ -192,7 +192,7 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
 
 9. Bullhorn write — tacit-note attachment (yellow tier)
    → POST /Note linked to entity from Step 4 (mirror of vault artefact from Step 6)
-   → on success: hh_decision_action("bullhorn_note_attach",
+   → on success: hh_decision_action("bullhorn_note_append_summary",
      "<entity_type>:<bullhorn_id>", note_payload_hash, payload_preview)
    → on failure: rollback Step 8 (best-effort PATCH /<EntityType>/<id>
      reversing the field changes); ESC_BULLHORN_WRITE_FAIL
@@ -254,7 +254,7 @@ Scribe uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_INPUT_VALIDATION_FAIL` | Webhook signature mismatch (Step 1) | warn | operator_chat_id |
 | `ESC_AGENT_OUTPUT_SHAPE` | No resolvable target entity (Step 4) — Scribe run cannot produce its declared output shape | warn | operator_chat_id |
 | `ESC_SCHEMA_VIOLATION` | Vertical-schema field-constraint violation at write time (Step 7) per catalogue line 163 | warn | operator_chat_id |
-| `ESC_SCRIBE_SLA_MISS` | Webhook-to-Bullhorn-write >10 min (Gate B miss) | info | (logged; aggregated to Gate B metric) |
+| `ESC_SCRIBE_SLA_MISS` | Per catalogue §2.10: summary-render >30 min OR note-attach >1h after call end | warn | operator_chat_id (per catalogue routing); aggregated to Gate B metric |
 | `ESC_RATE_LIMIT_HIT` | Bullhorn or provider 429 | warn | operator_chat_id |
 | `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
