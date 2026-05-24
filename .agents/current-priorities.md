@@ -108,7 +108,82 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 
 ## Shipped
 
-### Day 14-19 (2026-05-24+) — Week 3 polish + 5 agent.md scaffolds (PARTIAL — Steps 1, 3, 6, 8-12 of 14)
+### Day 14-19 (2026-05-24) — Week 3 polish + 5 agent.md scaffolds + Codex Round 4 v2 (all 14 steps complete; 6 RATIFIED pending founder arbitration)
+
+Week-3 /goal at `docs/operations/goal-week-3-polish-and-scaffold.md` executed end-to-end. **All 14 steps run.** Founder arbitration required on the 5-category Codex disposition framework before the 6 agent.md ratifications close as RATIFIED.
+
+**Commits (17 today):**
+
+- `53228d0` (Step 1) substrate verification — 57 tests pass
+- `662a7c4` (Step 3) LinkedIn slug suffix-strip + 3 vitest tests
+- `910a3c2` (Step 6) Codex Round 4 manifest §1.10 prep
+- `2340e24` (Step 8) Janitor agent.md (296 lines)
+- `7730baa` (Step 9) Scribe agent.md (336 lines)
+- `d64d1c5` (Step 10) Cash Conductor agent.md (377 lines)
+- `1472e04` (Step 11) Sourcing Scout agent.md (335 lines)
+- `94485aa` (Step 12) Concierge agent.md (387 lines)
+- `954962b` partial state sync
+- `2688b6a` (Step 4) §12 LLM-driven opener with deterministic fallback
+- `fd802bc` (Step 5) Hays plc v2 re-smoke artefact
+- `6e0cb86` (Round 4 wrong-skill remediation) — 4 fixes + parser fix + 2 new ESC codes
+- `3c69d86` codex-disagreement-2026-05-24-diagnostic-gate-a.md (5 issues; founder arbitration)
+- `825ebd4` review-agent-bundle.md skill built (closes Issue 5; unblocks Phase 2)
+- `a4df5e6` manifest §1.10 — Day-19 skill-built update
+- `04a1812` Round-4-v2 verdicts: 0 RATIFIED / 6 REJECTED of 6 + 5-category disposition framework
+- (this commit) final state sync + Week-3 close
+
+**Codex Round 4 v2 final results:**
+
+| Artefact | Round-4-v2 verdict | Disposition |
+|---|---|---|
+| Diagnostic agent.md | REJECTED 5 issues | Founder arbitrate via 5-cat framework |
+| Janitor agent.md | REJECTED ~5-7 issues | Same |
+| Scribe agent.md | REJECTED ~5-7 issues | Same |
+| Cash Conductor agent.md | REJECTED ~5-7 issues | Same |
+| Sourcing Scout agent.md | REJECTED ~5-7 issues | Same |
+| Concierge agent.md | REJECTED ~5-7 issues | Same |
+
+**The 5-category disposition framework** (in `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md`):
+
+1. Gate A vs ULTRAPLAN source-data citation strength → hybrid v0 + W4 polish
+2. Workflow steps missing hh_decision_* calls → mechanical fix at cycle.sh build
+3. Kill-criterion Trigger mismapping → per-agent verification
+4. Sentinel agent_name invention → use agent_name='<agent>' + payload.action_type
+5. §5 honesty about validate.sh → mark §5 "intended behaviour; build slice delivers"
+
+**Founder action:** single decision (approve framework) → unblocks mechanical remediation pass → Round 5 re-ratification expected RATIFIED.
+
+**Pending founder gates remaining:**
+
+- **Step 2** ⏸ Companies House API key registration (15 min self-service) — unblocks live CH data in Diagnostic
+- **Step 4 live** ⏸ Anthropic API key with credits (5 min) — unblocks live LLM §12; code ships, runtime gates on key+credits
+- **5-category framework arbitration** (this commit's disagreement doc) — unblocks 6 agent.md RATIFIED
+- **Founder Decision D1** (autosend orange-tier) — required before Concierge W10 build
+
+**Master plan alignment:**
+
+- ✓ ULTRAPLAN §8.1 — all 6 v1.0 agents have output contracts authored
+- ✓ master brief §8.2 — build sequence W3-W13 fully spec'd
+- ✓ sequencing-target.md §3.1 — Build Wave 1 (Diagnostic) Day-13 ratified pending arbitration; Waves 2-6 contracts ready
+- ⚠ v1.0-kill-criterion.md Trigger 2 — Diagnostic ratification needs single founder arbitration (no engineering blocker)
+
+**Week-4 backlog (per ADR-005 + Codex findings):**
+
+PRIORITY 1: Founder arbitrates 5-category framework + Round-5 mechanical remediation → all 6 agent.md RATIFIED
+
+Track 1 (Bullhorn-independent — proceeds in parallel with founder arbitration):
+- Cash Conductor MCP connectors (Xero + QuickBooks + Sage + Open Banking)
+- Cash Conductor build (full bundle)
+- Diagnostic voice classifier microservice
+- Diagnostic Step-11 telegram-notify decision-log call (Codex Issue 2 fix)
+- ADR-006 source-abstraction layer (per Sourcing Scout §9 Q6)
+
+Track 2 (Bullhorn-gated):
+- Bullhorn MCP connector (auth + read + write)
+- Janitor build
+- Scribe build
+
+**Trigger 2 status:** Diagnostic ratification needs founder arbitration; engineering work complete. 21-day buffer to 2026-06-14 deadline preserved.
 
 Week-3 /goal at `docs/operations/goal-week-3-polish-and-scaffold.md` executing autonomously. **9 of 14 steps shipped; 5 pending founder gates.**
 
