@@ -62,7 +62,7 @@ END $$;
 CREATE TRIGGER validate_voice_scores
   BEFORE INSERT OR UPDATE ON entities
   FOR EACH ROW
-  EXECUTE FUNCTION validate_voice_scores();
+  EXECUTE FUNCTION validate_voice_score_fields();
 
 -- ----------------------------------------------------------------------------
 -- §4 — Restore v0.2 tenant_adapters validation (drop v0.3 trigger)
