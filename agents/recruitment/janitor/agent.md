@@ -64,13 +64,13 @@ Located at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md`. Eight section
 
 ### Output 2 — Bullhorn writes (yellow tier)
 
-Per `autosend-safety-policy.yaml` row `janitor_bullhorn_write`. Three write categories:
+Three write categories. Action types map to `agents/_shared/autosend-policy.yaml` — existing entries are used as-is; new entries are flagged for catalogue addition at W5 build (per `review-agent-bundle.md` §1 row §6 flag-for-addition pattern):
 
-1. **Candidate merge** (`PUT /Candidate/{primary_id}` + cascade) — only when confidence ≥0.85 per Gate A; no merge if either candidate had Bullhorn activity in last 90 days without explicit review flag (per ULTRAPLAN A2 line 510 verbatim).
-2. **Field backfill** (`PATCH /Candidate/{id}` or `/Client/{id}`) — fills missing `location`, `industry`, `last_active_date`, etc. from Companies House (for clients) or LinkedIn/derivation (for candidates). Sources logged in payload.
-3. **Tacit-note attach** (`POST /Note` linked to entity) — narrative summary of consultant edits + decision-log resolutions over the 30-day window.
+1. **Candidate merge** (`PUT /Candidate/{primary_id}` + cascade) — only when confidence ≥0.85 per Gate A; no merge if either candidate had Bullhorn activity in last 90 days without explicit review flag (per ULTRAPLAN A2 line 510 verbatim). Action type: **`bullhorn_candidate_dedupe`** (existing in autosend-policy.yaml line 69; yellow tier; sample_rate: 10).
+2. **Field backfill** (`PATCH /Candidate/{id}` or `/Client/{id}`) — fills missing canonical schema fields (per `vertical-schema.yaml`): `candidate.location` line 89, `client.size_employees` line 243, `contractor.day_rate_min`/`day_rate_max` lines 193-197, `brief.salary_min`/`salary_max` lines 371-376 from Companies House (for clients) or LinkedIn/derivation (for candidates). Sources logged in payload. Action type: **`bullhorn_field_backfill` (new — flagged for autosend-policy.yaml addition at W5 build with proposed tier=yellow + sample_rate=10)**.
+3. **Tacit-note attach** (`POST /Note` linked to entity) — narrative summary of consultant edits + decision-log resolutions over the 30-day window. Action type: **`bullhorn_candidate_tag`** (existing in autosend-policy.yaml line 35; green tier — note appends are non-customer-facing; metadata reversible).
 
-Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'`, `action_type='bullhorn_candidate_merge' | 'bullhorn_field_backfill' | 'bullhorn_note_attach'`, `tier='yellow'`, payload includes source confidence + provenance.
+Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'`, `action_type` per the mapping above, `tier` per autosend-policy.yaml, payload includes source confidence + provenance.
 
 ---
 
@@ -102,17 +102,21 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → discard pairs <0.85 confidence (per Gate A)
    → discard pairs where EITHER candidate has Bullhorn activity in last 90d
      (per ULTRAPLAN A2 line 510 verbatim)
-   → batch into proposed-merge list
+   → batch into proposed-merge list (in-memory intermediate; not persisted —
+     hh_decision_action emitted at Step 9 when each merge actually writes)
 
 4. Dedup pass — contractor entity type
    → same algorithm as candidates; separate entity_type per Q1 Day-6 resolution
      (vertical-schema.yaml §1)
 
-5. Field completeness audit
-   → for each entity, check critical fields: candidate.location, client.industry,
-     client.headcount_band, contractor.day_rate, brief.salary_band
+5. Field completeness audit (canonical field names per vertical-schema.yaml)
+   → for each entity, check critical fields: candidate.location (line 89),
+     client.industry (line 252), client.size_employees (line 243),
+     contractor.day_rate_min/day_rate_max (lines 193-197),
+     brief.salary_min/salary_max (lines 371-376)
    → identify missing-field rows
    → batch enrichment calls
+   → hh_decision_output("field_completeness_audit", tenant, "<N> missing-field rows")
 
 6. Companies House enrichment (clients only)
    → companies_house.search(client.legal_name) → CRN → profile → fill industry +
@@ -152,6 +156,8 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → if Gate-B target met: green-tier notification with summary
    → if Gate-B target missed: yellow-tier notification + 200-char executive
      summary suggesting consultant follow-up
+   → hh_decision_action("operator_notify_telegram", "tenant:<slug>",
+     notification_hash, "gate_b_state:met|missed; chars:<N>")
 
 12. Session close
    → update tenant_adapters.config.janitor_last_run = now()
@@ -191,24 +197,26 @@ Below ≥12.5 for 3 consecutive runs → fire `ESC_GATE_B_MISS` → flag for ope
 
 ## §6 — Escalation codes
 
-Janitor uses these ESC codes from `agents/_shared/escalation-codes.md`:
+**Note:** Codes marked `(new)` in the table below are flagged for addition to `agents/_shared/escalation-codes.md` at this agent's W5 build slice per `review-agent-bundle.md` §1 row §6 flag-for-addition pattern. Existing codes match `escalation-codes.md` definitions verbatim.
 
 | Code | Trigger | Severity | Routing |
 |---|---|---|---|
-| `ESC_BULLHORN_AUTH` | OAuth refresh fails after 2 retries | **blocking** | operator + ifos_oncall |
-| `ESC_BULLHORN_WRITE_FAIL` | Bullhorn 4xx/5xx on merge/backfill/note write | warn | operator_chat_id |
-| `ESC_RATE_LIMIT_HIT` | Bullhorn or Companies House 429 | warn | operator_chat_id |
-| `ESC_VOICE_DRIFT` | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
-| `ESC_PII_LEAKAGE_RISK` | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
-| `ESC_SCHEMA_VIOLATION` | Gate A failure (merge confidence + activity window + field-source confidence) | **blocking** | operator + ifos_oncall |
-| `ESC_GATE_B_MISS` | Composite Gate-B score <12.5 for 3 consecutive runs | warn | operator_chat_id |
-| `ESC_AUTOSEND_YELLOW_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
+| `ESC_BULLHORN_AUTH` (existing, line 97) | OAuth refresh fails after 2 retries | **blocking** | operator + ifos_oncall |
+| `ESC_BULLHORN_WRITE_FAIL` (new — W5 catalogue add) | Bullhorn 4xx/5xx on merge/backfill/note write | warn | operator_chat_id |
+| `ESC_RATE_LIMIT_HIT` (existing, line 156) | Bullhorn or Companies House 429 | warn | operator_chat_id |
+| `ESC_VOICE_DRIFT` (existing, line 120) | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
+| `ESC_PII_LEAKAGE_RISK` (existing, line 148) | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
+| `ESC_AGENT_OUTPUT_SHAPE` (existing Day-19, line 184) | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
+| `ESC_DUPLICATE_DETECTED` (existing, line 127) | Merge proposal rejected at validate.sh: confidence below threshold OR activity-window block | warn | operator_chat_id |
+| `ESC_GATE_B_MISS` (new — W5 catalogue add) | Composite Gate-B score <12.5 for 3 consecutive runs | warn | operator_chat_id |
+| `ESC_AUTOSEND_YELLOW_SPOT_CHECK` (new — W5 catalogue add; could alternatively map to existing `ESC_AUTOSEND_NEEDS_REVIEW` line 33) | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
 Janitor does NOT use:
 
-- `ESC_VOICE_DRIFT_TENANT` — that's for cross-tenant voice drift; Janitor is per-tenant
-- `ESC_AUTOSEND_BLOCKED` — that's red-tier; Janitor doesn't do red writes
-- `ESC_BULLHORN_OAUTH_REVOKED` — escalated from `ESC_BULLHORN_AUTH` after 6 consecutive auth failures (different code; Concierge handles)
+- `ESC_VOICE_DRIFT_TENANT` — fired by nightly voice-drift cron (per `escalation-codes.md` line 170-175 trigger: ≥N `ESC_VOICE_DRIFT` rows from same tenant in rolling 7d window). Janitor only fires the per-run `ESC_VOICE_DRIFT`; aggregate `_TENANT` rollup is handled by the canary not Janitor.
+- `ESC_AUTOSEND_BLOCKED` — that's for red-tier blocks (`escalation-codes.md` line 41); Janitor writes are yellow tier only
+- `ESC_BULLHORN_OAUTH_REVOKED` — escalated handling; Concierge owns the cross-agent escalation
+- `ESC_SCHEMA_VIOLATION` (line 163) — that's for vertical-schema field-constraint violations at write-time; Janitor's Gate A failures map to `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint) instead, per the catalogue's intended-use distinction
 
 ---
 
@@ -221,7 +229,7 @@ Step 8 (tacit-note narrative generation) is the only voice-classified output. Th
   - No commercial sensitive information (rates / placement fees / commission %)
   - No external-party PII (clients of clients)
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "internal note summary" task context. Feeds LLM prompt as voice exemplars.
-- **`hh_load_recent_edits` last 30 days for `janitor` agent**: detects if consultants are heavily editing Janitor's tacit-note drafts. Drift >200 chars on >50% of recent_edit rows fires `ESC_VOICE_DRIFT_TENANT`.
+- **`hh_load_recent_edits` last 30 days for `janitor` agent**: detects if consultants are heavily editing Janitor's tacit-note drafts. Per-run `ESC_VOICE_DRIFT` fires when the tacit-note voice classifier score is below 0.75 after 3 retries (Janitor emits per-run). Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` line 170-175 trigger (≥N `ESC_VOICE_DRIFT` rows from the same tenant within a rolling 7d window); Janitor does NOT fire `_TENANT` directly. Edit-distance metrics are tracked separately for analytics but do NOT fire ESC codes — they inform the canary's threshold tuning over time.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
