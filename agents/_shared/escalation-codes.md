@@ -282,7 +282,7 @@ Source: derived from v1.0 agent.md adapter references (Bullhorn, Reed, CV-Librar
 - **Trigger:** Xero (or alt accounting provider) OAuth token refresh failed; API returns 401
 - **Phase:** `gating_failed`
 - **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
-- **Payload fields:** `provider` (`xero` | `quickbooks` | `freeagent`), `failure_type`, `last_attempt_at`
+- **Payload fields:** `provider` (`xero` | `quickbooks` | `sage` | `freeagent`), `failure_type`, `last_attempt_at`
 - **Recovery:** founder reauthenticates accounting OAuth
 
 #### `ESC_OPEN_BANKING_AUTH`

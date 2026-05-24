@@ -14,7 +14,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Cash Conductor produces THREE outputs continuously:** (1) real-time invoice ↔ bank-deposit reconciliation rows written to the tenant's accounting system (Xero / QuickBooks / Sage per tenant config), (2) yellow-tier payment-chase email drafts (sampled spot-check) queued to Concierge for send; Concierge handles the orange-tier customer-facing send (`xero_reminder_send_customer`) after operator approval — Cash Conductor only drafts, never sends customer-facing, and (3) a weekly cash-flow Markdown report at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md` (generated Monday 06:00 UTC). NO Bullhorn dependency — Cash Conductor operates entirely against the tenant's accounting + Open Banking stack, making it the most-independent v1.0 agent (per ADR-005 strategic-value rationale; Cash Conductor is unaffected by Bullhorn slips). Gate A hard-fails any chase draft that doesn't reference the correct invoice number AND correct amount AND correct contact (per ULTRAPLAN A4 line 538). Gate A also blocks any chase for an invoice paid in last 24 hours (per ULTRAPLAN A4 line 538 verbatim). Gate B success threshold: tenant DSO at month-3 ≥ 12 days lower than month-0 baseline (per ULTRAPLAN A4 line 539) — the FD-tier closer metric. Chase drafts are yellow-tier `xero_reminder_draft_internal` (per `agents/_shared/autosend-policy.yaml` lines 182-187 — internal draft sampled for spot-check); the customer-facing send routed via Concierge is orange-tier `xero_reminder_send_customer` (per `agents/_shared/autosend-policy.yaml` lines 257-262; consultant approval required before send). Reconciliation writes are yellow-tier (`accounting_reconciliation_write` per autosend-policy.yaml; registered as part of 2026-05-24 bilateral catalogue extension).
+> **Cash Conductor produces THREE outputs continuously:** (1) real-time invoice ↔ bank-deposit reconciliation rows written to the tenant's accounting system (Xero / QuickBooks / Sage per tenant config), (2) yellow-tier payment-chase email drafts (sampled spot-check) queued to Concierge for send; Concierge handles the orange-tier customer-facing send (`xero_reminder_send_customer`) after operator approval — Cash Conductor only drafts, never sends customer-facing, and (3) a weekly cash-flow Markdown report at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md` (generated Monday 06:00 UTC). NO direct Bullhorn API dependency — Cash Conductor operates against the tenant's accounting + Open Banking stack (no Bullhorn endpoint calls). It DOES read cached Bullhorn placement + client_contact rows from Postgres for addressee-resolution integrity (per ESC_ADDRESSEE_MISMATCH catalogue §2.10 — Cash Conductor verifies invoice addressee matches Bullhorn placement client OR Xero contact). The cached Bullhorn rows are populated by Janitor + Scribe + Concierge from their direct Bullhorn endpoint paths; Cash Conductor never calls Bullhorn directly. Per ADR-005 strategic-value rationale: Cash Conductor is unaffected by Bullhorn API slips because it only reads the cache. Gate A hard-fails any chase draft that doesn't reference the correct invoice number AND correct amount AND correct contact (per ULTRAPLAN A4 line 538). Gate A also blocks any chase for an invoice paid in last 24 hours (per ULTRAPLAN A4 line 538 verbatim). Gate B success threshold: tenant DSO at month-3 ≥ 12 days lower than month-0 baseline (per ULTRAPLAN A4 line 539) — the FD-tier closer metric. Chase drafts are yellow-tier `xero_reminder_draft_internal` (per `agents/_shared/autosend-policy.yaml` lines 182-187 — internal draft sampled for spot-check); the customer-facing send routed via Concierge is orange-tier `xero_reminder_send_customer` (per `agents/_shared/autosend-policy.yaml` lines 257-262; consultant approval required before send). Reconciliation writes are yellow-tier (`accounting_reconciliation_write` per autosend-policy.yaml; registered as part of 2026-05-24 bilateral catalogue extension).
 
 ---
 
@@ -48,6 +48,13 @@ Per-provider webhook auth handled in `tools.yaml`.
 # Monday 06:00 UTC — cash-flow report regeneration
 0 6 * * 1 sudo -u ifos_user /usr/local/bin/ifos-cash-conductor.sh --tenant <slug> --mode weekly-report
 ```
+
+### Per-trigger auth requirements
+
+- **Webhook (v1.0 primary path):** per-provider HMAC / bearer token verified at the ingress per `tools.yaml` capability declarations (matching the Scribe webhook auth pattern).
+- **Cron (daily-sweep + weekly-report):** runs under `ifos_user` OS account (per Day-4 §6.5 tenant-provision script) via systemd-timer-style invocation; no inbound auth (process started by cron daemon with the right OS user identity). RLS isolation via `app.current_tenant` SET LOCAL per Day-4 §7.
+- **Manual triggers (ifosctl below):** require operator OS account in the `ifos-operators` group; per-invocation `--tenant <slug>` is verified against the operator's tenant access list in `tenant_adapters` before execution. Founder + Hire #1 are the v1.0 ifosctl-authorized operators per master brief §8.2 line 604.
+- **v1.1+ Brain UI:** session-cookie auth + per-tenant operator role check (deferred).
 
 ### Manual triggers (v1.0)
 
@@ -85,9 +92,9 @@ Stages 1-2 auto-write reconciliation to accounting system (yellow tier; spot-che
 
 Each reconciliation write: `decision_log` row with `agent_name='cash_conductor'`, `phase='action'`, `action_type='accounting_reconciliation_write'`, `tier='yellow'`, payload includes match confidence + match dimensions.
 
-### Output 2 — Payment-chase drafts (yellow tier; Concierge handles the orange-tier send)
+### Output 2 — Payment-chase drafts (yellow tier internal; Cash Conductor INITIATES the orange-tier customer send via Concierge approval bridge)
 
-For invoices >7 days overdue with no reconciliation match, Cash Conductor drafts a chase email. Output is a yellow-tier internal draft (`xero_reminder_draft_internal`), NOT a customer-facing send. Drafts route to Concierge, which owns the orange-tier `xero_reminder_send_customer` action (customer-facing send + consultant approval per autosend §4).
+For invoices >7 days overdue with no reconciliation match, Cash Conductor drafts a chase email. The draft itself is a yellow-tier internal output (`xero_reminder_draft_internal`); when Cash Conductor decides to send, it WRITES the orange-tier `hh_decision_action("xero_reminder_send_customer", ...)` row (Cash Conductor owns this action_type per autosend-policy.yaml line 257) which OPENS the orange approval flow — Concierge then handles the autosend-bridge routing + actual transport (Microsoft Graph / Gmail). Cash Conductor owns the action_type; Concierge handles the approval + transport mechanics.
 
 Chase draft structure:
 
@@ -104,7 +111,7 @@ escalation_ladder_position: 1-4 per §3.2 below
 expected_send_window: orange-tier approval expected within 24h
 ```
 
-Each draft: `decision_log` row `agent_name='cash_conductor'`, `phase='output'`, `action_type='xero_reminder_draft_internal'` (yellow tier per autosend-policy.yaml lines 182-187), payload includes the draft. The corresponding orange-tier `xero_reminder_send_customer` row is written by Concierge when the customer-facing send happens (NOT by Cash Conductor).
+Each draft: `decision_log` row `agent_name='cash_conductor'`, `phase='output'`, `action_type='xero_reminder_draft_internal'` (yellow tier per autosend-policy.yaml lines 182-187). When Cash Conductor decides to actually send (after draft validation passes Gate A), it also writes a second row `phase='action'`, `action_type='xero_reminder_send_customer'` (orange tier per autosend-policy.yaml line 257; Cash Conductor owns this action_type) — this row OPENS the orange-tier approval bridge. Concierge then handles the approval + transport. After Concierge confirms send, Cash Conductor receives the webhook + writes a green-tier `phase='output'` status marker recording the completion.
 
 ### §3.2 — Chase escalation ladder
 
@@ -225,14 +232,16 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
      catalogue line 41; Cash Conductor's chase pipeline is orange-tier.
    → hh_decision_output("chase_draft_validated", invoice_id, "passed")
 
-10. Chase-draft queue to Concierge (orange tier)
+10. Chase-draft queue to Concierge (opens orange-tier approval bridge)
     → POST internal API → Concierge agent receives draft
-    → Concierge handles autosend-bridge call to operator (D1 path per
-      Founder Decision)
     → hh_decision_action("xero_reminder_draft_internal", "invoice:<id>",
-      payload_hash, payload_preview); tier=yellow internal-draft; the
-      customer-facing send (orange tier) happens in Concierge as
-      `xero_reminder_send_customer` after operator approval
+      payload_hash, payload_preview) — tier=yellow internal-draft per
+      autosend-policy.yaml line 182
+    → hh_decision_action("xero_reminder_send_customer", "invoice:<id>",
+      payload_hash, payload_preview) — tier=orange per autosend-policy.yaml
+      line 257; Cash Conductor owns this action_type and OPENS the
+      orange-approval-bridge; Concierge handles autosend-bridge call to
+      operator (D1 path per Founder Decision)
 
 11. (Operator approves via Concierge → Concierge sends + writes its own
     orange-tier `xero_reminder_send_customer` action row → Cash Conductor
