@@ -289,7 +289,7 @@ agent_access_matrix:
     candidate: R+W         # call-summary field extraction
     contractor: R+W        # call-summary field extraction
     client: R
-    contact: R+W           # v0.3 CHANGED (was none); preferred_channel + next_action_target_date + decision_authority writes
+    contact: R+W           # v0.3 CHANGED (was none); preferred_channel + next_action_target_date writes only (NOT decision_authority — that remains v0.1-owned by founder/v1.1 Triage)
     brief: R+W             # v0.3 CHANGED (was R); must_haves + nice_to_haves + deal_breakers + salary + start_date writes
     opportunity: R+W       # v0.3 CHANGED (was none); 3 new prospecting-call fields
     placement: R+W         # check-in field extraction
@@ -370,7 +370,7 @@ auxiliary_tables:
       90-day rolling for unmatched + ambiguous rows; matched rows retained
       indefinitely (audit). Cold archive at v1.1+.
     v1_0_agent_access:
-      - Cash Conductor: RW
+      - Cash Conductor: R+W
 
   cash_conductor_invoices:
     rationale: |
@@ -394,7 +394,7 @@ auxiliary_tables:
     retention: |
       Paid retained 7 years (UK statutory accounting). Cancelled/voided 90d.
     v1_0_agent_access:
-      - Cash Conductor: RW
+      - Cash Conductor: R+W
 
 # ============================================================================
 # §4 — tenant_adapters.config new keys (4 keys)
