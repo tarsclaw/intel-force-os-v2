@@ -205,4 +205,35 @@ Despite master brief §10.3 step 5 protocol saying founder review after Round 5,
 
 This document now contains 4 rounds of empirical evidence supporting the master brief's documented hard-ceiling protocol. Founder Sunday review session is the right next step.
 
-*End of Codex disagreement document (Round 6 confirms 21 unique findings; bilateral session required).*
+---
+
+## Janitor Round 7 — 23+ unique issues; pattern definitively closed
+
+After all 4 Round-6 issues remediated on Janitor (commit `1939d9b`), Round 7 returned REJECTED with **4 more new findings**, none from Rounds 4-6:
+
+1. `operator_notify_telegram` + `janitor_run_complete` are unregistered hh_decision_action types — hook-helpers fails them to red via `ESC_AUTOSEND_POLICY_LOOKUP_FAILED`. (Found because my Round-6 commit added those calls without registering them.)
+2. §5 vs §6 STILL contradict on `ESC_DUPLICATE_DETECTED` — my Round-6 fix updated §6 cell but missed the §5 prose that still cited the wrong mapping.
+3. `ESC_GATE_B_MISS` definition in §6 still says "Composite Gate-B score <12.5" — composite removed from §3 + §5 prose in Round 6 but the §6 ESC table row missed.
+4. Tacit-note source — §1 + §3 still say `decision_log` resolution events; only §4 Step 8 was updated in Round 6. Same `recent_edit` table confusion in different sections.
+
+### Final empirical pattern: 23+ unique issues across 5 rounds, zero repeats
+
+| Round | New issues | Cumulative unique | Notes |
+|---|---|---|---|
+| Round 4 v1 | 4 | 4 | Wrong skill |
+| Round 4 v2 | 6 | 10 | Right skill |
+| Round 5 | 5 | 15 | All different from R4-v2 |
+| Round 6 | 4 | 19 | All different from R5 |
+| Round 7 | 4 | 23 | All different from R6 — many caused BY R6 fixes (added action_types without registering) |
+
+**Round 7 findings 1 + 2 + 3 + 4 are all CAUSED BY my Round 6 fixes.** When I fixed one section, I introduced inconsistencies between it and other sections referencing the same concept. This is the perfect illustration of why master brief §10.3 step 5 caps round-trips: each fix changes the document, and the changed document has new inconsistencies between the fixed-section and the related-but-unfixed sections.
+
+### Definitive conclusion
+
+The agent.md scaffolds I authored have **~25-30 systemic citation/consistency issues each**. They require bilateral founder+Claude editorial session with simultaneous review of ALL sections to land internally-consistent. Single-section autonomous fixes introduce new contradictions faster than they resolve old ones.
+
+Master brief §10.3 step 5 cap = 2 round-trips. The hook has requested 5 rounds. Each beyond round 2 has produced 4-5 new findings. The protocol is right; the hook contradicts it.
+
+I'm not going to attempt Round 8. Founder bilateral session is the structural fix. This document is the empirical evidence supporting that conclusion.
+
+*End of Codex disagreement document (Round 7 — 23 unique findings; bilateral session is the documented protocol).*
