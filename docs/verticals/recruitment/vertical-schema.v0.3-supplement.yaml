@@ -315,12 +315,17 @@ agent_access_matrix:
     # (auxiliary-table access is documented in auxiliary_table_access_matrix below)
 
   sourcing_scout:
-    candidate: R+W         # writes candidate proposals from multi-source aggregation
-    contractor: R+W        # same
+    # v0.3 EXPLICIT OVERRIDES (per Round-6 finding #2): v0.1 base says
+    #   sourcing_scout.candidate: R; sourcing_scout.opportunity: none
+    # v0.3 amends to R+W and R respectively because the Sourcing Scout agent
+    # writes its proposed-candidate rows + reads opportunity context. These
+    # are entity-level access overrides codified here.
+    candidate: R+W         # OVERRIDE v0.1 R → v0.3 R+W (writes proposed-candidate rows)
+    contractor: R+W        # OVERRIDE v0.1 R → v0.3 R+W (same; contractor-mode briefs)
     client: R
     contact: R
     brief: R               # reads to filter candidates
-    opportunity: R
+    opportunity: R         # OVERRIDE v0.1 none → v0.3 R (reads opportunity context for ICP)
     placement: none
     timesheet: none
     voice_corpus: R        # rationale-narrative voice grounding
@@ -354,47 +359,79 @@ auxiliary_tables:
       as entity.data JSONB. v0.3 introduces a first-class table with
       RLS isolation and indexes for date + match-status. Per Cash Conductor
       §4 Step 3 + ADR-002 vault/Postgres split.
-    sql_definition_in: migrations/v0.2-to-v0.3.sql §2
-    primary_columns:
-      - id           # bigserial
-      - tenant_slug  # RLS-isolated
-      - transaction_id
-      - posted_at
-      - amount
-      - match_status
-      - matched_invoice_id
+    sql_definition_in: migrations/v0.2-to-v0.3.sql §2 (migration is authoritative; this section mirrors the SQL columns)
+    columns:
+      id: {type: integer, required: true, notes: BIGSERIAL primary key in SQL}
+      tenant_slug: {type: string, required: true, notes: RLS isolation key per Day-4 §6.3}
+      transaction_id: {type: string, required: true, notes: Provider-supplied (TrueLayer / Plaid)}
+      posted_at: {type: timestamp, required: true}
+      amount: {type: number, required: true, notes: NUMERIC(15,2) GBP; negative for outgoing}
+      currency: {type: string, required: true, default: GBP}
+      payee_name_raw: {type: string, required: false, pii: true, retention: Pseudonymized at year 7 per Q4 v0_3_default}
+      description: {type: string, required: false, pii: true, retention: Pseudonymized at year 7 per Q4 v0_3_default}
+      bank_provider: {type: string, required: true, enum: [truelayer, plaid_uk, open_banking_direct]}
+      match_status: {type: string, required: true, enum: [unmatched, matched, ambiguous], default: unmatched}
+      matched_invoice_id: {type: string, required: false, notes: FK to cash_conductor_invoices.invoice_id when match_status='matched'}
+      match_confidence: {type: number, required: false, notes: range [0.00, 1.00]}
+      match_dimensions: {type: array, items: {type: string}, required: false}
+      ingested_at: {type: timestamp, required: true, default: now()}
+      raw_payload: {type: object, required: false, pii: true, notes: Full Open Banking response; pseudonymized at year 7}
     indexes:
       - "(tenant_slug, posted_at DESC)"
       - "(tenant_slug, match_status, posted_at DESC) WHERE match_status IN ('unmatched','ambiguous')"
     retention: |
-      90-day rolling for unmatched + ambiguous rows; matched rows retained
-      indefinitely (audit). Cold archive at v1.1+.
-    v1_0_agent_access:
-      - Cash Conductor: R+W
+      7-year retention with pseudonymization at year 7 for PII-bearing fields
+      (payee_name_raw, description, raw_payload). Aligned with Q4 v0_3_default.
+      Production use GATED until pseudonymization implementation lands;
+      migration-test tenant exempt.
 
   cash_conductor_invoices:
     rationale: |
       Open invoice register cached from accounting provider. Same auxiliary-
       table pattern as transactions. Per Cash Conductor §4 Step 4.
-    sql_definition_in: migrations/v0.2-to-v0.3.sql §3
-    primary_columns:
-      - id
-      - tenant_slug
-      - invoice_id
-      - accounting_provider
-      - due_at
-      - amount_total
-      - amount_paid
-      - status
-      - last_chase_position
+    sql_definition_in: migrations/v0.2-to-v0.3.sql §3 (migration is authoritative)
+    columns:
+      id: {type: integer, required: true}
+      tenant_slug: {type: string, required: true}
+      invoice_id: {type: string, required: true}
+      accounting_provider: {type: string, required: true, enum: [xero, quickbooks, sage]}
+      invoice_number: {type: string, required: false}
+      issued_at: {type: timestamp, required: true}
+      due_at: {type: timestamp, required: true}
+      amount_total: {type: number, required: true, notes: NUMERIC(15,2) GBP}
+      amount_paid: {type: number, required: true, default: 0}
+      currency: {type: string, required: true, default: GBP}
+      status: {type: string, required: true, enum: [open, partial, paid, overdue, cancelled, voided], default: open}
+      client_contact_id: {type: string, required: false, notes: Links to Bullhorn placement.client_contact_id}
+      client_billing_email: {type: string, required: false, pii: true}
+      last_chase_position: {type: integer, required: true, default: 0, notes: 0-4 per Cash Conductor §3.2}
+      last_chase_sent_at: {type: timestamp, required: false}
+      ingested_at: {type: timestamp, required: true, default: now()}
+      raw_payload: {type: object, required: false, pii: true}
     indexes:
       - "(tenant_slug, due_at)"
       - "(tenant_slug, status, due_at) WHERE status IN ('open','partial','overdue')"
       - "(tenant_slug, last_chase_position, due_at) WHERE last_chase_position BETWEEN 1 AND 3"
     retention: |
-      Paid retained 7 years (UK statutory accounting). Cancelled/voided 90d.
-    v1_0_agent_access:
-      - Cash Conductor: R+W
+      7-year retention with pseudonymization at year 7 per Q4 v0_3_default
+      (statutory UK accounting retention + GDPR via pseudonymization of
+      client_billing_email + raw_payload). Cancelled/voided rows 90d.
+
+auxiliary_table_access_matrix:
+  cash_conductor_transactions:
+    diagnostic: none
+    janitor: none
+    scribe: none
+    cash_conductor: R+W
+    sourcing_scout: none
+    concierge: none
+  cash_conductor_invoices:
+    diagnostic: none
+    janitor: none
+    scribe: none
+    cash_conductor: R+W
+    sourcing_scout: none
+    concierge: none
 
 # ============================================================================
 # §4 — tenant_adapters.config new keys (4 keys)
@@ -630,7 +667,18 @@ rationale: |
   payload extension, closing those findings.
 
   After v0.3 ratifies + migration applies:
-    - Scribe agent.md §3 entity-field table becomes schema-verifiable
+    - Scribe agent.md §3 entity-field table becomes PARTIALLY schema-verifiable:
+      the v0.3-added fields (employment_type, key_skills, preferred_channel,
+      next_action_target_date, must_haves, nice_to_haves, deal_breakers,
+      placement_status, week_1_status_note, satisfaction_signal,
+      headcount_growth_signal_text, hiring_velocity_band, decision_window_text)
+      are now schema-backed. The Scribe §3 narrative still references SOME
+      fields outside v0.3 scope (current_role_title vs v0.1 current_role;
+      seniority — not yet in schema; brief.start_date should be
+      start_date_target; opportunity.sector — not yet in schema). These
+      residual gaps are tracked in W4-polish-schema-extension backlog;
+      they do not block v0.3 ratification but do require a Scribe agent.md
+      consistency-pass before Scribe ratifies.
     - Janitor candidate.linkedin_url + recent_edit/tone_rule access valid
     - Cash Conductor agent.md §4 Postgres-tables claim schema-backed
     - Concierge tenant_adapters.config field refs valid
