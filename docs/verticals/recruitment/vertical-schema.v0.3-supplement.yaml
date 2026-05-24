@@ -173,14 +173,21 @@ entity_field_additions:
           - Janitor: R+W
           - Concierge: R
 
-      week_1_status_note:
+      week_1_status_vault_path:
         type: string
-        max_length: 500
+        max_length: 200
+        pattern: '^/vault/[a-z0-9-]+/scribe-notes/[a-zA-Z0-9-]+\.md$'
         required: false
         notes: |
-          Free-text narrative from 7d check-in call. Stored verbatim;
-          voice-classifier review at write time per Scribe §7.
-        source: IFOS-derived (Scribe extracts from 7d check-in call)
+          POINTER ONLY (per ADR-002 vault/Postgres split). The 7d check-in
+          narrative itself lives in vault at `/vault/<tenant>/scribe-notes/
+          <call_id>-<ISO-date>.md` (canonical Scribe tacit-note pattern).
+          This field stores the vault path; narrative does NOT enter
+          Postgres. Voice-classifier review at write time applies to the
+          vault file content; Concierge reads the vault file directly via
+          its path resolution.
+        source: IFOS-derived (Scribe extracts from 7d check-in call; writes
+          to vault then stores pointer here)
         v1_0_agent_access:
           - Scribe: R+W
           - Concierge: R
@@ -304,10 +311,14 @@ agent_access_matrix:
   # employment_type, just writes it). This is intentional — the entity-level
   # token is the ceiling; field-level may be narrower but never broader.
   #
-  # Validation: the validate_entities_data_v0_3 trigger enforces field-level
-  # writes per the per-field constraints; entity-level RLS enforces tenant
-  # isolation. There is no separate field-level permission enforcement layer
-  # in v0.3 (would need column-level RLS or app-level mediation; W4+ work).
+  # Validation: the validate_entities_data_v0_3 trigger validates FIELD
+  # SHAPE only (type checks, enum membership, length caps, array element
+  # types). It does NOT enforce which agent is writing — agent-level
+  # write permission is DOCUMENTARY in v0.3, enforced at the application
+  # layer (cycle.sh + hh_decision_action) where the agent_name in the
+  # decision_log row records who wrote. Entity-level RLS enforces TENANT
+  # isolation but not agent-level access. Column-level RLS or per-agent
+  # database roles would be the v1.1+ enforcement layer; v0.3 is documentary.
 
   diagnostic:
     candidate: R           # reads for outreach context (§11 decision-maker map)
@@ -571,39 +582,24 @@ tenant_adapters_config_additions:
 # ============================================================================
 
 decision_log_payload_extension:
-  per_claim_confidence_distribution:
-    type: object
-    required: false
-    written_when: |
-      Tier 2 per-claim validation runs (sample-rate-gated by
-      tenant_adapters.config.diagnostic_per_claim_sample_rate).
-    object_shape:
-      total_claims:
-        type: integer
-      claims_with_confidence_above_0_6:
-        type: integer
-      claims_with_confidence_below_0_6:
-        type: integer
-      mean_confidence:
-        type: number
-      sampled_at:
-        type: timestamp
-      sample_rate_applied:
-        type: integer
-    notes: |
-      Aggregate metric, not per-claim detail. Per-claim raw data goes to a
-      separate v1.1 quality-metrics table if commercial value justifies.
-    validation:
-      mean_confidence: "[0.0, 1.0] range — enforced at write-time by W4-polish decision_log writer extension (not by Postgres trigger; payload is JSONB)"
-      claims_with_confidence_above_0_6: ">= 0 (non-negative integer)"
-      claims_with_confidence_below_0_6: ">= 0 (non-negative integer)"
-      total_claims: "= above + below (consistency invariant)"
-      sample_rate_applied: "[1, 100] (matches tenant_adapters.config.diagnostic_per_claim_sample_rate range)"
-    enforcement_gate: |
-      v0.3 declares the shape. Range + invariant validation lands in the
-      W4-polish decision_log writer extension that ships with Tier 2
-      sampling activation. Until then, no Tier 2 writes occur, so the
-      validation gap is non-blocking.
+  # NOTE: v0.3 does NOT introduce any new decision_log.payload key. The
+  # per_claim_confidence_distribution key planned for ADR-006 Tier 2 is
+  # explicitly DEFERRED to the future W4-polish ADR + schema supplement
+  # that ships alongside Tier 2 activation. v0.3 introducing the payload
+  # key without enforcement would violate review-schema-change §3
+  # (bounded values require CHECK or trigger). Tier 2 schema work owns
+  # the constraint + writer; this v0.3 supplement is silent on it.
+  deferred_to_future_adr:
+    artefact: ADR (number unassigned) — Diagnostic Tier 2 per-claim quality metric
+    schema_owner: future W4-polish supplement (not v0.3)
+    rationale: |
+      Per ADR-006 Tier 2 disposition: per-claim citation analysis is a
+      separate post-launch quality metric outside Gate A. The payload key,
+      its [0.0, 1.0] range validation, and the sample-rate config field
+      all land together with Tier 2 activation. Tier 2 doesn't activate
+      until the voice classifier microservice ships + first pilot tenant
+      accumulates ≥30 reports (W4-polish trigger). v0.3 is silent on the
+      payload shape to avoid declaring schema without enforcement.
 
 # ============================================================================
 # §6 — Migration sequencing (JSONB validation, not ALTER TABLE)
@@ -748,9 +744,10 @@ rationale: |
     - Scribe agent.md §3 entity-field table becomes PARTIALLY schema-verifiable:
       the v0.3-added fields (employment_type, key_skills, preferred_channel,
       next_action_target_date, must_haves, nice_to_haves, deal_breakers,
-      placement_status, week_1_status_note, satisfaction_signal,
+      placement_status, week_1_status_vault_path, satisfaction_signal,
       headcount_growth_signal_text, hiring_velocity_band, decision_window_text)
-      are now schema-backed. The Scribe §3 narrative still references SOME
+      are now schema-backed. (Note: week_1_status_note narrative now lives
+      in vault per ADR-002; only the vault-path pointer is in Postgres.) The Scribe §3 narrative still references SOME
       fields outside v0.3 scope (current_role_title vs v0.1 current_role;
       seniority — not yet in schema; brief.start_date should be
       start_date_target; opportunity.sector — not yet in schema). These
