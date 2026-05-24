@@ -244,11 +244,12 @@ entity_field_additions:
 #
 # Per review-schema-change skill §5: full matrix across all v1.0 agents
 # and all v0.1 + v0.2 entities. v0.3 changes:
-#   - Scribe Contact: none → RW (writes preferred_channel + next_action +
-#     decision_authority)
-#   - Scribe Brief: R → RW (writes must_haves + nice_to_haves + deal_breakers
-#     + salary_min/max + start_date)
-#   - Scribe Opportunity: none → RW (writes 3 new fields)
+#   - Scribe Contact: none → R+W (writes preferred_channel + next_action_target_date
+#     ONLY; decision_authority remains v0.1-owned by founder/v1.1 Triage)
+#   - Scribe Brief: R → R+W (writes must_haves + nice_to_haves + deal_breakers
+#     ONLY; existing salary_min/max + start_date_target remain Bullhorn-sourced,
+#     R-only for Scribe)
+#   - Scribe Opportunity: none → R+W (writes 3 new prospecting-call fields)
 #   - Janitor recent_edit: + R access (was Concierge/canary/LoRA only)
 #   - Janitor tone_rule: + R access (was Scribe/Cash Conductor/Concierge only)
 # All other access levels carry forward from v0.1 + v0.2.
@@ -290,7 +291,7 @@ agent_access_matrix:
     contractor: R+W        # call-summary field extraction
     client: R
     contact: R+W           # v0.3 CHANGED (was none); preferred_channel + next_action_target_date writes only (NOT decision_authority — that remains v0.1-owned by founder/v1.1 Triage)
-    brief: R+W             # v0.3 CHANGED (was R); must_haves + nice_to_haves + deal_breakers + salary + start_date writes
+    brief: R+W             # v0.3 CHANGED (was R); must_haves + nice_to_haves + deal_breakers writes only (existing salary_min/max + start_date_target remain Bullhorn-sourced, R-only)
     opportunity: R+W       # v0.3 CHANGED (was none); 3 new prospecting-call fields
     placement: R+W         # check-in field extraction
     timesheet: R           # reads for placement-context resolution on check-in calls
@@ -380,10 +381,16 @@ auxiliary_tables:
       - "(tenant_slug, posted_at DESC)"
       - "(tenant_slug, match_status, posted_at DESC) WHERE match_status IN ('unmatched','ambiguous')"
     retention: |
-      7-year retention with pseudonymization at year 7 for PII-bearing fields
-      (payee_name_raw, description, raw_payload). Aligned with Q4 v0_3_default.
-      Production use GATED until pseudonymization implementation lands;
-      migration-test tenant exempt.
+      INTENT (W4-polish enforcement required): 7-year retention with
+      pseudonymization at year 7 for PII-bearing fields (payee_name_raw,
+      description, raw_payload). Aligned with Q4 v0_3_default. The
+      v0.2-to-v0.3 migration creates the table + indexes only; the
+      pseudonymization + purge implementation is a W4-polish slice (pg_cron
+      job or external scheduled job; not yet authored).
+    enforcement_gate: |
+      Production use of this table GATED until pseudonymization + purge
+      implementation lands as W4 polish. Per-tenant DPA addendum signed
+      by founder + tenant before go-live; migration-test tenant exempt.
 
   cash_conductor_invoices:
     rationale: |
@@ -413,9 +420,18 @@ auxiliary_tables:
       - "(tenant_slug, status, due_at) WHERE status IN ('open','partial','overdue')"
       - "(tenant_slug, last_chase_position, due_at) WHERE last_chase_position BETWEEN 1 AND 3"
     retention: |
-      7-year retention with pseudonymization at year 7 per Q4 v0_3_default
-      (statutory UK accounting retention + GDPR via pseudonymization of
-      client_billing_email + raw_payload). Cancelled/voided rows 90d.
+      INTENT (W4-polish enforcement required): 7-year retention with
+      pseudonymization at year 7 per Q4 v0_3_default. Cancelled/voided rows
+      90d. The v0.2-to-v0.3 migration creates the table + indexes only; the
+      pseudonymization + purge implementation is a W4-polish slice
+      (pg_cron job or external scheduled job; not yet authored).
+    enforcement_gate: |
+      Until pseudonymization + 90d-cancelled-purge implementation lands as
+      W4 polish, production use of cash_conductor_invoices is GATED by
+      explicit per-tenant DPA addendum (same gate as cash_conductor_transactions
+      per §3 cash_conductor_transactions.retention). Migration-test tenant
+      data is exempt; pilot tenants require the DPA addendum signed before
+      go-live.
 
 auxiliary_table_access_matrix:
   cash_conductor_transactions:
@@ -526,6 +542,17 @@ decision_log_payload_extension:
     notes: |
       Aggregate metric, not per-claim detail. Per-claim raw data goes to a
       separate v1.1 quality-metrics table if commercial value justifies.
+    validation:
+      mean_confidence: "[0.0, 1.0] range — enforced at write-time by W4-polish decision_log writer extension (not by Postgres trigger; payload is JSONB)"
+      claims_with_confidence_above_0_6: ">= 0 (non-negative integer)"
+      claims_with_confidence_below_0_6: ">= 0 (non-negative integer)"
+      total_claims: "= above + below (consistency invariant)"
+      sample_rate_applied: "[1, 100] (matches tenant_adapters.config.diagnostic_per_claim_sample_rate range)"
+    enforcement_gate: |
+      v0.3 declares the shape. Range + invariant validation lands in the
+      W4-polish decision_log writer extension that ships with Tier 2
+      sampling activation. Until then, no Tier 2 writes occur, so the
+      validation gap is non-blocking.
 
 # ============================================================================
 # §6 — Migration sequencing (JSONB validation, not ALTER TABLE)
