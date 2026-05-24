@@ -391,8 +391,9 @@ DECLARE
     -- v0.3 additions
     'cash_conductor_last_run',
     'concierge_last_poll',
-    'concierge_send_window',
-    'diagnostic_per_claim_sample_rate'
+    'concierge_send_window'
+    -- diagnostic_per_claim_sample_rate DEFERRED to future W4-polish ADR
+    -- (per ADR-006 Tier 2); v0.3 trigger does not allowlist this key
   ];
 BEGIN
   IF c IS NULL THEN
@@ -406,15 +407,8 @@ BEGIN
   END LOOP;
 
   -- v0.3 type validations
-  IF c ? 'diagnostic_per_claim_sample_rate' THEN
-    IF jsonb_typeof(c->'diagnostic_per_claim_sample_rate') != 'number' THEN
-      RAISE EXCEPTION 'diagnostic_per_claim_sample_rate must be integer';
-    END IF;
-    IF (c->>'diagnostic_per_claim_sample_rate')::int < 1
-       OR (c->>'diagnostic_per_claim_sample_rate')::int > 100 THEN
-      RAISE EXCEPTION 'diagnostic_per_claim_sample_rate must be 1-100';
-    END IF;
-  END IF;
+  -- diagnostic_per_claim_sample_rate DEFERRED to W4-polish ADR; not validated
+  -- in v0.3 (also not in allowlist above, so it would fail-fast anyway)
 
   IF c ? 'concierge_send_window' THEN
     IF jsonb_typeof(c->'concierge_send_window') != 'object' THEN

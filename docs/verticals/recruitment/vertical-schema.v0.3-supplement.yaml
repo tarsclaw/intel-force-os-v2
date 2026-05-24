@@ -330,10 +330,6 @@ agent_access_matrix:
     opportunity: R         # may read prospect-firm opportunity if exists
     placement: none
     timesheet: none
-    voice_corpus: R
-    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
-    tone_rule: R
-    recent_edit: none
 
   janitor:
     candidate: R+W         # dedup + field-backfill writes
@@ -344,10 +340,6 @@ agent_access_matrix:
     opportunity: R
     placement: R+W         # lifecycle-state cleanup
     timesheet: R           # reads for placement-state inference
-    voice_corpus: R        # tacit-note narrative voice grounding
-    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
-    tone_rule: R           # v0.3 NEW (was no access)
-    recent_edit: R         # v0.3 NEW (was Concierge/canary/LoRA only); for tacit-note harvest
 
   scribe:
     candidate: R+W         # call-summary field extraction
@@ -358,10 +350,6 @@ agent_access_matrix:
     opportunity: R+W       # v0.3 CHANGED (was none); 3 new prospecting-call fields
     placement: R+W         # check-in field extraction
     timesheet: R           # reads for placement-context resolution on check-in calls
-    voice_corpus: R        # tacit-note voice grounding
-    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
-    tone_rule: R           # v0.2
-    recent_edit: W         # writes its own edits for retraining
 
   cash_conductor:
     candidate: none        # no Bullhorn dependency
@@ -372,10 +360,6 @@ agent_access_matrix:
     opportunity: none
     placement: R           # reads for client linkage on invoice
     timesheet: R           # reads to verify billable hours match invoiced amounts
-    voice_corpus: R        # chase-email voice grounding
-    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
-    tone_rule: R           # v0.2
-    recent_edit: W         # writes its own chase-draft edits for retraining
     # (auxiliary-table access is documented in auxiliary_table_access_matrix below)
 
   sourcing_scout:
@@ -392,10 +376,6 @@ agent_access_matrix:
     opportunity: R         # OVERRIDE v0.1 none → v0.3 R (reads opportunity context for ICP)
     placement: none
     timesheet: none
-    voice_corpus: R        # rationale-narrative voice grounding
-    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
-    tone_rule: R
-    recent_edit: W         # writes rationale-narrative edits for retraining
 
   concierge:
     candidate: R+W         # CORRECTED v0.3 (was R); writes lifecycle-state-derived fields + activity-log links per concierge §4 Step 13-14
@@ -406,10 +386,6 @@ agent_access_matrix:
     opportunity: R
     placement: R+W         # CORRECTED v0.3 (was R); writes Bullhorn state advancement per concierge §4 Step 14
     timesheet: R           # reads to verify placement-progress for 7d/30d/90d nurture
-    voice_corpus: R        # lifecycle-comms voice grounding
-    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
-    tone_rule: R           # v0.2
-    recent_edit: R         # v0.2
 
 # ============================================================================
 # §2a — v0.2 entity v1_0_agent_access amendments
@@ -481,7 +457,7 @@ auxiliary_tables:
       description: {type: string, required: false, pii: true, retention: Pseudonymized at year 7 per Q4 v0_3_default}
       bank_provider: {type: string, required: true, enum: [truelayer, plaid_uk, open_banking_direct]}
       match_status: {type: string, required: true, enum: [unmatched, matched, ambiguous], default: unmatched}
-      matched_invoice_id: {type: string, required: false, notes: FK to cash_conductor_invoices.invoice_id when match_status='matched'}
+      matched_invoice_id: {type: string, required: false, notes: "Logical reference (NOT DB-enforced FK) to cash_conductor_invoices.invoice_id when match_status='matched'; application-layer integrity check"}
       match_confidence: {type: number, required: false, notes: "range [0.00, 1.00]"}
       match_dimensions: {type: array, items: {type: string}, required: false}
       ingested_at: {type: timestamp, required: true, default: now()}
@@ -621,17 +597,11 @@ tenant_adapters_config_additions:
       Per-tenant outbound sending hours. Concierge respects when scheduling
       orange-tier sends.
 
-  diagnostic_per_claim_sample_rate:
-    type: integer
-    range: [1, 100]
-    default: 10
-    required: false
-    set_by: [tenant-admin]
-    read_by: [diagnostic]
-    notes: |
-      Per ADR-006 Tier 2 (post-launch quality metric). Sample 1-in-N
-      Diagnostic reports for per-claim citation validation. Activates at
-      W4 polish; documented intent only until then.
+  # diagnostic_per_claim_sample_rate DEFERRED to future W4-polish ADR
+  # (per ADR-006 Tier 2 + §5 deferred_to_future_adr). v0.3 does not
+  # declare this config key; the W4 ADR will introduce both the field
+  # and its consumer at the same time. Including it in v0.3 without an
+  # active consumer would be speculative schema.
 
 # ============================================================================
 # §5 — decision_log.payload extension (per ADR-006 Tier 2 prerequisite)
