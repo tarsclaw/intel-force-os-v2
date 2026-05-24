@@ -1,0 +1,335 @@
+# Sourcing Scout — request-response passive sourcing
+
+**Status:** Proposed (Day-19 pre-W9-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice).
+**Date:** 2026-05-24.
+**Author:** Founder (Maddox) + Claude Code.
+**Build wave:** v1.0 W9 per master brief §8.2 line 599 + ULTRAPLAN §8.1 A5 line 545 (master brief says W9; ULTRAPLAN says W8-9; master brief authoritative).
+**Build complexity:** L (2 weeks) per ULTRAPLAN A5 line 554.
+**Tier:** Tier 2 (request-response; daytime form) per ULTRAPLAN A5 line 546. Night Sourcer (v1.1) is the Tier-1 counterpart using cortextOS primitive #6.
+
+---
+
+## §1 — Output contract (one-paragraph screenshot)
+
+Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
+
+> **Sourcing Scout ingests a brief description (free-text role description + optional Bullhorn brief_id reference) and produces a ranked list of 5-15 passive candidate matches aggregated from FOUR sources** (Bullhorn ATS passive-match read; LinkedIn via Proxycurl; Reed.co.uk API; CV-Library API). Output is a Markdown report at `/vault/<tenant>/sourcing-scout-reports/<brief-slug>-<ISO-date>.md` containing the ranked candidates, per-candidate match rationale (≥50 words each per Gate A), confidence score [0,1], contact method, and source attribution. Typical runtime: 60-120 seconds per brief. Triggered via Brain UI button, Telegram command (`@ifos_bot scout <brief-id>`), OR webhook from a "new brief" event in Bullhorn (per ULTRAPLAN A5 line 547). Gate A hard-fails any run that returns <5 OR >15 candidates, any candidate without a working contact method, any rationale <50 words, OR any candidate flagged "do not contact" in tenant vault (per ULTRAPLAN A5 line 553 verbatim). Gate B success threshold: ≥6 of 10 candidates advance past first consultant review (per ULTRAPLAN A5 line 554 — shared target with Night Sourcer v1.1). Source-abstraction layer designed for Night Sourcer reuse (per ULTRAPLAN A5 line 555 gotcha).
+
+---
+
+## §2 — Invocation surface
+
+### Brain UI (v1.0 primary)
+
+Brain UI v1.0 "Source candidates" button on any brief detail page → POST internal API → Sourcing Scout webhook.
+
+### Telegram command (v1.0)
+
+```
+@ifos_bot scout <brief-id-or-slug>
+@ifos_bot scout --description "Senior React engineer, London, £120k, hybrid"
+```
+
+### Webhook (v1.0)
+
+Bullhorn "new brief created" webhook → routed via internal bus → Sourcing Scout if tenant config enables auto-source-on-brief-create.
+
+### CLI (v1.0 — debugging)
+
+```bash
+ifosctl sourcing-scout source --tenant <slug> --brief-id <id>
+ifosctl sourcing-scout source --tenant <slug> --description "<free-text>"
+```
+
+### v1.1+ surfaces (deferred)
+
+- Night Sourcer Tier-1 always-on (Brain UI dashboard; cortextOS primitive #6)
+- Bulk-source mode (`--brief-list briefs.csv`)
+- Refresh-source mode (re-source against the same brief 30 days later)
+
+---
+
+## §3 — Output shape
+
+One output per invocation. Markdown report at `/vault/<tenant>/sourcing-scout-reports/<brief-slug>-<ISO-date>.md`. Structure:
+
+```markdown
+# Sourcing Scout — <Brief title>
+**Generated:** <ISO-date>  **Brief ID:** <Bullhorn-brief-id>  **Tenant:** <slug>
+**Sources searched:** Bullhorn ATS + LinkedIn (Proxycurl) + Reed + CV-Library
+**Aggregate candidates:** <N> (top 5-15 ranked)
+
+## Brief context
+<2-3 sentences summarising the role from the brief input>
+
+## Ranked candidates
+
+### 1. <Candidate name> — confidence 0.92
+**Source:** Bullhorn (passive match) | **Contact:** <method + verified>
+**Match rationale:**
+<≥50 words explaining why this candidate is a match — references brief
+requirements + candidate background; cites Bullhorn placement history,
+LinkedIn current role, or other source-specific evidence.>
+**Risk flags:** <e.g., "active with placement at competitor agency 2024";
+"prefers contract not perm per Bullhorn note">
+**Profile links:** [Bullhorn](url) | [LinkedIn](url)
+
+### 2. <Candidate name> — confidence 0.88
+...
+
+(5-15 candidates total)
+
+## Source breakdown
+| Source | Candidates contributed | Avg confidence | Rate-limit budget remaining |
+|---|---|---|---|
+| Bullhorn ATS | <N> | <score> | n/a (no quota) |
+| LinkedIn (Proxycurl) | <N> | <score> | <remaining> |
+| Reed | <N> | <score> | <remaining> |
+| CV-Library | <N> | <score> | <remaining> |
+
+## Diagnostic + exception list
+- <Any source failures (e.g., "Reed API 429; retried once; 3 candidates lost")>
+- <Any "do not contact" filter hits>
+- <Any low-confidence candidates discarded (below 0.5)>
+```
+
+Per `decision_log`: one row per source query + one row per candidate proposed + one final aggregate row.
+
+Voice-classified content: only the per-candidate match rationale (Step 9). Voice classifier ≥0.75 against tenant style. Rationale that fails after 3 retries → ESC_VOICE_DRIFT → candidate dropped from list + flagged in exception list.
+
+---
+
+## §4 — Workflow
+
+11 steps. Per master brief §8.1 Change 2, every step that produces output OR takes action MUST call `hh_decision_*` from `agents/_shared/hook-helpers.sh`.
+
+```
+0. Session start
+   → context.sh hydrates: tenant config + multi-source auth + voice corpus
+     + "do not contact" list from tenant vault
+   → hh_decision_trigger("session_start", "scout <brief-id-or-slug>")
+
+1. Brief ingestion
+   → if brief_id: bullhorn.get_brief(brief_id) → fetch fields
+   → if free-text description: LLM parse → extract role / location / sector
+     / seniority / day-rate-band / must-haves / nice-to-haves
+   → ESC_BRIEF_UNDERSPECIFIED if extraction yields <3 key dimensions
+
+2. Multi-source auth refresh
+   → bullhorn (read-only); LinkedIn/Proxycurl; Reed; CV-Library
+   → per-source ESC_<SOURCE>_AUTH on refresh failure
+   → if 2+ sources fail auth: ESC_SCHEMA_VIOLATION (abort early; insufficient
+     coverage for Gate A 5-15 candidates)
+
+3. Bullhorn passive-match query
+   → bullhorn.search_candidates(filter=brief_key_dimensions, status=passive)
+   → up to 30 candidates fetched (will rank+filter later)
+   → ESC_RATE_LIMIT_HIT on 429
+
+4. LinkedIn search (via Proxycurl)
+   → proxycurl.search_people(query=brief_key_dimensions, location=brief_location,
+     industry=brief_sector)
+   → up to 30 profiles
+   → cache 1h per (query, location, sector) tuple
+   → ESC_LINKEDIN_RATE_LIMIT on Proxycurl quota hit
+
+5. Reed query
+   → reed.search_candidates(query=brief_dimensions, location, salary_band)
+   → up to 30 candidates
+   → ESC_REED_AUTH on auth fail; ESC_REED_RATE_LIMIT on quota
+
+6. CV-Library query
+   → cvlibrary.search_candidates(query, location, salary_band)
+   → up to 30 candidates
+   → ESC_CVLIBRARY_AUTH or _RATE_LIMIT
+
+7. Aggregate + dedupe
+   → merge all sources into single candidate set
+   → dedupe across sources by (name + email) OR (name + phone) OR
+     (LinkedIn URL) — same fuzzy matcher as Janitor (confidence ≥0.85)
+   → annotate each row with source provenance (e.g., "from Bullhorn + LinkedIn
+     match" if found in both)
+
+8. "Do not contact" filter
+   → load tenant /vault/<slug>/do-not-contact.list (one identifier per line:
+     email / phone / LinkedIn URL / Bullhorn CRN)
+   → remove any candidate matching any DNC identifier
+   → log dropped candidates to exception list
+   → ESC_DNC_FILTER_HIT if >5 candidates dropped (suggests over-eager
+     search; brief may be poorly scoped)
+
+9. LLM ranking + rationale generation (per candidate)
+   → for top 15 by source-aggregated confidence: generate per-candidate
+     rationale ≥50 words
+   → prompt = (brief context + candidate profile + voice corpus + tone rules)
+   → voice classifier scores rationale (≥0.75)
+   → ESC_VOICE_DRIFT if classifier <0.75 after 3 retries; drop candidate
+     from final list
+
+10. Output assembly + Gate A validation
+    → ensure 5-15 candidates remaining after Step 9
+    → ensure each has working contact method (email validated via simple
+      regex + domain MX check; phone validated via E.164 format)
+    → ensure each rationale ≥50 words
+    → if any condition fails: ESC_SCHEMA_VIOLATION; partial draft to /tmp;
+      abort
+    → write Markdown report to vault path per §3
+    → hh_decision_output("scout_report", report_path, "N candidates from M sources")
+
+11. Session close + notification
+    → operator notification per invocation source (Brain UI: in-app
+      notification; Telegram: reply with report path; webhook: bus event back)
+    → hh_decision_action("scout_run_complete", brief_id, payload_hash,
+      "N=<N> sources_used=<M>")
+    → exit code 0
+```
+
+---
+
+## §5 — Gates
+
+### Gate A — validate.sh (hard-fail before action)
+
+Per master brief §8.1 Change 2 + autosend-safety-policy §4. Sourcing Scout's `validate.sh` enforces (per ULTRAPLAN A5 line 553 verbatim):
+
+- **"5–15 candidates returned per brief"** (count within range)
+- **"each has a working contact method"** (email format + MX check OR E.164 phone OR LinkedIn URL OR Bullhorn CRN-with-contact)
+- **"each has rationale ≥ 50 words"**
+- **"no candidate flagged 'do not contact' in tenant vault"** (DNC list scan)
+- All rationales pass voice classifier ≥0.75
+- No PII outside firm boundary in rationale text
+- No source contributed 0 candidates (suggests source auth failure undetected by Step 2)
+
+Gate A failures fire `ESC_SCHEMA_VIOLATION`; draft to `/tmp`; operator review.
+
+### Gate B — Outcome threshold (success metric, not block)
+
+Per ULTRAPLAN A5 line 554 verbatim: **"≥6 of 10 candidates advance past first consultant review (shared target with Night Sourcer)"**.
+
+Measured via consultant feedback loop: each candidate in a Sourcing Scout report gets a "useful / not useful" tag from the consultant via Brain UI v1.1 OR Telegram reply OR Bullhorn note. Aggregate over rolling 30-day window per tenant.
+
+Below 6-of-10 for 30 consecutive days → `ESC_GATE_B_MISS` → founder + operator review (likely indicates ranking heuristic drift, source-mix imbalance, OR brief-input quality issue).
+
+Shared target with Night Sourcer (v1.1) means: both agents are measured against the same 6-of-10 bar, and the source-abstraction layer (per gotcha §6.4 of ULTRAPLAN A5 line 555) ensures rank+rationale logic is shared not duplicated.
+
+---
+
+## §6 — Escalation codes
+
+Sourcing Scout uses these ESC codes from `agents/_shared/escalation-codes.md`:
+
+| Code | Trigger | Severity | Routing |
+|---|---|---|---|
+| `ESC_BULLHORN_AUTH` | Bullhorn OAuth refresh fails | **blocking** (2+ source fails abort) | operator |
+| `ESC_LINKEDIN_AUTH` | Proxycurl API key invalid | warn (single-source fail OK if 2+ others succeed) | operator_chat_id |
+| `ESC_LINKEDIN_RATE_LIMIT` | Proxycurl quota exceeded | warn | operator_chat_id |
+| `ESC_REED_AUTH` | Reed API fail | warn | operator_chat_id |
+| `ESC_REED_RATE_LIMIT` | Reed 429 | warn | operator_chat_id |
+| `ESC_CVLIBRARY_AUTH` | CV-Library API fail | warn | operator_chat_id |
+| `ESC_CVLIBRARY_RATE_LIMIT` | CV-Library 429 | warn | operator_chat_id |
+| `ESC_BRIEF_UNDERSPECIFIED` | LLM brief-parse yields <3 key dimensions | warn | operator_chat_id |
+| `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries | warn | operator_chat_id |
+| `ESC_DNC_FILTER_HIT` | >5 candidates dropped by DNC list | warn | operator_chat_id |
+| `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in rationale | **blocking** | operator + ifos_oncall |
+| `ESC_SCHEMA_VIOLATION` | Gate A failure | **blocking** | operator + ifos_oncall |
+| `ESC_GATE_B_MISS` | Below 6-of-10 for 30 consecutive days | warn | founder + operator |
+| `ESC_RATE_LIMIT_HIT` | Any source 429 (general) | warn | operator_chat_id |
+
+Sourcing Scout does NOT use:
+
+- `ESC_AUTOSEND_*` — no auto-send actions; pure read + report
+- `ESC_BULLHORN_WRITE_FAIL` — Bullhorn read-only
+- `ESC_VOICE_DRIFT_TENANT` — per-candidate drift detected at run time (above); no separate 30-day tenant drift signal
+
+---
+
+## §7 — Voice + tone constraints
+
+Step 9 (per-candidate rationale generation) is voice-classified. The agent integrates with `_shared/voice-loader.sh`:
+
+- **`hh_load_tone_rules` filtered by `applies_to_agents` containing `sourcing_scout`** — surfaces rules like:
+  - No demographic inference (age, gender, nationality, ethnicity, family status) — Equality Act 2010 compliance
+  - No salary-band reference unless explicitly supplied by candidate
+  - No claims about candidate intent ("looking to leave their role") without evidence in source data
+  - No mention of competing agency placements except in risk-flag context
+- **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "candidate sourcing rationale" task context.
+- **`hh_load_recent_edits` last 30 days for `sourcing_scout` agent**: detects consultant edit patterns on rationales. Edit-distance >100 chars on >40% of recent_edit rows fires `ESC_VOICE_DRIFT_TENANT`.
+
+Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
+
+---
+
+## §8 — Build dependencies (W9 prerequisites)
+
+Sourcing Scout build cannot start until ALL of the following are confirmed:
+
+| Dependency | Source | Status |
+|---|---|---|
+| Renderer + `_shared/` substrate | Day-8 + Round-3 ratified | ✅ |
+| Diagnostic ratified | Week 3 Codex Round 4 | ⏸ |
+| Janitor ratified (Bullhorn-read substrate) | W5 Codex Round | ⏸ |
+| First pilot tenant onboarded | Post Q1-LOI | ⏸ |
+| **Bullhorn Sub-decisions A+B Accepted** | Bullhorn partnerships response | ⏸ |
+| Bullhorn MCP read capability | W3-W4-W5 build chain | ⏸ |
+| **Proxycurl commercial signup** + API access | Founder commercial; ~$39+/mo | ⏸ |
+| **Reed.co.uk commercial signup** + API access | Founder commercial | ⏸ |
+| **CV-Library commercial signup** + API access | Founder commercial | ⏸ |
+| Proxycurl MCP connector | W9 build start (~2 days) | ⏸ |
+| Reed MCP connector | W9 build start (~2 days) | ⏸ |
+| CV-Library MCP connector | W9 build start (~2 days) | ⏸ |
+| Source-abstraction layer (Night Sourcer reuse) | W9 build start (~2 days) | ⏸ |
+| Per-tenant source credentials in `_secrets.env` | Tenant onboarding | ⏸ |
+| Tenant DNC list at `/vault/<slug>/do-not-contact.list` | Tenant onboarding | ⏸ |
+| Voice corpus seeded for first pilot tenant | Tenant-admin onboarding | ⏸ |
+| `validate.sh` Gate A logic | Build at W9 start (~1 day) | ⏸ |
+| `context.sh` hydration | Build at W9 start (~0.5 day) | ⏸ |
+| `cycle.sh` orchestration (11-step) | Build at W9 start (~2 days) | ⏸ |
+| 3 fixtures with golden outputs | Build at W9 start (~1 day) | ⏸ |
+
+**Until ALL ⏸ items resolve to ✅, W9 build slice does not start.**
+
+---
+
+## §9 — Status + open questions
+
+**Status:** Proposed. Awaits Bullhorn A+B + 3 commercial signups (Proxycurl + Reed + CV-Library) + Q1 LOI + W9 build slice.
+
+### Open questions for founder review
+
+| # | Question | Resolution path |
+|---|---|---|
+| Q1 | All three external sources required for v1.0? Reed + CV-Library are UK-recruitment-specific; Proxycurl is LinkedIn-via-API. Could v1.0 ship with Bullhorn + Proxycurl only (2 sources)? | Founder strategic. Recommend 3 sources minimum for 5-15 candidate Gate A coverage; Reed if tenant focused on perm; CV-Library if tenant focused on contract. |
+| Q2 | Proxycurl pricing — ~$39/mo for 5,000 credits at low volume; scales with usage. Per pilot tenant budget? | ~5-10 briefs/day per consultant × 50 calls/brief = up to 2,500 credits/day per consultant. Cost: ~$20-50/day at peak. |
+| Q3 | DNC list source — tenant uploads a list, or we derive from Bullhorn entity flag? | v1.0: tenant-uploaded text file at `/vault/<slug>/do-not-contact.list`. v1.1: derive from Bullhorn entity field. |
+| Q4 | Rationale length — 50 words feels short for high-quality match explanation. Bump to 100? | Founder review with first pilot consultant feedback. ULTRAPLAN A5 line 553 says "≥ 50 words" — using as floor. |
+| Q5 | Gate B 6-of-10 metric — measured via consultant feedback. Brain UI v1.0 doesn't have feedback UX yet. Telegram reply? | v1.0: Telegram reply with "/scout-feedback <candidate-id> useful|not-useful". v1.1: Brain UI button. |
+| Q6 | Source-abstraction layer design — Night Sourcer v1.1 reuses this. Should the design be ratified separately (its own ADR)? | Recommend: yes. New ADR-006 at W9 build start documenting source-abstraction interface. |
+| Q7 | Bullhorn passive-match query — what's the right SEARCH filter? Existing Bullhorn candidate-status enum has "passive" / "active" / "placed". | Founder + Bullhorn-rep clarification during Sub-decision B response. |
+
+### Gotchas (carried forward from ULTRAPLAN A5 line 555)
+
+1. **LinkedIn rate limits via Proxycurl.** Proxycurl quota is per-credit; deep profile fetches cost more than searches. Plan for cost ceiling per brief.
+2. **Reed/CV-Library have separate auth and separate result schemas.** Source-abstraction layer is the load-bearing design (per ULTRAPLAN A5 line 555); Night Sourcer v1.1 will reuse it.
+3. **Build the source-abstraction layer carefully.** This is the integration test of "schema before code" (master brief §1 Rule 2) — per-source mapping config, not per-source code branches.
+
+---
+
+## §10 — When this document ratifies
+
+Per `.codex/ratification/review-architecture-decision.md` skill: this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
+
+Status flips Proposed → Accepted when:
+- Codex Round 4 Phase 2 ratifies
+- Founder approves §9 Q1 (3 sources vs 2) + Q3 (DNC source) + Q5 (Gate B UX)
+- Q2 cost model approved with per-tenant budget cap
+- Q6: ADR-006 (source-abstraction layer) drafted + ratified
+
+Status flips Accepted → In Force when:
+- W9 build slice produces all 5 sibling bundle files + 3 fixtures
+- First production brief processed end-to-end against migration-test tenant
+- Gate B feedback loop operational (Telegram OR Brain UI)
+- Codex re-ratifies post-build via `review-agent-bundle.md` skill
+
+Until then: this document is a forward-looking scaffold.
+
+*End of Sourcing Scout agent.md draft.*
