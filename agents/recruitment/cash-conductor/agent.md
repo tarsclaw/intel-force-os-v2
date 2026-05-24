@@ -212,12 +212,14 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
    → verify: amount_due cited matches accounting record
    → verify: client_contact_email matches active billing contact
    → verify: NOT paid in last 24h (re-query accounting)
-   → ESC_AGENT_OUTPUT_SHAPE on any miss (output-shape violation: chase cannot
-     conform to its Gate A contract — invoice/amount/contact mismatch OR paid-
-     invoice precondition violated). `ESC_AUTOSEND_BLOCKED` is reserved for
-     red-tier action attempts per catalogue line 41; Cash Conductor's chase
-     pipeline is orange-tier, so a Gate A miss is output-shape failure, not
-     red-tier block.
+   → ESC code mapping by failure class:
+     - invoice_number / amount_due / paid-invoice-precondition mismatch →
+       `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint failure)
+     - client_contact_email / addressee mismatch (chase routed to wrong
+       customer) → `ESC_ADDRESSEE_MISMATCH` (per catalogue §2.10 — explicitly
+       blocking for Cash Conductor invoice/chase addressee resolution)
+     `ESC_AUTOSEND_BLOCKED` is reserved for red-tier action attempts per
+     catalogue line 41; Cash Conductor's chase pipeline is orange-tier.
    → hh_decision_output("chase_draft_validated", invoice_id, "passed")
 
 10. Chase-draft queue to Concierge (orange tier)
@@ -273,7 +275,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Cash Conductor's `
 - Open Banking token >30 days from expiry (otherwise warn)
 - Accounting auth refresh succeeded in Step 1
 
-Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint: chase cannot meet its Gate A contract); draft stays in `/tmp` (auto-purged 24h); operator notified.
+Gate A failures fire either `ESC_AGENT_OUTPUT_SHAPE` (invoice/amount/paid-precondition miss; output-shape constraint) OR `ESC_ADDRESSEE_MISMATCH` (client_contact_email mismatch; blocking per catalogue §2.10 — explicit Cash Conductor invoice/chase addressee case). Draft stays in `/tmp` (auto-purged 24h); operator notified per the specific ESC route.
 
 **Honesty note (per bilateral-disposition Cat-5):** Cash Conductor `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W7 build slice. The W7 build delivers `agents/recruitment/cash-conductor/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
 
@@ -303,10 +305,11 @@ Cash Conductor uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_AUTOSEND_RACE` | Payment received between chase-draft and chase-send window | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Chase voice classifier below threshold after 3 retries | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in chase body | **blocking** | operator + ifos_oncall |
-| `ESC_AGENT_OUTPUT_SHAPE` | Gate A miss (invoice/amount/contact validation OR paid-invoice precondition violated) — output-shape constraint per catalogue line 184 | warn | operator_chat_id |
+| `ESC_AGENT_OUTPUT_SHAPE` | Gate A miss on invoice_number / amount_due / paid-invoice-precondition (NOT addressee mismatch — that uses ESC_ADDRESSEE_MISMATCH) | warn | operator_chat_id |
+| `ESC_ADDRESSEE_MISMATCH` | Gate A miss on client_contact_email / addressee resolution (per catalogue §2.10 Cash Conductor case) | **blocking** | operator + ifos_oncall |
 | `ESC_GATE_B_MISS` | DSO improvement below 12-day target for 2 consecutive months | warn | founder + operator |
 | `ESC_RATE_LIMIT_HIT` | Accounting OR Open Banking 429 | warn | operator_chat_id |
-| `ESC_AUTOSEND_ORANGE_PENDING` | Chase draft awaiting consultant approval — heartbeat at ≥50% of declared timeout (per catalogue §2.9 trigger) | info | (logged; weekly report) |
+| `ESC_AUTOSEND_ORANGE_PENDING` | Chase draft awaiting consultant approval — heartbeat at ≥50% of declared timeout (per catalogue §2.9 trigger) | info | operator_chat_id (gentle reminder; no oncall CC) |
 
 Cash Conductor does NOT use:
 
