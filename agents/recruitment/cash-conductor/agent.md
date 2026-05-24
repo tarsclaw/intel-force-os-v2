@@ -134,7 +134,7 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
 
 ## §4 — Workflow
 
-14 steps. Per master brief §8.1 Change 2, every step that produces output OR takes action MUST call `hh_decision_*` from `agents/_shared/hook-helpers.sh`.
+14 steps. Per ADR-003 §3 agent-bundle pattern + the review-agent-bundle Codex ratification skill §4 ("every output/action step MUST call hh_decision_*"): every step that produces output OR takes action MUST call `hh_decision_*` from `agents/_shared/hook-helpers.sh`. Master brief §8.1 Change 2 mandates the three-call minimum per agent run (`trigger`, `output`, `action`); the per-step mandatory-write discipline is the agent-bundle contract extension.
 
 ```
 0. Session start (webhook OR cron OR manual)
@@ -194,7 +194,10 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
    → for each, determine chase position 1-4 based on age + prior chases
      sent (read from `cash_conductor_invoices.last_chase_position` — v0.3
      schema-backed field per migration §3; NOT from decision_log payload)
-   → if position=4: STOP — operator review (no auto-draft)
+   → if position=4: STOP — operator review (no auto-draft).
+     hh_decision_output("chase_position_4_operator_review",
+     "invoice:<id>", "age_days:<N>; prior_chases:3") — records the
+     operator-review outcome explicitly per §4 mandatory-write discipline
    → else: proceed to Step 8
 
 8. LLM chase-draft generation (per overdue invoice)
@@ -234,7 +237,12 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
 11. (Operator approves via Concierge → Concierge sends → Cash Conductor
     records send event)
     → Concierge fires webhook back: chase_sent
-    → Cash Conductor updates internal state: prior_chases_sent counter
+    → Cash Conductor updates `cash_conductor_invoices.last_chase_position`
+      and `last_chase_sent_at` (v0.3 schema-backed fields per migration §3)
+    → hh_decision_action("xero_reminder_send_customer", "invoice:<id>",
+      payload_hash, "position:<N>; sent_at:<ISO>") — tier=orange per
+      autosend-policy.yaml (records customer-facing send completion +
+      state mutation)
 
 12. (Mode=webhook only) Re-trigger eligibility check
     → was this webhook also a "payment received" that just hit?
@@ -272,7 +280,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Cash Conductor's `
 - Voice classifier score ≥0.75 for position 1-2 chases; ≥0.80 for position 3
 - No PII outside firm boundary in chase body
 - Reconciliation match confidence ≥0.85 for auto-write (Stage 1-2 only)
-- Open Banking token >30 days from expiry (otherwise warn)
+- Open Banking token ≥7 days from expiry (≤7d is blocking per ESC_OPEN_BANKING_TOKEN_AGING staged definition; ≤30d info + ≤14d warn are health-warning states that do NOT block Gate A, only signal upcoming reauth need)
 - Accounting auth refresh succeeded in Step 1
 
 Gate A failures fire either `ESC_AGENT_OUTPUT_SHAPE` (invoice/amount/paid-precondition miss; output-shape constraint) OR `ESC_ADDRESSEE_MISMATCH` (client_contact_email mismatch; blocking per catalogue §2.10 — explicit Cash Conductor invoice/chase addressee case). Draft stays in `/tmp` (auto-purged 24h); operator notified per the specific ESC route.
