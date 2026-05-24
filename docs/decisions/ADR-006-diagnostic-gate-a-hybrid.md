@@ -1,6 +1,6 @@
 # ADR-006 — Diagnostic Gate A hybrid (per-section v0 + per-claim W4 spot-check)
 
-**Status:** Proposed (2026-05-24, Day 19)
+**Status:** Accepted (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b`; awaiting Codex `review-architecture-decision` ratification confirmation)
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A1 line 496 — Gate A citation requirement
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
@@ -10,9 +10,13 @@
 
 ## Context
 
-ULTRAPLAN §8.1 A1 line 496 specifies the Diagnostic Gate A citation requirement verbatim:
+ULTRAPLAN §8.1 A1 line 496 (pre-amendment wording — before this ADR's in-band edit landed in commit `aed9d3b`):
 
 > - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data
+
+Current line 496 (post-amendment; live as of commit `aed9d3b`):
+
+> - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data *(see `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` for two-tier framing — per-section hard-fail at v0; per-claim spot-check at W4 polish)*
 
 The "no claims unsupported by source data" clause implies **per-claim citation validation** — every factual claim in the report must have a backing source link. The Diagnostic v0 implementation at `agents/recruitment/diagnostic/validate.sh` enforces **per-section citation** (regex `\[.+\]\(.+\)` requires ≥1 markdown link per section); per-claim validation is NOT implemented at v0.
 
@@ -47,11 +51,11 @@ A statistical sample (1-in-N, configurable per tenant; default 1-in-10) of Diagn
 - NLP claim-extraction (sentence-level)
 - Per-claim evidence-link matching (semantic similarity against cited URLs)
 - Per-claim confidence score
-- Aggregate report quality metric written to `decision_log.payload.per_claim_confidence_distribution` (NEW payload key — W4-polish schema work; not present in the `decision_log.payload` shape documented at `docs/decisions/autosend-safety-policy.md` §7 audit row schema today, which lists `tier`, `action_type`, `target`, `payload_hash`, `payload_preview`, `override_applied`, approval fields, `block_reason`, and `policy_version_sha` only; W4-polish lands a payload-schema supplement that adds this key before any write)
+- Aggregate report quality metric written to `decision_log.payload.per_claim_confidence_distribution` (NEW payload key — W4-polish schema work; not present in the `decision_log.payload` shape documented at `docs/decisions/autosend-safety-policy.md` §7 audit row schema today, which lists `tier`, `action_type`, `target`, `payload_hash`, `payload_preview`, `override_applied`, approval fields, `block_reason`, and `policy_version_sha` only). **Owner:** Claude Code authors the autosend-safety-policy §7 supplement adding this key. **Trigger:** W4-polish work (after Diagnostic v0 first-pilot launch); estimated 2026-06-21 to 2026-06-28. Tier 2 sampling MUST NOT activate until this supplement lands + Codex ratifies it.
 
 Below threshold (e.g. <80% of claims with confidence ≥0.6) → warn (not block); operator review queue entry.
 
-The per-tenant sample-rate override (`tenant_adapters.config.diagnostic_per_claim_sample_rate`) is also a NEW config field — W4-polish-blocked: `tenant_adapters` schema does not include it today; v0.3 vertical-schema supplement work needs to add it before Tier 2 activates.
+The per-tenant sample-rate override (`tenant_adapters.config.diagnostic_per_claim_sample_rate`) is also a NEW config field — `tenant_adapters` schema does not include it today. **Owner:** Claude Code authors the v0.3 vertical-schema supplement adding this field. **Trigger:** W4-polish (same delivery window as the payload-schema supplement; 2026-06-21 to 2026-06-28). Tier 2 sampling MUST NOT activate until v0.3 supplement lands + Codex ratifies it.
 
 ### W4 polish trigger
 
