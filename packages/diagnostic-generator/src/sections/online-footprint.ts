@@ -31,7 +31,6 @@ export async function fetchOnlineFootprint(firmName: string): Promise<OnlineFoot
     candidates.push(`https://www.${s}.com`);
     candidates.push(`https://www.${s}.co.uk`);
   }
-  const slug = fullSlug;
 
   let primarySite: OnlineFootprintData["primarySite"] = null;
   for (const url of candidates) {
@@ -42,15 +41,27 @@ export async function fetchOnlineFootprint(firmName: string): Promise<OnlineFoot
     }
   }
 
-  const linkedInUrl = `https://www.linkedin.com/company/${slug}/`;
+  // LinkedIn slug discovery: try base (suffix-stripped) first, then full.
+  // Hays plc → linkedin.com/company/hays BEFORE /hays-plc/. Mirrors the
+  // domain-discovery logic above for consistency.
+  let linkedInUrl = `https://www.linkedin.com/company/${fullSlug}/`;
   let linkedInReachable = false;
   let linkedInStatus: number | null = null;
-  const li = await headCheck(linkedInUrl);
-  if (li) {
-    linkedInStatus = li.status;
-    // LinkedIn returns 999 for bots, 200 for real pages, 404 for non-existent.
-    // Treat 200 + 999 as "page exists" (999 = bot block, page IS there).
-    linkedInReachable = li.status === 200 || li.status === 999;
+  for (const s of slugCandidates) {
+    const candidateUrl = `https://www.linkedin.com/company/${s}/`;
+    const li = await headCheck(candidateUrl);
+    if (li) {
+      // LinkedIn returns 999 for bots, 200 for real pages, 404 for non-existent.
+      // Treat 200 + 999 as "page exists" (999 = bot block, page IS there).
+      if (li.status === 200 || li.status === 999) {
+        linkedInUrl = candidateUrl;
+        linkedInStatus = li.status;
+        linkedInReachable = true;
+        break;
+      }
+      // Remember the LAST status seen for diagnostic reporting if nothing matches
+      linkedInStatus = li.status;
+    }
   }
 
   return { primarySite, linkedInUrl, linkedInReachable, linkedInStatus };
