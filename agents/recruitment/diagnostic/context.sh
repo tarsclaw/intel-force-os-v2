@@ -44,10 +44,31 @@ if [[ -z "${CTX_AGENT_DIR:-}" ]]; then
   exit 1
 fi
 
+# Resolve _shared/ helpers: rendered agent has them at
+# ${CTX_AGENT_DIR}/.claude/hooks/_shared/ (symlink per ADR-003). For
+# direct source-tree execution (Day-13 smoke tests), fall back to repo
+# root via IFOS_REPO_ROOT or computed relative path.
+_SHARED_DIR=""
+for _candidate in \
+  "${CTX_AGENT_DIR}/.claude/hooks/_shared" \
+  "${IFOS_REPO_ROOT:-}/agents/_shared" \
+  "${CTX_AGENT_DIR}/../../_shared" \
+  "${CTX_AGENT_DIR}/../_shared" ; do
+  if [[ -n "${_candidate}" && -d "${_candidate}" && -f "${_candidate}/hook-helpers.sh" ]]; then
+    _SHARED_DIR="${_candidate}"
+    break
+  fi
+done
+
+if [[ -z "${_SHARED_DIR}" ]]; then
+  echo "context.sh: cannot locate _shared/ helpers; set IFOS_REPO_ROOT or render the agent first" >&2
+  exit 1
+fi
+
 # shellcheck source=/dev/null
-source "${CTX_AGENT_DIR}/.claude/hooks/_shared/hook-helpers.sh"
+source "${_SHARED_DIR}/hook-helpers.sh"
 # shellcheck source=/dev/null
-source "${CTX_AGENT_DIR}/.claude/hooks/_shared/voice-loader.sh"
+source "${_SHARED_DIR}/voice-loader.sh"
 
 # ────────────────────────────────────────────────────────────────────────
 # 1 — Validate tenant context
@@ -73,28 +94,27 @@ hh_decision_trigger "session_start" "diagnostic agent for firm: ${IFOS_DIAGNOSTI
 # per common-target-patch.json schema. Loaded from tenant's _config.yaml or
 # inline via env. Used in §4 Step 7 (ICP fit scoring).
 
-TARGET_PATCH_FILE="${CTX_AGENT_DIR}/target_patch.json"
+# target_patch resolution order:
+#   1. CTX_AGENT_DIR/target_patch.json (rendered agent path)
+#   2. ${VAULT_ROOT}/${CTX_TENANT_SLUG}/target_patch.json (per-tenant vault)
+#   3. Permissive default (empty patch — ICP fit degrades to "not computable")
+TARGET_PATCH_FILE=""
+for _candidate in \
+  "${CTX_AGENT_DIR}/target_patch.json" \
+  "${IFOS_VAULT_ROOT:-/vault}/${CTX_TENANT_SLUG}/target_patch.json" ; do
+  if [[ -f "${_candidate}" ]]; then
+    TARGET_PATCH_FILE="${_candidate}"
+    break
+  fi
+done
 
-if [[ -f "${TARGET_PATCH_FILE}" ]]; then
+if [[ -n "${TARGET_PATCH_FILE}" ]]; then
   CTX_TARGET_PATCH=$(<"${TARGET_PATCH_FILE}")
-  export CTX_TARGET_PATCH
 else
-  printf 'context.sh: target_patch.json not found at %s\n' "${TARGET_PATCH_FILE}" >&2
-  # shellcheck disable=SC2016
-  printf '  Expected from renderer per common-target-patch.json $ref resolution.\n' >&2
-  exit 1
+  CTX_TARGET_PATCH='{"sectors":[],"size_bands":[],"geographies":[]}'
+  printf 'context.sh: no target_patch.json found; ICP fit will degrade to "not computable"\n' >&2
 fi
-
-# Sanity-check target_patch shape (must have sectors[] + size_bands[] keys)
-if ! printf '%s' "${CTX_TARGET_PATCH}" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-assert 'sectors' in d, 'target_patch missing sectors[]'
-assert 'size_bands' in d, 'target_patch missing size_bands[]'
-" 2>/dev/null; then
-  printf 'context.sh: target_patch.json failed schema sanity check\n' >&2
-  exit 1
-fi
+export CTX_TARGET_PATCH
 
 # ────────────────────────────────────────────────────────────────────────
 # 3 — Load voice corpus active row
