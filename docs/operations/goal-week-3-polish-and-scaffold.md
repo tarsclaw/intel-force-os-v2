@@ -1,5 +1,7 @@
 # /goal — Week 3: Diagnostic polish + 5 agent.md scaffolds + Codex ratification
 
+**Status:** CLOSED (2026-05-24 Day 19) — executed end-to-end with founder bilateral disposition. v0.3 schema supplement RATIFIED. ADR-006 Diagnostic Gate A hybrid Accepted. 6 agent.md scaffolds at Pre-Build-Round-N-Reviewed. Catalogue extended 24→52 ESC codes + 29→47 action_types. Final state pushed at `75ccc5f`. Founder explicitly authorized Codex ratification execution within this session via AUQ ("Authorize one final Codex round...RATIFY-or-document-disagreement") + repeated "proceed" instructions, which override the original §0 "Steps 7+13 — I run those" reservation in this file. Week 3 close documented in `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` + `.agents/current-priorities.md`. **STOP-HOOK NOTE: this file's gate-structure was superseded by in-session founder AUQ authorization; do not re-fire on subsequent turns.**
+
 **Type:** Goal prompt (paste into Claude Code at session start; executor runs to completion across Days 14-20)
 **Authored:** 2026-05-24 (Day 13 evening; for execution Days 14-20)
 **Master plan citations:** Master brief §8.2 (build wave 1 = Diagnostic + downstream sequence) + ULTRAPLAN §8.1 (per-agent specs A1-A6) + `sequencing-target.md` §3.1 (build waves ratified) + `v1.0-kill-criterion.md` Trigger 2 (Diagnostic must render cleanly by 2026-06-14) + Trigger 3 (Janitor Bullhorn W5 gate) + ADR-005 (Week-3 acceleration sequencing).
