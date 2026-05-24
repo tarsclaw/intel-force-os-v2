@@ -120,14 +120,15 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 
 2. Multi-source auth refresh
    → bullhorn (read-only); LinkedIn/Proxycurl; Reed; CV-Library
-   → per-source: ESC_BULLHORN_AUTH | ESC_LINKEDIN_AUTH | ESC_REED_AUTH |
-     ESC_CVLIBRARY_AUTH on refresh failure (all now registered in
-     escalation-codes.md §2.7)
-   → if 2+ sources fail auth: ESC_AGENT_OUTPUT_SHAPE (Sourcing Scout cannot
-     produce its declared output shape — 5-15 candidates aggregated across
-     sources — when 2+ sources are down)
+   → per-source auth FAILURE is BLOCKING per catalogue §2.3/§2.7:
+     ESC_BULLHORN_AUTH | ESC_LINKEDIN_AUTH | ESC_REED_AUTH | ESC_CVLIBRARY_AUTH
+     — each routes to operator + ifos_oncall. v1.0 v0.3 disposition: if
+     ANY source is down, Sourcing Scout halts (any failed source = blocked
+     run); waits for operator reauth before retry. Single-source-failure-
+     soft-fallback would require a separate ESC_SOURCING_SOURCE_DEGRADED
+     catalogue code (W4-polish; not v0.3).
    → hh_decision_output("auth_refresh_complete", "tenant:<slug>",
-     "sources_ok:<N>/4")
+     "sources_ok:<N>/4; failed:<list>")
 
 3. Bullhorn passive-match query
    → bullhorn.search_candidates(filter=brief_key_dimensions,
@@ -172,13 +173,19 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
    → hh_decision_output("aggregate_dedupe", "brief:<id>",
      "pre_dedupe:<N>; post_dedupe:<N>")
 
-8. "Do not contact" filter
+8. "Do not contact" filter (pre-outbound sourcing filter; NOT outbound refusal)
    → load tenant /vault/<slug>/do-not-contact.list (one identifier per line:
      email / phone / LinkedIn URL / Bullhorn bullhorn_id per canonical schema)
-   → remove any candidate matching any DNC identifier
-   → log dropped candidates to exception list
-   → ESC_DNC_FILTER_HIT per blocked candidate (catalogue line: §2.10 — DNC
-     hit is a blocking outbound refusal; fires per-candidate, not aggregate)
+   → remove any candidate matching any DNC identifier from the sourcing list
+   → log dropped candidates to exception list in §3 output
+   → NOTE: ESC_DNC_FILTER_HIT is catalogue §2.10 reserved for OUTBOUND SEND
+     REFUSAL (per catalogue trigger: "Outbound recipient matches tenant's
+     Do-Not-Contact list; attempted send refused before transport"). Sourcing
+     Scout filters DNC matches AT SOURCING TIME (pre-outbound); no outbound
+     send attempt occurs. v0.3 dispositon: log DNC drops in exception list
+     only; no ESC fire (DNC filter at sourcing is informational, not blocking).
+     W4-polish backlog: add ESC_SOURCING_DNC_FILTER for the pre-outbound case
+     OR widen ESC_DNC_FILTER_HIT catalogue trigger to cover both.
    → hh_decision_output("dnc_filter", "brief:<id>",
      "dropped:<N>; kept:<N>")
 
@@ -189,6 +196,8 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
    → voice classifier scores rationale (≥0.75)
    → ESC_VOICE_DRIFT if classifier <0.75 after 3 retries; drop candidate
      from final list
+   → hh_decision_output("candidate_proposed", "candidate:<bullhorn_id|external_ref>",
+     "source:<bullhorn|linkedin|reed|cvlibrary>; confidence:<N>; voice_score:<N>; included:<bool>") — emitted PER CANDIDATE per §3 contract (one row per candidate proposed; dropped candidates also get a row with included=false + drop_reason)
 
 10. Output assembly + Gate A validation
     → ensure 5-15 candidates remaining after Step 9
@@ -248,10 +257,10 @@ Sourcing Scout uses these ESC codes from `agents/_shared/escalation-codes.md`:
 
 | Code | Trigger | Severity | Routing |
 |---|---|---|---|
-| `ESC_BULLHORN_AUTH` | Bullhorn OAuth refresh fails | **blocking** (2+ source fails abort) | operator |
-| `ESC_LINKEDIN_AUTH` | Proxycurl API key invalid | warn (single-source fail OK if 2+ others succeed) | operator_chat_id |
-| `ESC_REED_AUTH` | Reed API fail | warn | operator_chat_id |
-| `ESC_CVLIBRARY_AUTH` | CV-Library API fail | warn | operator_chat_id |
+| `ESC_BULLHORN_AUTH` | Bullhorn OAuth refresh fails | **blocking** (per catalogue §2.3) | operator + ifos_oncall |
+| `ESC_LINKEDIN_AUTH` | LinkedIn / Proxycurl session/OAuth fail | **blocking** (per catalogue §2.7) | operator + ifos_oncall |
+| `ESC_REED_AUTH` | Reed API OAuth fail | **blocking** (per catalogue §2.7) | operator + ifos_oncall |
+| `ESC_CVLIBRARY_AUTH` | CV-Library API OAuth fail | **blocking** (per catalogue §2.7) | operator + ifos_oncall |
 | `ESC_RATE_LIMIT_HIT` | Any source 429 (payload.upstream identifies which: bullhorn / linkedin / reed / cv-library) | warn | operator_chat_id |
 | `ESC_BRIEF_AMBIGUITY` | LLM brief-parse yields <3 key dimensions (canonical code per catalogue §2.5) | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries | warn | operator_chat_id |
@@ -330,7 +339,7 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 | Q4 | Rationale length — 50 words feels short for high-quality match explanation. Bump to 100? | Founder review with first pilot consultant feedback. ULTRAPLAN A5 line 552 says "≥ 50 words" — using as floor. |
 | Q5 | Gate B 6-of-10 metric — measured via consultant feedback. Brain UI v1.0 doesn't have feedback UX yet. Telegram reply? | v1.0: Telegram reply with "/scout-feedback <candidate-id> useful|not-useful". v1.1: Brain UI button. |
 | Q6 | Source-abstraction layer design — Night Sourcer v1.1 reuses this. Should the design be ratified separately (its own ADR)? | Recommend: yes. New ADR-006 at W9 build start documenting source-abstraction interface. |
-| Q7 | Bullhorn passive-match query — what's the right SEARCH filter? Existing Bullhorn candidate-status enum has "passive" / "active" / "placed". | Founder + Bullhorn-rep clarification during Sub-decision B response. |
+| Q7 | Bullhorn passive-match query — what's the right SEARCH filter? Per §4 Step 3 + vertical-schema candidate.status enum (`[active, archived, do_not_contact, placed, contractor_promoted]` — line 84-88 of vertical-schema.yaml; "passive" is NOT a canonical enum value), Sourcing Scout queries Bullhorn for `status='active'` candidates with `last_activity_at < now() - 90 days` to derive "passive" semantically. The question is whether Bullhorn's native search API supports this composite filter efficiently, or whether we need a 2-stage query (status=active first, then client-side activity-recency filter). | Founder + Bullhorn-rep clarification during Sub-decision B response. |
 
 ### Gotchas (carried forward from ULTRAPLAN A5 line 555)
 
