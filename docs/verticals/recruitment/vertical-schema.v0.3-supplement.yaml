@@ -383,7 +383,7 @@ agent_access_matrix:
     client: R              # reads client billing details
     contact: R             # reads for invoice addressee resolution
     brief: none
-    opportunity: none
+    opportunity: R         # v0.3 NEW — reads opportunity for invoice-context
     placement: R           # reads for client linkage on invoice
     timesheet: R           # reads to verify billable hours match invoiced amounts
     # (auxiliary-table access is documented in auxiliary_table_access_matrix below)
@@ -653,6 +653,45 @@ auxiliary_tables:
       go-live.
 
 auxiliary_table_access_matrix:
+  voice_corpus:
+    # v0.2 auxiliary table — voice exemplar corpus (per-tenant)
+    # Per §2a amendment: v0.3 expands access to all 6 v1.0 agents that
+    # produce voice-classified output
+    diagnostic: R
+    janitor: R
+    scribe: R
+    cash_conductor: R
+    sourcing_scout: R
+    concierge: R
+  voice_corpus_chunks:
+    # v0.2 auxiliary table holding pgvector HNSW index over voice corpus chunks
+    # All v1.0 agents producing voice-classified output need R for ANN-match retrieval
+    diagnostic: R
+    janitor: R
+    scribe: R
+    cash_conductor: R
+    sourcing_scout: R
+    concierge: R
+  tone_rule:
+    # v0.2 auxiliary table — per-tenant tone constraints
+    # Per §2a amendment: v0.3 expands access to all 6 v1.0 agents
+    diagnostic: R
+    janitor: R
+    scribe: R
+    cash_conductor: R
+    sourcing_scout: R
+    concierge: R
+  recent_edit:
+    # v0.2 auxiliary table — consultant edits for retraining/drift detection
+    # Per §2a amendment: v0.3 expands access (Concierge R from v0.2;
+    # Janitor adds R for tacit-note harvest; Scribe/Cash Conductor/Sourcing
+    # Scout add W to write own retraining edits; Diagnostic remains none)
+    diagnostic: none
+    janitor: R
+    scribe: W
+    cash_conductor: W
+    sourcing_scout: W
+    concierge: R
   cash_conductor_transactions:
     diagnostic: none
     janitor: none

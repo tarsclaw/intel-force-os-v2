@@ -253,6 +253,14 @@ BEGIN
       IF jsonb_typeof(d->'next_action_target_date') NOT IN ('string', 'null') THEN
         RAISE EXCEPTION 'next_action_target_date must be ISO-8601 date string or null';
       END IF;
+      -- Validate ISO-8601 date format (YYYY-MM-DD) by cast
+      IF d->>'next_action_target_date' IS NOT NULL THEN
+        BEGIN
+          PERFORM (d->>'next_action_target_date')::date;
+        EXCEPTION WHEN OTHERS THEN
+          RAISE EXCEPTION 'next_action_target_date must parse as ISO-8601 date (YYYY-MM-DD); got: %', d->>'next_action_target_date';
+        END;
+      END IF;
     END IF;
   END IF;
 
