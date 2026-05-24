@@ -12,14 +12,26 @@ export interface OnlineFootprintData {
   linkedInStatus: number | null;
 }
 
+function stripCompanySuffixes(name: string): string {
+  return name
+    .replace(/\b(plc|ltd|limited|llp|inc|corp|corporation|holdings|group|partners)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function fetchOnlineFootprint(firmName: string): Promise<OnlineFootprintData> {
-  const slug = firmSlug(firmName);
-  const candidates = [
-    `https://${slug}.com`,
-    `https://${slug}.co.uk`,
-    `https://www.${slug}.com`,
-    `https://www.${slug}.co.uk`,
-  ];
+  const fullSlug = firmSlug(firmName);
+  const baseSlug = firmSlug(stripCompanySuffixes(firmName));
+  // Try the suffix-stripped slug first (closer to real domain) then full
+  const slugCandidates = baseSlug && baseSlug !== fullSlug ? [baseSlug, fullSlug] : [fullSlug];
+  const candidates: string[] = [];
+  for (const s of slugCandidates) {
+    candidates.push(`https://${s}.com`);
+    candidates.push(`https://${s}.co.uk`);
+    candidates.push(`https://www.${s}.com`);
+    candidates.push(`https://www.${s}.co.uk`);
+  }
+  const slug = fullSlug;
 
   let primarySite: OnlineFootprintData["primarySite"] = null;
   for (const url of candidates) {

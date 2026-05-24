@@ -100,15 +100,23 @@ fi
 # V2 — Each section has ≥1 markdown link
 # ────────────────────────────────────────────────────────────────────────
 
+# Per-section citation check: single awk pass tracks current section
+# index, sets has_link[i]=1 when a Markdown link is found within a
+# section's body, then prints the indices of sections with no link.
+MISSING_INDICES=$(awk '
+  /^## / { sec_num++; next }
+  sec_num > 0 && /\[[^]]+\]\([^)]+\)/ { has_link[sec_num]=1 }
+  END {
+    for (i=1; i<=sec_num; i++) {
+      if (!has_link[i]) printf "%d ", i
+    }
+  }
+' "${DRAFT}")
+
 MISSING_CITATION=()
-SECTION_INDEX=0
-while IFS= read -r section_block; do
-  SECTION_INDEX=$((SECTION_INDEX + 1))
-  LINK_COUNT=$(printf '%s' "${section_block}" | grep -cE '\[[^]]+\]\([^)]+\)' || echo 0)
-  if (( LINK_COUNT == 0 )); then
-    MISSING_CITATION+=("section ${SECTION_INDEX}")
-  fi
-done < <(awk '/^## / { if (NR>1) print sep; sep=""; print; next } { print } END { print sep }' "${DRAFT}")
+for idx in ${MISSING_INDICES}; do
+  MISSING_CITATION+=("section ${idx}")
+done
 
 if (( ${#MISSING_CITATION[@]} == 0 )); then
   _pass "V2: every section has ≥1 citation link"

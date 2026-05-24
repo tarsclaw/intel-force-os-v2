@@ -3,8 +3,13 @@
 
 import { ScraperTimeoutError, ScraperError } from "./errors.js";
 
+// User-agent intentionally avoids the substring "bot" because some
+// robots.txt files (e.g. hays.com) have wildcard-suffix "Disallow: /"
+// rules for any agent whose name contains "bot". We identify ourselves
+// as an automated client via the more specific "IFOS-Diagnostic/0.1"
+// fragment + the contact URL.
 export const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (compatible; IFOS-Diagnostic/0.1; +https://intelforce.io/bot)";
+  "IFOS-Diagnostic/0.1 (+https://intelforce.io/contact)";
 
 export const DEFAULT_TIMEOUT_MS = 10_000;
 
