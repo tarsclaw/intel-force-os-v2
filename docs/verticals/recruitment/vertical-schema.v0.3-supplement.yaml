@@ -315,17 +315,19 @@ agent_access_matrix:
   # timesheet — 8 v0.1 entity_types).
   #
   # SCHEMA-LAYERING CORRECTION: The v0.2 supplement uses the YAML key
-  # `entities:` for voice_corpus / voice_corpus_chunks / tone_rule /
-  # recent_edit, but its §1 "LAYERING DISCLOSURE" explicitly states they are
-  # "auxiliary Postgres tables (real CREATE TABLE statements in
-  # migrations/v0.1-to-v0.2.sql), NOT as entity_types in the
-  # entities/entity_links generic primitive layer from Day-4 §6.3." v0.3
-  # adopts this disclosure as the authoritative classification: those four
-  # tables are AUXILIARY, NOT entities. Their access lives in
+  # `entities:` for voice_corpus + tone_rule + recent_edit (three entries).
+  # voice_corpus_chunks is introduced separately around v0.2 supplement line
+  # 270 as the pgvector auxiliary table — it was always auxiliary, never
+  # under `entities:`. v0.2 supplement §1 "LAYERING DISCLOSURE" states the
+  # three `entities:`-keyed objects "are auxiliary Postgres tables (real
+  # CREATE TABLE statements in migrations/v0.1-to-v0.2.sql), NOT entity_types
+  # in the entities/entity_links generic primitive layer from Day-4 §6.3."
+  # v0.3 adopts this disclosure as the authoritative classification: all
+  # four (voice_corpus, tone_rule, recent_edit, voice_corpus_chunks) are
+  # AUXILIARY, NOT entities. Their access lives in
   # `auxiliary_table_access_matrix` below + §2a access amendments — NOT in
-  # this entity matrix. The v0.2 YAML key `entities:` is a documentation
-  # convention; this v0.3 supplement reclassifies them as auxiliary per the
-  # v0.2 LAYERING DISCLOSURE intent.
+  # this entity matrix. The v0.2 YAML key `entities:` was documentation
+  # convention; v0.3 reclassifies per the v0.2 LAYERING DISCLOSURE intent.
   #
   # ENTITY-LEVEL vs FIELD-LEVEL ACCESS:
   # The matrix below is ENTITY-LEVEL — declares the maximum disposition an
@@ -417,6 +419,114 @@ agent_access_matrix:
 #
 # Per review-schema-change §5: matrix changes must be reflected in entity-level
 # v1_0_agent_access lists. v0.3 amends these v0.2 entities:
+
+v0_1_entity_access_amendments:
+  # Per review-schema-change §5: matrix changes to v0.1 entity-level access
+  # must be reflected in explicit amendments. Each entry below documents the
+  # v0.1 baseline → v0.3 expanded access list. The base vertical-schema.yaml
+  # is NOT edited; this supplement is the authoritative source for v0.3
+  # entity access state.
+
+  client:
+    v0_1_v1_0_agent_access: [Janitor (R+W), Sourcing Scout (R), Concierge (R)]
+    v0_3_v1_0_agent_access:
+      - Diagnostic (R)     # v0.3 NEW — reads Companies House data for sales-tool context
+      - Janitor (R+W)      # v0.1 unchanged
+      - Scribe (R)         # v0.3 NEW — reads client context for call-context resolution
+      - Cash Conductor (R) # v0.3 NEW — reads client billing details for invoices
+      - Sourcing Scout (R) # v0.1 unchanged
+      - Concierge (R)      # v0.1 unchanged
+    rationale: |
+      v0.3 grants R to Diagnostic + Scribe + Cash Conductor (each reads
+      client billing/context for their respective workflows). No new W access.
+
+  contact:
+    v0_1_v1_0_agent_access: [Janitor (R), Sourcing Scout (R), Concierge (R)]
+    v0_3_v1_0_agent_access:
+      - Diagnostic (R)     # v0.3 NEW — reads §11 decision-maker map context
+      - Janitor (R+W)      # v0.3 UPGRADED — dedup + field-backfill writes
+      - Scribe (R+W)       # v0.3 UPGRADED — writes preferred_channel + next_action_target_date
+      - Cash Conductor (R) # v0.3 NEW — reads for invoice addressee resolution
+      - Sourcing Scout (R) # v0.1 unchanged
+      - Concierge (R)      # v0.1 unchanged
+    rationale: |
+      v0.3 upgrades Janitor + Scribe to R+W (they write the new v0.3 fields
+      preferred_channel + next_action_target_date; Janitor also dedup-merges).
+      Diagnostic + Cash Conductor gain R for context.
+
+  brief:
+    v0_1_v1_0_agent_access: [Janitor (R), Scribe (R), Sourcing Scout (R), Concierge (R)]
+    v0_3_v1_0_agent_access:
+      - Janitor (R)        # v0.1 unchanged
+      - Scribe (R+W)       # v0.3 UPGRADED — writes must_haves + nice_to_haves + deal_breakers
+      - Sourcing Scout (R) # v0.1 unchanged
+      - Concierge (R)      # v0.1 unchanged
+    rationale: |
+      v0.3 upgrades Scribe to R+W for the 3 new brief fields only; existing
+      salary_min/max + start_date_target remain Bullhorn-sourced, R-only
+      for Scribe.
+
+  opportunity:
+    v0_1_v1_0_agent_access: [Janitor (R)]
+    v0_3_v1_0_agent_access:
+      - Diagnostic (R)     # v0.3 NEW — reads prospect-firm opportunity if exists
+      - Janitor (R)        # v0.1 unchanged
+      - Scribe (R+W)       # v0.3 NEW — writes 3 new prospecting-call fields
+      - Cash Conductor (R) # v0.3 NEW — reads for invoice context
+      - Sourcing Scout (R) # v0.3 NEW — reads opportunity for ICP scoring
+      - Concierge (R)      # v0.3 NEW — reads for outbound lifecycle context
+    rationale: |
+      v0.1 opportunity is sparsely accessed (Janitor only); v0.3 broadens
+      to all v1.0 agents because the entity gains 3 new fields used across
+      Scribe (writes), Sourcing Scout (reads for ICP), Concierge (reads for
+      timing), Diagnostic + Cash Conductor (reads for context).
+
+  placement:
+    v0_1_v1_0_agent_access: [Janitor (R), Cash Conductor (R), Concierge (R)]
+    v0_3_v1_0_agent_access:
+      - Janitor (R+W)      # v0.3 UPGRADED — lifecycle-state cleanup writes
+      - Scribe (R+W)       # v0.3 NEW — check-in field extraction
+      - Cash Conductor (R) # v0.1 unchanged
+      - Concierge (R+W)    # v0.3 UPGRADED — writes Bullhorn state advancement
+    rationale: |
+      v0.3 upgrades Janitor + Concierge to R+W (lifecycle-state writes per
+      their §4 specs); adds Scribe R+W for check-in writes.
+
+  timesheet:
+    v0_1_v1_0_agent_access: [Cash Conductor (R)]
+    v0_3_v1_0_agent_access:
+      - Janitor (R)        # v0.3 NEW — reads for placement-state inference
+      - Scribe (R)         # v0.3 NEW — reads for placement-context on check-in calls
+      - Cash Conductor (R) # v0.1 unchanged
+      - Concierge (R)      # v0.3 NEW — reads to verify placement-progress for nurture
+    rationale: |
+      v0.1 timesheet is Cash Conductor only. v0.3 grants R to Janitor +
+      Scribe + Concierge (each reads timesheet for their respective
+      placement-related workflows).
+
+  candidate:
+    v0_1_v1_0_agent_access: [Janitor (R+W), Scribe (R+W), Sourcing Scout (R), Concierge (R)]
+    v0_3_v1_0_agent_access:
+      - Diagnostic (R)     # v0.3 NEW — reads for outreach context (§11 decision-maker map)
+      - Janitor (R+W)      # v0.1 unchanged
+      - Scribe (R+W)       # v0.1 unchanged
+      - Sourcing Scout (R+W) # v0.3 UPGRADED — writes proposed-candidate rows
+      - Concierge (R+W)    # v0.3 UPGRADED — writes lifecycle-state-derived fields
+    rationale: |
+      v0.3 upgrades Sourcing Scout (writes proposed-candidate rows from
+      multi-source aggregation) + Concierge (writes lifecycle-state and
+      activity-log links per §4 Steps 13-14). Diagnostic gains R for context.
+
+  contractor:
+    v0_1_v1_0_agent_access: [Janitor (R+W), Scribe (R+W), Sourcing Scout (R), Concierge (R)]
+    v0_3_v1_0_agent_access:
+      - Janitor (R+W)      # v0.1 unchanged
+      - Scribe (R+W)       # v0.1 unchanged
+      - Sourcing Scout (R+W) # v0.3 UPGRADED — same pattern as candidate
+      - Concierge (R+W)    # v0.3 UPGRADED — lifecycle states for contractor placements
+    rationale: |
+      Parallel upgrades to candidate; contractor entities follow the same
+      v0.3 write patterns where applicable.
 
 v0_2_entity_access_amendments:
 
