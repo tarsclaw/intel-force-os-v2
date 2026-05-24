@@ -5,7 +5,7 @@
 # hh_decision_action() invocation. Per-tenant overrides live in Postgres
 # tenant_adapters.config.tier_overrides (§8).
 #
-# 29 v1.0 action_types: 6 green + 5 yellow + 10 orange + 8 red.
+# 39 v1.0 action_types: 13 green + 8 yellow + 10 orange + 8 red.
 # Each row carries:
 #   tier            green|yellow|orange|red
 #   agent           v1.0 owning agent (or "all" if cross-cutting red rule)
@@ -18,7 +18,7 @@
 # Schema validated by common-base.json $refs via render-time pre-flight.
 # Schema version stamps decision_log.payload.policy_version_sha at write time.
 
-version: "v1.0-2026-05-20"
+version: "v1.0-2026-05-24"
 
 action_types:
 
@@ -62,8 +62,50 @@ action_types:
     reason: "Read of inbound brief; idempotent; no comms"
     irreversible: false
 
+  operator_notify_telegram:
+    tier: green
+    agent: all
+    reason: "Internal operator-only Telegram notification (escalations + run-complete markers); not customer-facing; idempotent within decision_log payload_hash dedup window"
+    irreversible: false
+
+  janitor_run_complete:
+    tier: green
+    agent: janitor
+    reason: "Internal run-complete status marker written to decision_log; no external comms; informational"
+    irreversible: false
+
+  scout_run_complete:
+    tier: green
+    agent: sourcing-scout
+    reason: "Internal run-complete status marker; no external comms"
+    irreversible: false
+
+  scribe_run_complete:
+    tier: green
+    agent: scribe
+    reason: "Internal run-complete status marker; no external comms"
+    irreversible: false
+
+  concierge_run_complete:
+    tier: green
+    agent: concierge
+    reason: "Internal run-complete status marker; the inbound-brief acknowledgement cycle wraps; no external comms"
+    irreversible: false
+
+  concierge_send_complete:
+    tier: green
+    agent: concierge
+    reason: "Status marker recorded AFTER an external send completes (the send itself was a different orange/yellow action_type with its own decision_log row); this row closes the workflow trace"
+    irreversible: false
+
+  cash_conductor_run_complete:
+    tier: green
+    agent: cash-conductor
+    reason: "Internal run-complete status marker; no external comms"
+    irreversible: false
+
   # ───────────────────────────────────────────────────────────
-  # YELLOW — auto-send with 1-in-N spot-check (5 action_types)
+  # YELLOW — auto-send with 1-in-N spot-check (8 action_types)
   # ───────────────────────────────────────────────────────────
 
   bullhorn_candidate_dedupe:
@@ -113,6 +155,13 @@ action_types:
     agent: concierge
     sample_rate: 10
     reason: "Drafts a Bullhorn Note for consultant review (not yet sent); high-volume; voice drift candidate"
+    irreversible: false
+
+  bullhorn_scribe_field_write:
+    tier: yellow
+    agent: scribe
+    sample_rate: 10
+    reason: "Scribe writes structured fields (call outcome, next action, sentiment) to Bullhorn placement/candidate; reversible PATCH; high-volume; extraction quality needs ongoing review"
     irreversible: false
 
   # ───────────────────────────────────────────────────────────
@@ -270,4 +319,4 @@ invariants:
   - "orange action_types MUST declare timeout (ISO-8601 duration)"
   - "red action_types MUST declare block_reason"
   - "tenant overrides may only ELEVATE tier (green→yellow→orange→red); red is floor"
-  - "29 total action_types (6 green + 5 yellow + 10 orange + 8 red); v1.0 frozen"
+  - "39 total action_types (13 green + 8 yellow + 10 orange + 8 red); v1.0 frozen as of 2026-05-24 bilateral-disposition extension"

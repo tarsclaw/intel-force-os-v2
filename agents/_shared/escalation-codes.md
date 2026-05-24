@@ -25,7 +25,7 @@ The Telegram message is templated via `common-notifications.json` `escalation_ro
 
 ---
 
-## §2 — Catalogue (24 codes)
+## §2 — Catalogue (52 codes)
 
 ### 2.1 — Auto-send safety (3 codes)
 Source: `docs/decisions/autosend-safety-policy.md` §5
@@ -114,7 +114,7 @@ Source: `docs/architecture/agent-bundle-renderer-design.md` §4
 - **Payload fields:** `reason` (one of `schema-validation-failure`, `bundle-malformed`, `shared-helpers-missing`, `tenant-not-provisioned`, `atomic-rename-failed`, `non-rendered-target`), `agent_name_attempted`, `tenant_slug_attempted`
 - **Codex query:** `SELECT * FROM decision_log WHERE agent_name='_renderer' AND human_action LIKE 'ESC_RENDERER_FAILED%'` per ADR-003 §4.7
 
-### 2.5 — Recruitment-domain vocabulary (8 codes)
+### 2.5 — Recruitment-domain vocabulary (10 codes)
 Source: master brief §8.1 Change 3 lines 585-592
 
 #### `ESC_VOICE_DRIFT`
@@ -234,6 +234,214 @@ Source: derived from operational discipline + sequencing-target §5
 - **Routing:** `operator_chat_id`
 - **Payload fields:** `reason` (e.g. `bullhorn_auth_failed`, `mcp_connector_unreachable`), `degraded_since`, `recovery_condition`
 
+### 2.7 — Upstream provider auth (8 codes)
+Source: derived from v1.0 agent.md adapter references (Bullhorn, Reed, CV-Library, LinkedIn, Gmail, Outlook/MS Graph, Xero, Open Banking)
+
+#### `ESC_REED_AUTH`
+- **Severity:** **blocking** — agent enters degraded mode (cached search results only)
+- **Trigger:** Reed jobs-board API OAuth token refresh failed twice OR REST call returned 401 indefinitely
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `failure_type` (`refresh_failed` | `revoked_401`), `last_attempt_at`, `consecutive_failures`
+- **Recovery:** founder rotates Reed API key via Reed admin → `_secrets.env` reload
+
+#### `ESC_CVLIBRARY_AUTH`
+- **Severity:** **blocking** — agent degraded (cached search only)
+- **Trigger:** CV-Library API OAuth failure (same pattern as ESC_REED_AUTH)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `failure_type`, `last_attempt_at`, `consecutive_failures`
+- **Recovery:** founder rotates CV-Library credentials
+
+#### `ESC_LINKEDIN_AUTH`
+- **Severity:** **blocking** — Sourcing Scout enters degraded mode (no profile fetches; cached only)
+- **Trigger:** LinkedIn session cookie / OAuth token revoked or expired (LinkedIn has aggressive anti-bot session invalidation)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `failure_type` (`session_expired` | `bot_detected_999` | `revoked_401`), `last_attempt_at`
+- **Recovery:** founder reauthenticates LinkedIn via Sourcing Scout admin flow
+
+#### `ESC_GMAIL_AUTH`
+- **Severity:** **blocking** — Concierge cannot send candidate emails; falls back to draft-only
+- **Trigger:** Google Workspace OAuth token refresh failed; Gmail send returns 401
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `failure_type`, `last_attempt_at`, `affected_tenant_slug`
+- **Recovery:** founder reauthenticates Google Workspace OAuth
+
+#### `ESC_MS_GRAPH_AUTH`
+- **Severity:** **blocking** — Concierge Outlook send disabled; drafts-only
+- **Trigger:** Microsoft Graph OAuth refresh failed; Outlook sendMail returns 401
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `failure_type`, `last_attempt_at`, `affected_tenant_slug`
+- **Recovery:** founder reauthenticates MS Graph OAuth
+
+#### `ESC_ACCOUNTING_AUTH`
+- **Severity:** **blocking** — Cash Conductor degraded (read-only Xero queries from cache; no reminders sent)
+- **Trigger:** Xero (or alt accounting provider) OAuth token refresh failed; API returns 401
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `provider` (`xero` | `quickbooks` | `freeagent`), `failure_type`, `last_attempt_at`
+- **Recovery:** founder reauthenticates accounting OAuth
+
+#### `ESC_OPEN_BANKING_AUTH`
+- **Severity:** **blocking** — Cash Conductor cannot fetch latest bank-feed; falls back to last-known balance
+- **Trigger:** Open Banking PSD2 consent expired (90-day mandatory reauth) OR token refresh failed
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `failure_type` (`consent_expired_90d` | `refresh_failed`), `consent_expires_at`, `bank_provider`
+- **Recovery:** founder completes Open Banking SCA reauthentication flow
+
+#### `ESC_OPEN_BANKING_TOKEN_AGING`
+- **Severity:** info — warning before blocking
+- **Trigger:** Open Banking PSD2 consent ≤14 days from 90-day expiry; emitted by nightly health check
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` (no oncall CC — non-urgent)
+- **Payload fields:** `consent_expires_at`, `days_remaining`, `bank_provider`
+- **Recovery:** founder schedules reauth within remaining window
+
+### 2.8 — Provider read/write failures (4 codes)
+Source: derived from v1.0 agent.md adapter call sites
+
+#### `ESC_BULLHORN_WRITE_FAIL`
+- **Severity:** warn
+- **Trigger:** Bullhorn REST write (POST/PUT/PATCH) returned 4xx/5xx after retry budget exhausted; distinct from auth failure (ESC_BULLHORN_AUTH) and rate-limit (ESC_RATE_LIMIT_HIT)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `endpoint`, `entity_type`, `entity_id`, `status_code`, `error_body_preview` (truncated 120 chars)
+
+#### `ESC_ACCOUNTING_WRITE_FAIL`
+- **Severity:** warn
+- **Trigger:** Xero (or alt provider) write call failed after retries; distinct from auth (ESC_ACCOUNTING_AUTH)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `provider`, `endpoint`, `entity_type`, `status_code`, `error_body_preview`
+
+#### `ESC_PROVIDER_FETCH_FAIL`
+- **Severity:** warn
+- **Trigger:** Generic upstream provider read failure (Companies House, web-scraper, any non-Bullhorn-non-Accounting GET) after retry budget exhausted; distinct from rate-limit
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `upstream` (e.g. `companies-house`, `web-scraper`, `linkedin-cache`), `endpoint`, `status_code`, `consecutive_failures`
+
+#### `ESC_SEND_FAIL`
+- **Severity:** warn — distinct from auth/rate-limit; the send itself failed at the protocol layer
+- **Trigger:** External send (Gmail / Outlook / Twilio / Telegram-to-customer) returned 5xx or transport error after retry budget
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `channel` (`gmail` | `outlook` | `twilio` | `telegram`), `recipient_id_hash`, `error_class`, `attempts_made`
+
+### 2.9 — Auto-send orchestration (4 codes)
+Source: `docs/decisions/autosend-safety-policy.md` §5 extensions; runtime orchestration semantics
+
+#### `ESC_AUTOSEND_ORANGE_PENDING`
+- **Severity:** info — distinct from ESC_AUTOSEND_NEEDS_REVIEW (which is the initial queue event)
+- **Trigger:** Orange-tier action has been pending operator response for ≥50% of declared `timeout` (heartbeat reminder before bridge timeout)
+- **Phase:** `action`
+- **Routing:** `operator_chat_id` (gentle reminder; no oncall)
+- **Payload fields:** `original_decision_log_id`, `action_type`, `time_pending_seconds`, `timeout_seconds`, `time_remaining_seconds`
+
+#### `ESC_APPROVAL_BRIDGE_TIMEOUT`
+- **Severity:** warn — orange action's approval window expired without response
+- **Trigger:** Orange-tier action exceeded its `timeout` (default PT4H) without operator approve/reject
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id` (operator absent + commitment may need rerouting)
+- **Payload fields:** `original_decision_log_id`, `action_type`, `timeout_seconds`, `target`, `payload_preview`
+- **Recovery:** action converts to manual reconciliation; operator handles offline
+
+#### `ESC_AUTOSEND_RACE`
+- **Severity:** warn — concurrency violation
+- **Trigger:** Two agents attempted to send the same `payload_hash` within same tenant within `race_window_seconds` (default 60s); second attempt detected by `decision_log` UPSERT-conflict
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `payload_hash`, `first_agent_name`, `second_agent_name`, `time_delta_ms`, `action_type`
+- **Recovery:** second attempt suppressed; first wins (idempotency by payload_hash)
+
+#### `ESC_AUTOSEND_SAMPLED_SPOT_CHECK`
+- **Severity:** info — quality sampling, not a failure
+- **Trigger:** Yellow-tier action was sampled per `sample_rate` (1-in-N) for post-hoc human review; sampling is informational + drives ongoing quality monitoring
+- **Phase:** `action`
+- **Routing:** `operator_chat_id`; sampled action is queued in `spot_check_queue_path` (`/vault/{tenant_slug}/spot-checks/`)
+- **Payload fields:** `action_type`, `original_decision_log_id`, `sample_rate`, `sampling_reason`, `target`, `payload_preview`
+- **Note:** Operator review of sampled rows is asynchronous (typically end-of-day batch); no SLA timer.
+
+### 2.10 — Agent workflow (10 codes)
+Source: v1.0 agent.md draft specs across Diagnostic, Janitor, Scribe, Sourcing Scout, Cash Conductor, Concierge
+
+#### `ESC_GATE_B_MISS`
+- **Severity:** warn — post-send quality signal; not a hard failure
+- **Trigger:** Agent's local Gate B metric thresholds missed for the per-agent window (e.g. Janitor dedup confidence <15% AND field-completeness uplift <10%; Diagnostic <30% discovery-call conversion rate; etc — see each agent.md §5)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `agent_name`, `metric_name`, `actual_value`, `threshold`, `window`, `sample_size`
+- **Note:** Local Gate B is a leading metric for agent quality; consecutive misses inform per-agent quality review. Not tied to a kill-criterion trigger in v1.0 (per disagreement-doc Cat-3 disposition).
+
+#### `ESC_TONE_RULE_VIOLATION`
+- **Severity:** warn — voice/tone classifier flagged output as violating a tenant `tone_rule` row
+- **Trigger:** Output drafted by an agent matches a tenant-defined `tone_rule` violation pattern (e.g. tenant prohibits "absolutely" in customer-facing comms; output contained it)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `tone_rule_id`, `pattern_violated`, `output_snippet_redacted`, `agent_name`, `tenant_slug`
+- **Recovery:** agent re-drafts with violation removed; if persistent, escalates to tone_rule review
+
+#### `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE`
+- **Severity:** warn
+- **Trigger:** Field extraction (Janitor backfill / Scribe call-summary / Sourcing CV-parse) returned confidence below per-field threshold (default 0.7); writing the field would risk bad data
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `entity_type`, `field_name`, `extracted_value`, `confidence_score`, `source` (e.g. `companies-house`, `linkedin`, `cv-pdf`), `agent_name`
+
+#### `ESC_CANDIDATE_DATA_INCOMPLETE`
+- **Severity:** warn
+- **Trigger:** Sourcing Scout candidate record lacks ≥N required fields for a shortlist (e.g. no email AND no phone, OR no LinkedIn AND no CV)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `candidate_id`, `missing_fields` (list), `shortlist_id`, `brief_id`
+
+#### `ESC_ADDRESSEE_MISMATCH`
+- **Severity:** **blocking** — Cash Conductor refuses to send reminder/invoice
+- **Trigger:** Outbound reminder/invoice addressee does not match Bullhorn placement client OR Xero contact (cross-system reconciliation failure)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id` AND `ifos_oncall_chat_id`
+- **Payload fields:** `bullhorn_client_id`, `xero_contact_id`, `xero_contact_name`, `bullhorn_client_name`, `invoice_id`, `mismatch_dimension` (e.g. `name`, `email`, `address`)
+- **Recovery:** founder reviews; either reconciles manually OR updates one system to match
+
+#### `ESC_RECONCILIATION_AMBIGUOUS`
+- **Severity:** warn — Cash Conductor cannot confidently match incoming payment to a specific invoice
+- **Trigger:** Bank-feed payment line cannot be matched to a single Xero invoice; multiple candidates within tolerance
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `payment_id`, `amount`, `payee_name_raw`, `candidate_invoice_ids` (list), `match_basis` (e.g. `amount_only`, `payee_partial`)
+
+#### `ESC_DNC_FILTER_HIT`
+- **Severity:** **blocking** — outbound (email / SMS / call) refused
+- **Trigger:** Outbound recipient matches tenant's Do-Not-Contact list (loaded from tenant_adapters config); attempted send refused before transport
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `recipient_id_hash`, `dnc_list_source`, `dnc_match_reason` (e.g. `explicit_opt_out`, `previous_complaint`, `gdpr_objection`), `action_type_attempted`
+
+#### `ESC_CONCIERGE_SLA_MISS`
+- **Severity:** warn
+- **Trigger:** Concierge SLA breached (default: inbound brief acknowledged within 4h; customer reply within 24h)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `brief_id`, `sla_type` (`brief_ack` | `customer_reply`), `sla_threshold_seconds`, `actual_elapsed_seconds`, `tenant_slug`
+
+#### `ESC_SCRIBE_SLA_MISS`
+- **Severity:** warn
+- **Trigger:** Scribe SLA breached (default: call summary rendered within 30 min of call end; Bullhorn note attached within 1h)
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `call_id`, `sla_type` (`summary_render` | `note_attach`), `sla_threshold_seconds`, `actual_elapsed_seconds`, `tenant_slug`
+
+#### `ESC_LIFECYCLE_STATE_UNKNOWN`
+- **Severity:** warn — Janitor cannot determine placement state for cleanup
+- **Trigger:** Placement record has ambiguous lifecycle markers (e.g. start_date present but no end_date AND no `active` flag AND no recent activity); Janitor cannot safely tag or update
+- **Phase:** `gating_failed`
+- **Routing:** `operator_chat_id`
+- **Payload fields:** `placement_id`, `last_activity_at`, `start_date`, `end_date`, `tag_status`, `ambiguity_class`
+
 ---
 
 ## §3 — Reserved codes (not-yet-wired)
@@ -266,4 +474,4 @@ New codes added here BEFORE wiring into helpers + before any agent references th
 
 The Codex Day-7 ratification queue includes this catalogue (item #20 placeholder per `docs/decisions/2026-05-18-codex-ratification-manifest.md` §1). Updates after ratification = new commit + Codex re-review of the diff.
 
-*End of catalogue (24 active codes + 2 reserved).*
+*End of catalogue (52 active codes + 2 reserved).*
