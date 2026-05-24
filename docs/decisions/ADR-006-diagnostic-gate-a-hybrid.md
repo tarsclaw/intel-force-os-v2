@@ -1,6 +1,6 @@
 # ADR-006 — Diagnostic Gate A hybrid (per-section v0 + per-claim W4 spot-check)
 
-**Status:** Proposed (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b` as forward-looking placeholder text pending this ADR's ratification — if Codex REJECTS and founder doesn't accept, the ULTRAPLAN line 496 inline parenthetical reverts in the rollback commit; Status flips to Accepted when BOTH (a) Codex RATIFIED verdict AND (b) Diagnostic agent.md §1 + §5 explicitly cite ADR-006 — both conditions per §Status criteria below)
+**Status:** Accepted (2026-05-24, Day 19; founder-arbitrated under master brief §10.3 step 5 + bilateral-disposition Cat-1 framework; Codex 10 rounds REJECTED with last-mile mechanical findings only after R7's architectural split resolved Rule 4 + Rule 2 substantively. R7 finding was the structural breakthrough — Tier 2 moved out of Gate A entirely; R8-R10 findings are cross-reference sync mechanics, not architectural objections. Per `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` Phase 5: documented Codex disagreement, founder-arbitrated Accepted)
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A1 line 496 — Gate A citation requirement
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
