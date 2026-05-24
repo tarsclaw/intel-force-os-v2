@@ -106,6 +106,42 @@ Round 3 remediated the Round-2 rejection set. Mechanical fixes were incorporated
 
 ---
 
+## §1.10 — Codex Round 4 queue (Week 3 Diagnostic + 5 agent.md scaffolds)
+
+Round 4 scheduled across Week 3 (Days 14-20) per `docs/operations/goal-week-3-polish-and-scaffold.md` Steps 7 (Diagnostic-only, Day 15) + 13 (full run, Day 20). Per master brief §10.3 step 5: ≤2 round-trips per artefact (Round 4 + Round 5 remediation max).
+
+Two phases:
+
+**Phase 1 (Day 15) — Diagnostic-only mid-week ratification.** Reason: substrate must be verified before 5 new scaffolds reference it. 6 items, all `review-architecture-decision.md` skill except the package-as-a-whole.
+
+| # | Artefact | Status | Codex skill | Reason for re-ratify |
+|---|---|---|---|---|
+| 1 | `agents/recruitment/diagnostic/agent.md` | Proposed → Accepted (post-W3 polish) | `review-architecture-decision.md` | Was Round-3 RATIFIED at scaffold form; re-ratify after Day-13 + Step-3 fixes (firm-slug, suffix-strip) + Step-4 LLM §12 wiring |
+| 2 | `agents/recruitment/diagnostic/tools.yaml` | Proposed | `review-architecture-decision.md` | First ratification (Day-12 scaffold) |
+| 3 | `agents/recruitment/diagnostic/cycle.sh` | Proposed | `review-architecture-decision.md` | Post-Day-13 generator wiring (commit `fd38254`) |
+| 4 | `agents/recruitment/diagnostic/validate.sh` | Proposed | `review-architecture-decision.md` | Post-Day-13 V2 awk-pass fix (commit `97a57a2`) |
+| 5 | `packages/diagnostic-generator/` (package as a whole) | Proposed | `review-architecture-decision.md` | Day-13 ship; first ratification |
+| 6 | `docs/decisions/ADR-005-week-3-diagnostic-acceleration.md` | Accepted | `review-architecture-decision.md` | Day-13 sequencing decision; first ratification |
+
+**Phase 2 (Day 20) — Full Round 4: 5 new agent.md scaffolds.** Each authored Days 16-19 per goal-week-3 Steps 8-12. All `review-architecture-decision.md` skill.
+
+| # | Artefact | Status | Codex skill | Master plan citation |
+|---|---|---|---|---|
+| 7 | `agents/recruitment/janitor/agent.md` | Proposed | `review-architecture-decision.md` | master brief §8.2 line 596 + ULTRAPLAN §8.1 A2 lines 501-514 + Trigger 3 |
+| 8 | `agents/recruitment/scribe/agent.md` | Proposed | `review-architecture-decision.md` | master brief §8.2 line 597 + ULTRAPLAN §8.1 A3 lines 515-527 |
+| 9 | `agents/recruitment/cash-conductor/agent.md` | Proposed | `review-architecture-decision.md` | master brief §8.2 line 598 + ULTRAPLAN §8.1 A4 lines 529-542 + Hire-#1 anchor master brief line 604 |
+| 10 | `agents/recruitment/sourcing-scout/agent.md` | Proposed | `review-architecture-decision.md` | master brief §8.2 line 599 + ULTRAPLAN §8.1 A5 lines 543-555 (note drift: ULTRAPLAN says W8-9, master brief says W9) |
+| 11 | `agents/recruitment/concierge/agent.md` | Proposed | `review-architecture-decision.md` | master brief §8.2 line 600 + ULTRAPLAN §8.1 A6 lines 557-570 + autosend §4 orange tier + D1 founder decision (note drift: ULTRAPLAN says W9-10, master brief says W10-13) |
+
+**Total Round 4 items: 11** (6 Phase 1 + 5 Phase 2). Queue grown 43 → 54 with the Day-9 + Day-11 additions counted.
+
+**Round-4 disagreement protocol** (per master brief §10 + Day-8 pattern):
+- Codex challenges a master-plan-cited decision → write `docs/decisions/codex-disagreement-YYYY-MM-DD-<topic>.md` per Day-8 pattern; founder arbitrates at next Sunday review
+- Codex flags a citation drift → mechanical fix; re-submit; counts as Round 5 remediation
+- Codex requires a founder decision (D-class) → annotate; defer to founder; do NOT auto-remediate
+
+---
+
 ## §1.5 — Codex Round 1 verdicts (2026-05-20)
 
 First ratification run completed Day 8. Cluster A+B+C reviewed (16 artefacts). Per-artefact verdict + Round-1 disposition:
