@@ -1,6 +1,6 @@
 # ADR-006 — Diagnostic Gate A hybrid (per-section v0 + per-claim W4 spot-check)
 
-**Status:** Proposed (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b` as forward-looking placeholder text pending this ADR's ratification — if Codex REJECTS this ADR and founder doesn't accept it, the ULTRAPLAN line 496 inline parenthetical reverts in the rollback commit; Status flips to Accepted on Codex RATIFIED verdict per §Status criteria below)
+**Status:** Proposed (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b` as forward-looking placeholder text pending this ADR's ratification — if Codex REJECTS and founder doesn't accept, the ULTRAPLAN line 496 inline parenthetical reverts in the rollback commit; Status flips to Accepted when BOTH (a) Codex RATIFIED verdict AND (b) Diagnostic agent.md §1 + §5 explicitly cite ADR-006 — both conditions per §Status criteria below)
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A1 line 496 — Gate A citation requirement
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
@@ -16,7 +16,7 @@ ULTRAPLAN §8.1 A1 line 496 (pre-amendment wording — before this ADR's in-band
 
 Current line 496 (post-amendment; live as of commit `aed9d3b`):
 
-> - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data *(see `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` — Gate A = per-section hard-fail; per-claim quality signal is a separate post-launch metric outside Gate A)*
+> - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data *(see `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` — per-section citation subcheck is hard-fail at v0; per-claim quality signal is a separate post-launch metric outside Gate A; voice classifier + PII subchecks remain per current `validate.sh`)*
 
 The "no claims unsupported by source data" clause implies **per-claim citation validation** — every factual claim in the report must have a backing source link. The Diagnostic v0 implementation at `agents/recruitment/diagnostic/validate.sh` enforces **per-section citation** (regex `\[.+\]\(.+\)` requires ≥1 markdown link per section); per-claim validation is NOT implemented at v0.
 
@@ -53,7 +53,7 @@ The per-claim citation pipeline (NLP claim-extraction + per-claim evidence-link 
 - Sampling-based (1-in-N) post-launch quality monitoring; warn-level; never blocks v0 sends
 - Activates after voice classifier microservice ships + first pilot tenant accumulates ≥30 Diagnostic reports
 
-**Rule 2 (Schema before code) satisfied:** the schema work for the per-claim quality metric (payload key + per-tenant config field) lands in ADR-008's supplements before any code reads/writes those fields. This ADR-006 does NOT introduce schema fields; it only specifies Gate A as per-section hard-fail.
+**Rule 2 (Schema before code) satisfied:** the schema work for the per-claim quality metric (payload key + per-tenant config field) lands in the future W4 ADR's supplements before any code reads/writes those fields. This ADR-006 does NOT introduce schema fields; it only specifies Gate A as per-section hard-fail.
 
 **Rule 4 (Quality gates before features) satisfied for the per-section citation subcheck:** it is hard-fail at v0 with no warn-only paths. (Other Gate A subchecks — voice classifier + PII — retain v0 warn-only paths when upstream services are unreachable per Context note; W4-polish closes those. ADR-006 addresses only the per-section subcheck.) Per-claim quality is a separate signal, not a weakening of Gate A's per-section subcheck.
 
@@ -71,7 +71,7 @@ After this ADR ratifies, the canonical interpretation is:
 
 **In-band amendment (landed in commit `aed9d3b`):** `docs/specs/ULTRAPLAN.md` line 496 now reads verbatim:
 
-> - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data *(see `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` — Gate A = per-section hard-fail; per-claim quality signal is a separate post-launch metric outside Gate A)*
+> - **Gate A:** report contains all 12 required sections; each section has at least 1 evidence link; no claims unsupported by source data *(see `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` — per-section citation subcheck is hard-fail at v0; per-claim quality signal is a separate post-launch metric outside Gate A; voice classifier + PII subchecks remain per current `validate.sh`)*
 
 This is the explicit in-band amendment Codex `review-architecture-decision` ratification path requires — reviewers consulting ULTRAPLAN §8.1 A1 see the pointer to ADR-006 directly in the source line. The amendment landed alongside the ADR-006 R2 fix commit, not in a future commit.
 
