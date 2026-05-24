@@ -132,12 +132,13 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 
 3. Bullhorn passive-match query
    → bullhorn.search_candidates(filter=brief_key_dimensions,
-     status='active', last_activity_at < now() - interval '90 days')
-     — "passive" is a derived state (active candidate with no recent
-     activity); NOT a vertical-schema enum value. The schema defines
+     status='active', date_last_modified_at < now() - interval '90 days')
+     — "passive" is a derived state (active candidate not recently
+     modified); NOT a vertical-schema enum value. The schema defines
      candidate.status as [active, archived, do_not_contact, placed,
-     contractor_promoted]; passive-match queries filter on activity recency
-     within the active set.
+     contractor_promoted] (line 84-88) and candidate.date_last_modified_at
+     as the recency field (line 100). Passive-match queries filter on
+     modification recency within the active set.
    → up to 30 candidates fetched (will rank+filter later)
    → ESC_RATE_LIMIT_HIT on Bullhorn 429 (payload.upstream='bullhorn')
    → hh_decision_output("bullhorn_query", "brief:<id>", "results:<N>")
@@ -174,18 +175,17 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
      "pre_dedupe:<N>; post_dedupe:<N>")
 
 8. "Do not contact" filter (pre-outbound sourcing filter; NOT outbound refusal)
-   → load tenant /vault/<slug>/do-not-contact.list (one identifier per line:
-     email / phone / LinkedIn URL / Bullhorn bullhorn_id per canonical schema)
+   → load tenant DNC list from `tenant_adapters.config.blocked_recipients`
+     (already a registered config key per autosend-policy.yaml red-tier
+     `send_to_blocked_recipient`; canonical Postgres-stored structured
+     state per ADR-002 vault/Postgres split — NOT vault markdown)
    → remove any candidate matching any DNC identifier from the sourcing list
    → log dropped candidates to exception list in §3 output
    → NOTE: ESC_DNC_FILTER_HIT is catalogue §2.10 reserved for OUTBOUND SEND
-     REFUSAL (per catalogue trigger: "Outbound recipient matches tenant's
-     Do-Not-Contact list; attempted send refused before transport"). Sourcing
-     Scout filters DNC matches AT SOURCING TIME (pre-outbound); no outbound
-     send attempt occurs. v0.3 dispositon: log DNC drops in exception list
-     only; no ESC fire (DNC filter at sourcing is informational, not blocking).
-     W4-polish backlog: add ESC_SOURCING_DNC_FILTER for the pre-outbound case
-     OR widen ESC_DNC_FILTER_HIT catalogue trigger to cover both.
+     REFUSAL specifically. Sourcing Scout filters DNC matches AT SOURCING
+     TIME (pre-outbound); no outbound send attempt occurs. v0.3 disposition:
+     log DNC drops in exception list only; no ESC fire. W4-polish backlog:
+     add ESC_SOURCING_DNC_FILTER for the pre-outbound case.
    → hh_decision_output("dnc_filter", "brief:<id>",
      "dropped:<N>; kept:<N>")
 
@@ -264,7 +264,7 @@ Sourcing Scout uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_RATE_LIMIT_HIT` | Any source 429 (payload.upstream identifies which: bullhorn / linkedin / reed / cv-library) | warn | operator_chat_id |
 | `ESC_BRIEF_AMBIGUITY` | LLM brief-parse yields <3 key dimensions (canonical code per catalogue §2.5) | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries | warn | operator_chat_id |
-| `ESC_DNC_FILTER_HIT` | Outbound candidate matches tenant DNC list (per-candidate; blocks the candidate's inclusion) | **blocking** (per-candidate) | operator_chat_id |
+(Sourcing Scout does NOT use `ESC_DNC_FILTER_HIT` — per catalogue §2.10 that code is reserved for outbound send refusal; Sourcing Scout's DNC filter is a sourcing-time pre-outbound filter. Drops are logged in §3 exception list without ESC fire. v0.3 disposition; W4-polish adds ESC_SOURCING_DNC_FILTER.)
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in rationale | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | Below 6-of-10 for 30 consecutive days | warn | founder + operator |
@@ -335,7 +335,7 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 |---|---|---|
 | Q1 | All three external sources required for v1.0? Reed + CV-Library are UK-recruitment-specific; Proxycurl is LinkedIn-via-API. Could v1.0 ship with Bullhorn + Proxycurl only (2 sources)? | Founder strategic. Recommend 3 sources minimum for 5-15 candidate Gate A coverage; Reed if tenant focused on perm; CV-Library if tenant focused on contract. |
 | Q2 | Proxycurl pricing — ~$39/mo for 5,000 credits at low volume; scales with usage. Per pilot tenant budget? | ~5-10 briefs/day per consultant × 50 calls/brief = up to 2,500 credits/day per consultant. Cost: ~$20-50/day at peak. |
-| Q3 | DNC list source — tenant uploads a list, or we derive from Bullhorn entity flag? | v1.0: tenant-uploaded text file at `/vault/<slug>/do-not-contact.list`. v1.1: derive from Bullhorn entity field. |
+| Q3 | DNC list source — tenant_adapters.config.blocked_recipients (Postgres-stored, already-registered config key), with v1.1 derivation from Bullhorn candidate.status='do_not_contact'? | v1.0: tenant-admin manages via tenant_adapters.config.blocked_recipients (per ADR-002 vault/Postgres split — structured state in Postgres). v1.1: auto-sync from Bullhorn candidate.status='do_not_contact'. |
 | Q4 | Rationale length — 50 words feels short for high-quality match explanation. Bump to 100? | Founder review with first pilot consultant feedback. ULTRAPLAN A5 line 552 says "≥ 50 words" — using as floor. |
 | Q5 | Gate B 6-of-10 metric — measured via consultant feedback. Brain UI v1.0 doesn't have feedback UX yet. Telegram reply? | v1.0: Telegram reply with "/scout-feedback <candidate-id> useful|not-useful". v1.1: Brain UI button. |
 | Q6 | Source-abstraction layer design — Night Sourcer v1.1 reuses this. Should the design be ratified separately (its own ADR)? | Recommend: yes. New ADR-006 at W9 build start documenting source-abstraction interface. |
