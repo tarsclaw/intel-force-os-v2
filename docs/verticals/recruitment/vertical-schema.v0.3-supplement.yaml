@@ -1,0 +1,586 @@
+# IFOS recruitment vertical schema v0.3 — Scribe + Cash Conductor + Concierge fields
+# ============================================================================
+# Status: Proposed (Codex Day-19 ratification queue addendum)
+# Date:   2026-05-24 (Day 19 of bilateral disposition execution)
+# Author: Founder (Maddox) + Claude Code, post-Round-8 Cat-β categorization
+# Predecessor: docs/verticals/recruitment/vertical-schema.v0.2-supplement.yaml (Day 8)
+#
+# Closes Round-8 Cat-β findings across 4 agents (Janitor, Scribe, Cash Conductor,
+# Concierge) — schema-supplement-needed items that block re-ratification of those
+# agent.md scaffolds. Documented in:
+# `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` Phase 4
+# Cat-β section.
+#
+# Companion: docs/verticals/recruitment/migrations/v0.2-to-v0.3.sql + v0.3-to-v0.2.sql
+#   Forward + rollback drafted alongside.
+#
+# Layer over v0.1 (8 entities) + v0.2 (3 voice/edit auxiliary tables + 6 voice
+# score fields). v0.3 adds:
+#   §1 — 14 new entity.data field additions across candidate + contact + brief +
+#        placement + opportunity (per Scribe Round-8 finding #1)
+#   §2 — Scribe access matrix expansion (Contact none→R+W; Brief R→R+W; per
+#        Scribe Round-8 finding #2)
+#   §3 — Janitor candidate.linkedin_url addition + Janitor access added to
+#        recent_edit + tone_rule v1_0_agent_access (per Janitor Round-8 finding #3)
+#   §4 — 2 new auxiliary Postgres tables for Cash Conductor: cash_conductor_transactions
+#        + cash_conductor_invoices (per Cash Conductor Round-8 finding #2)
+#   §5 — tenant_adapters.config field additions: cash_conductor_last_run +
+#        concierge_last_poll + concierge_send_window + diagnostic_per_claim_sample_rate
+#   §6 — decision_log.payload extension for per_claim_confidence_distribution
+#        (per ADR-006 W4-polish prerequisite)
+# ============================================================================
+
+vertical: recruitment
+version: v0.3
+supplements: v0.2
+status: Proposed
+date: 2026-05-24
+author: founder (Maddox) + Claude Code, post-bilateral Cat-β unblock
+codex_ratification_queue_position: 44  # after v0.2 supplement (29) + post-bilateral-extension catalogue commits (5e59f9c, cbef6b5, etc.)
+
+# ============================================================================
+# §1 — New entity.data field additions (14 fields across 5 entities)
+# ============================================================================
+#
+# Per Scribe agent.md §3 Round-8 finding #1: ~12 fields claimed verbatim in
+# the canonical entity-field table do not exist in v0.1/v0.2 schema. v0.3
+# adds them as entities.data JSONB keys per Day-4 §6.3 generic primitive
+# layer (NOT as auxiliary tables; these are first-class domain attributes).
+# Plus the headcount_growth_signal_text / hiring_velocity_band /
+# decision_window_text on opportunity.
+
+candidate_field_additions:
+  v0_1_existing_relevant:
+    - current_role          # already exists at line 104
+    - notice_period_weeks   # already exists at line 133
+    - salary_expectation_min  # already exists at line 116
+    - salary_expectation_max  # already exists at line 120
+
+  v0_3_new:
+    employment_type:
+      type: enum
+      values: [perm, contract, contract_inside_ir35, contract_outside_ir35, day_rate, hybrid]
+      required: false
+      notes: |
+        Extracted by Scribe from call context. Distinct from candidate.contract_type
+        (v0.1 line ~145 if present) which is about role type; employment_type is
+        about candidate's *preferred* engagement model. IR35 distinction matters
+        for UK contractors.
+      source: IFOS-derived (Scribe extracts per Ultraplan §8.1 A3 + call context)
+      v1_0_agent_access:
+        - Scribe (W)
+        - Sourcing Scout (R for filter matching)
+
+    key_skills:
+      type: list_of_string
+      required: false
+      notes: |
+        Aggregated skill tags extracted by Scribe + Sourcing Scout from CV + call
+        transcripts. Free-text strings; W4 polish may add controlled-vocabulary
+        clustering. Max 20 items per candidate; oldest pruned at v1.1.
+      source: IFOS-derived (Scribe extracts from CV + transcripts; Sourcing Scout from CV-Library + Reed search results)
+      v1_0_agent_access:
+        - Scribe (W)
+        - Sourcing Scout (R+W)
+
+contact_field_additions:
+  v0_1_existing_relevant:
+    - decision_authority    # already exists at line 316 (enum: yes/no/influencer/blocker/unknown per Q5)
+
+  v0_3_new:
+    preferred_channel:
+      type: enum
+      values: [email, phone, sms, teams, slack, in_person, unknown]
+      required: false
+      default: unknown
+      notes: |
+        Extracted by Scribe from call context (consultant notes contact's stated
+        preference). Concierge reads to route outbound lifecycle comms.
+      source: IFOS-derived (Scribe extraction)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Concierge (R)
+
+    next_action_target_date:
+      type: date
+      required: false
+      notes: |
+        ISO-8601 date. Set by Scribe at call-end when "I'll follow up by X" is in
+        transcript. Concierge respects this when scheduling lifecycle nurture.
+      source: IFOS-derived (Scribe extraction)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Concierge (R)
+
+brief_field_additions:
+  v0_1_existing_relevant:
+    - salary_min  # already exists at line ~371
+    - salary_max  # already exists at line ~376
+    - start_date  # already exists at line ~395
+
+  v0_3_new:
+    must_haves:
+      type: list_of_string
+      required: false
+      notes: |
+        Hard requirements; Sourcing Scout filters candidates against this list.
+        Scribe extracts from briefing-call transcripts. Free-text strings; max
+        15 items; W4 polish may add controlled-vocabulary clustering.
+      source: IFOS-derived (Scribe extracts)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Sourcing Scout (R)
+
+    nice_to_haves:
+      type: list_of_string
+      required: false
+      notes: |
+        Soft preferences; Sourcing Scout uses for ranking, not hard filter.
+      source: IFOS-derived (Scribe extracts)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Sourcing Scout (R)
+
+    deal_breakers:
+      type: list_of_string
+      required: false
+      notes: |
+        Anti-requirements; Sourcing Scout EXCLUDES candidates matching any item.
+      source: IFOS-derived (Scribe extracts)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Sourcing Scout (R)
+
+placement_field_additions:
+  v0_1_existing_relevant:
+    - start_date  # already on placement entity
+
+  v0_3_new:
+    placement_status:
+      type: enum
+      values: [pending_start, active, completed, terminated_early, on_hold, cancelled]
+      required: false
+      default: pending_start
+      notes: |
+        Lifecycle state tracking. Scribe sets to 'active' at 7-day check-in
+        confirming candidate started. Janitor flags ambiguous states via
+        ESC_LIFECYCLE_STATE_UNKNOWN.
+      source: IFOS-derived (Scribe + Janitor)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Janitor (R+W)
+        - Concierge (R for nurture timing)
+
+    week_1_status_note:
+      type: text
+      required: false
+      max_length: 500
+      notes: |
+        Free-text narrative captured by Scribe at 7-day check-in call. Stored
+        verbatim; voice-classifier review at write time per §7 of Scribe agent.md.
+      source: IFOS-derived (Scribe extracts from 7d check-in call)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Concierge (R for 30d/90d follow-up framing)
+
+    satisfaction_signal:
+      type: enum
+      values: [positive, neutral, negative, unclear]
+      required: false
+      default: unclear
+      notes: |
+        Scribe's inference from 7d/30d/90d check-in call sentiment. Concierge
+        reads to adjust nurture tone (positive → relationship-builder, negative
+        → operator-escalation).
+      source: IFOS-derived (Scribe extraction with LLM sentiment classifier)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Concierge (R)
+
+opportunity_field_additions:
+  v0_1_existing_relevant: []
+
+  v0_3_new:
+    headcount_growth_signal_text:
+      type: text
+      required: false
+      max_length: 280
+      notes: |
+        Free-text capture by Scribe of growth-signal phrases from prospecting
+        calls ("we're hiring 5 engineers this quarter", "scaling the team 2x
+        by year-end"). Sourcing Scout reads to ICP-fit-score opportunities.
+      source: IFOS-derived (Scribe extraction)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Sourcing Scout (R)
+
+    hiring_velocity_band:
+      type: enum
+      values: [slow, moderate, fast, urgent, unknown]
+      required: false
+      default: unknown
+      notes: |
+        Scribe's inference from prospecting-call urgency cues. Drives ranking
+        in Sourcing Scout's brief-to-candidate pipeline.
+      source: IFOS-derived (Scribe LLM classification)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Sourcing Scout (R)
+
+    decision_window_text:
+      type: text
+      required: false
+      max_length: 280
+      notes: |
+        Free-text capture by Scribe of decision-timing phrases ("we need someone
+        starting in Q3", "decision by end of week"). Concierge reads to time
+        outbound comms.
+      source: IFOS-derived (Scribe extraction)
+      v1_0_agent_access:
+        - Scribe (R+W)
+        - Concierge (R)
+
+# ============================================================================
+# §2 — Scribe access matrix expansion
+# ============================================================================
+#
+# Per Scribe agent.md §3 Round-8 finding #2: Scribe writes to Contact, Brief,
+# and Opportunity in v1.0 cycle.sh per agent.md §4 Steps 5-9; current v0.1
+# matrix gives Scribe `contact: none`, `brief: R`, `opportunity: none`.
+# v0.3 expands these to match actual Scribe write paths.
+
+scribe_access_matrix_changes:
+  contact:
+    v0_1: none
+    v0_3: R+W
+    rationale: |
+      Scribe writes preferred_channel + next_action_target_date + decision_authority
+      updates from call context. Per §6 (Scribe agent.md §4 Step 5-9).
+    new_writable_fields:
+      - preferred_channel  # v0.3-added
+      - next_action_target_date  # v0.3-added
+      - decision_authority  # already exists; v0.3 grants Scribe write access
+
+  brief:
+    v0_1: R
+    v0_3: R+W
+    rationale: |
+      Scribe writes must_haves + nice_to_haves + deal_breakers + structured-field
+      updates from briefing-call transcripts. Per Ultraplan §8.1 A3 line 524 verbatim
+      ("≥3 structured-field extractions"); Brief is a primary write target.
+    new_writable_fields:
+      - must_haves  # v0.3-added
+      - nice_to_haves  # v0.3-added
+      - deal_breakers  # v0.3-added
+      - salary_min  # v0.1; v0.3 grants Scribe write
+      - salary_max  # v0.1; v0.3 grants Scribe write
+      - start_date  # v0.1; v0.3 grants Scribe write
+
+  opportunity:
+    v0_1: none
+    v0_3: R+W
+    rationale: |
+      Scribe writes headcount_growth_signal_text + hiring_velocity_band +
+      decision_window_text from prospecting-call transcripts.
+    new_writable_fields:
+      - headcount_growth_signal_text  # v0.3-added
+      - hiring_velocity_band  # v0.3-added
+      - decision_window_text  # v0.3-added
+
+# ============================================================================
+# §3 — Janitor schema-access additions
+# ============================================================================
+#
+# Per Janitor agent.md Round-8 finding #1 (candidate.linkedin_url missing) +
+# Round-8 finding #3 (Janitor reads recent_edit + tone_rule but v0.2 doesn't
+# grant access).
+
+candidate_linkedin_url_addition:
+  v0_3_new:
+    linkedin_url:
+      type: text  # URL
+      required: false
+      pattern: '^https://(www\.|uk\.|[a-z]{2,3}\.)?linkedin\.com/in/[a-zA-Z0-9-]+/?$'
+      notes: |
+        LinkedIn profile URL. Set by Sourcing Scout from candidate matching;
+        Janitor uses for dedup (LinkedIn URL is a stronger match signal than
+        name + email alone). Concierge reads for outreach context (NOT for
+        outbound; outreach is via candidate.email or candidate.phone).
+      source: IFOS-derived (Sourcing Scout from match; Janitor for dedup verification)
+      v1_0_agent_access:
+        - Sourcing Scout (R+W)
+        - Janitor (R for dedup; W only via dedup-merge)
+        - Concierge (R)
+
+janitor_v0_2_table_access_expansion:
+  recent_edit:
+    v0_2: [voice-drift-canary (W), Concierge (R), LoRA (R)]
+    v0_3: [voice-drift-canary (W), Concierge (R), Janitor (R), LoRA (R)]
+    rationale: |
+      Janitor agent.md §4 Step 8 queries recent_edit for tacit-note harvest
+      (rows with resolution='approved_after_edit'). Per Round-8 finding #3.
+
+  tone_rule:
+    v0_2: [Scribe (R), Cash Conductor (R), Concierge (R)]
+    v0_3: [Scribe (R), Cash Conductor (R), Concierge (R), Janitor (R)]
+    rationale: |
+      Janitor agent.md §7 calls hh_load_tone_rules filtered by
+      applies_to_agents containing 'janitor' for tacit-note narrative
+      voice-classification.
+
+# ============================================================================
+# §4 — Cash Conductor auxiliary Postgres tables (NOT entities)
+# ============================================================================
+#
+# Per Cash Conductor agent.md Round-8 finding #2 + the v0.2-pattern of
+# auxiliary tables for state that doesn't fit the entity model (similar
+# to v0.2's voice_corpus + tone_rule + recent_edit).
+
+cash_conductor_transactions:
+  type: auxiliary_postgres_table
+  rationale: |
+    Open Banking transactions are high-volume, time-series, and don't model
+    well as entity.data JSONB rows. v0.3 introduces a first-class table with
+    indexes for date + amount + match-status. Per Cash Conductor agent.md
+    §4 Step 3 + ADR-002 vault/Postgres split (structured state in Postgres).
+  schema:
+    id: BIGSERIAL PRIMARY KEY
+    tenant_slug: TEXT NOT NULL  # RLS-isolated per Day-4 §6.3
+    transaction_id: TEXT NOT NULL  # provider-supplied (TrueLayer / Plaid)
+    posted_at: TIMESTAMPTZ NOT NULL
+    amount: NUMERIC(15, 2) NOT NULL  # GBP; negative for outgoing
+    currency: TEXT NOT NULL DEFAULT 'GBP'
+    payee_name_raw: TEXT  # as supplied by Open Banking
+    description: TEXT
+    bank_provider: TEXT  # 'truelayer' | 'plaid_uk' | 'open_banking_direct'
+    match_status: TEXT  # 'unmatched' | 'matched' | 'ambiguous'
+    matched_invoice_id: TEXT  # FK to cash_conductor_invoices.invoice_id when match_status='matched'
+    match_confidence: NUMERIC(3, 2)  # 0.00-1.00; per Cash Conductor §3 Output 1 stages
+    match_dimensions: TEXT[]  # ['exact_amount', 'payee_match', 'within_90d_window', etc.]
+    ingested_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    raw_payload: JSONB  # full Open Banking response for audit
+  indexes:
+    - "(tenant_slug, posted_at DESC)"  # tenant scan
+    - "(tenant_slug, match_status, posted_at DESC)"  # unmatched queue
+  rls_policy: |
+    CREATE POLICY tenant_isolation ON cash_conductor_transactions
+    FOR ALL TO ifos_app
+    USING (tenant_slug = current_setting('app.current_tenant', true));
+  retention: |
+    90-day rolling window for unmatched + ambiguous rows; matched rows retained
+    indefinitely (audit trail). Pre-90-day matched-only stored to cold archive
+    at v1.1+.
+
+cash_conductor_invoices:
+  type: auxiliary_postgres_table
+  rationale: |
+    Open invoice register cached from accounting provider (Xero / QuickBooks /
+    Sage). Same auxiliary-table pattern as transactions. Per Cash Conductor
+    agent.md §4 Step 4.
+  schema:
+    id: BIGSERIAL PRIMARY KEY
+    tenant_slug: TEXT NOT NULL
+    invoice_id: TEXT NOT NULL  # accounting-provider-supplied ID
+    accounting_provider: TEXT NOT NULL  # 'xero' | 'quickbooks' | 'sage'
+    invoice_number: TEXT
+    issued_at: TIMESTAMPTZ NOT NULL
+    due_at: TIMESTAMPTZ NOT NULL
+    amount_total: NUMERIC(15, 2) NOT NULL
+    amount_paid: NUMERIC(15, 2) NOT NULL DEFAULT 0
+    currency: TEXT NOT NULL DEFAULT 'GBP'
+    status: TEXT  # 'open' | 'partial' | 'paid' | 'overdue' | 'cancelled' | 'voided'
+    client_contact_id: TEXT  # links to Bullhorn placement.client_contact_id when known
+    client_billing_email: TEXT
+    last_chase_position: INT DEFAULT 0  # 0 = no chases; 1-3 = position per §3.2; 4 = operator-handled
+    last_chase_sent_at: TIMESTAMPTZ
+    ingested_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    raw_payload: JSONB
+  indexes:
+    - "(tenant_slug, due_at)"  # aged-debtors query
+    - "(tenant_slug, status, due_at)"  # overdue scan
+    - "(tenant_slug, last_chase_position, due_at)"  # chase pipeline
+  rls_policy: |
+    CREATE POLICY tenant_isolation ON cash_conductor_invoices
+    FOR ALL TO ifos_app
+    USING (tenant_slug = current_setting('app.current_tenant', true));
+  retention: |
+    Paid invoices retained 7 years (UK statutory accounting record retention).
+    Cancelled / voided retained 90 days post-cancel.
+
+# ============================================================================
+# §5 — tenant_adapters.config field additions
+# ============================================================================
+#
+# Per Cash Conductor Round-8 finding #2 + Concierge Round-8 finding #7. The
+# tenant_adapters table (Day-4 §6.3 + v0.2 §3 if defined there) has a JSONB
+# config column; v0.3 codifies the keys agents read.
+
+tenant_adapters_config_additions:
+  cash_conductor_last_run:
+    type: timestamptz
+    required: false
+    default: null
+    set_by: cash_conductor
+    read_by: [cash_conductor]
+    notes: |
+      Cash Conductor cron sweep updates this at session-close (per agent.md §4
+      Step 14). On next run, cycle.sh queries transactions/invoices since this
+      timestamp.
+
+  concierge_last_poll:
+    type: timestamptz
+    required: false
+    default: null
+    set_by: concierge
+    read_by: [concierge]
+    notes: |
+      Concierge polling cron updates this at end of each poll cycle (per
+      agent.md §4 Step 1 mode=poll). On next poll, query Bullhorn for state
+      transitions since this timestamp.
+
+  concierge_send_window:
+    type: object
+    required: false
+    default:
+      timezone: Europe/London
+      weekday_start: '09:00'
+      weekday_end: '17:00'
+      weekend_send_enabled: false
+    set_by: [tenant-admin]  # via Brain UI tenant config screen
+    read_by: [concierge]
+    notes: |
+      Per-tenant outbound sending hours. Concierge respects this when scheduling
+      orange-tier sends; sends queued outside the window deferred to next
+      in-window slot.
+
+  diagnostic_per_claim_sample_rate:
+    type: integer
+    required: false
+    default: 10
+    range: [1, 100]  # 1-in-N sample rate; 10 = 10% of reports validated
+    set_by: [tenant-admin]
+    read_by: [diagnostic]
+    notes: |
+      Per ADR-006 Tier 2 (post-launch quality metric). Sample 1-in-N Diagnostic
+      reports for per-claim citation validation. Activates at W4 polish when
+      Tier 2 ships; until then this field is documented intent only.
+
+# ============================================================================
+# §6 — decision_log.payload extension (per ADR-006 W4-polish prerequisite)
+# ============================================================================
+#
+# Per ADR-006 + Round-8 finding for Diagnostic. The decision_log.payload JSONB
+# shape from autosend-safety-policy.md §7 is extended with a new key for
+# per-claim quality metric. v0.3 supplements the payload schema; W4 polish
+# implements the runtime path that writes this key.
+
+decision_log_payload_extension:
+  per_claim_confidence_distribution:
+    type: object
+    required: false
+    written_when: |
+      Tier 2 per-claim citation validation runs (sample-rate-gated; 1-in-N per
+      tenant_adapters.config.diagnostic_per_claim_sample_rate).
+    shape:
+      total_claims: integer
+      claims_with_confidence_above_0_6: integer
+      claims_with_confidence_below_0_6: integer
+      mean_confidence: NUMERIC(3, 2)
+      sampled_at: timestamptz
+      sample_rate_applied: integer  # 1-in-N at write time
+    notes: |
+      Aggregate metric, not per-claim detail. Per-claim detail not persisted
+      to keep decision_log payload size bounded. Per-claim raw data goes to
+      a separate v1.1 quality-metrics table if needed.
+
+# ============================================================================
+# §7 — Migration sequencing
+# ============================================================================
+
+migration_sequence:
+  forward: docs/verticals/recruitment/migrations/v0.2-to-v0.3.sql
+  rollback: docs/verticals/recruitment/migrations/v0.3-to-v0.2.sql
+  pre_conditions:
+    - v0.2 supplement migration applied (voice_corpus + tone_rule + recent_edit tables exist)
+    - 6 voice_classifier_score / voice_drift_at_close fields present on candidate + contractor + contact + brief + opportunity + placement
+  steps:
+    1: "ALTER TABLE candidate ADD COLUMN data jsonb (new keys via validate-jsonb trigger): employment_type, key_skills, linkedin_url"
+    2: "ALTER TABLE contact ADD: preferred_channel, next_action_target_date"
+    3: "ALTER TABLE brief ADD: must_haves, nice_to_haves, deal_breakers"
+    4: "ALTER TABLE placement ADD: placement_status, week_1_status_note, satisfaction_signal"
+    5: "ALTER TABLE opportunity ADD: headcount_growth_signal_text, hiring_velocity_band, decision_window_text"
+    6: "CREATE TABLE cash_conductor_transactions (per §4); ENABLE RLS + tenant_isolation policy"
+    7: "CREATE TABLE cash_conductor_invoices (per §4); ENABLE RLS + tenant_isolation policy"
+    8: "ALTER TABLE tenant_adapters: validate new config keys via JSONB validation trigger (cash_conductor_last_run, concierge_last_poll, concierge_send_window, diagnostic_per_claim_sample_rate)"
+    9: "UPDATE v1_0_agent_access lists in recent_edit + tone_rule v0.2 schema to include 'janitor'"
+    10: "validate.sh smoke test against migration-test tenant; expect zero failures"
+
+# ============================================================================
+# §8 — Codex ratification path
+# ============================================================================
+
+codex_ratification:
+  skill: review-schema-change
+  expected_round_trips: 1-2 (mechanical fixes if any)
+  post-ratify_actions:
+    - Apply migration SQL against migration-test tenant (Path A founder action)
+    - Run tenancy-audit.sh; expect 12/12 invariants pass
+    - Update agent.md files (Scribe + Janitor + Cash Conductor + Concierge) to
+      cite v0.3 supplement instead of "v0.3-supplement-pending"
+    - Re-run Codex on the 4 agent.md files; expect Cat-β findings closed
+
+# ============================================================================
+# §9 — Open questions
+# ============================================================================
+
+open_questions:
+  Q1_employment_type_enum_completeness:
+    question: "Are the 6 employment_type enum values exhaustive for UK recruitment? Missing options: 'fixed_term_employee', 'apprenticeship', 'contract_for_services'?"
+    resolution: Founder review at first-pilot onboarding; add per-tenant overrides if needed.
+
+  Q2_key_skills_max_length:
+    question: "Cap at 20 items per candidate — does it accommodate senior technical candidates with 30+ skill tags?"
+    resolution: v1.0 cap at 20; revisit at first-pilot data after 30+ candidates indexed.
+
+  Q3_placement_status_enum_lifecycle:
+    question: "6-state enum — does it map to Bullhorn's native placement state machine? Risk of impedance mismatch at sync time."
+    resolution: First-pilot Bullhorn schema audit at onboarding; add mapping table if Bullhorn states don't 1:1.
+
+  Q4_cash_conductor_transactions_retention:
+    question: "90-day rolling for unmatched + indefinite for matched — is indefinite UK GDPR-compatible? Bank transaction PII implications."
+    resolution: Founder + legal review (placeholder; not gating v0.3 ratification). Recommended: indefinite-with-pseudonymization at year 7.
+
+  Q5_tenant_adapters_config_validation_trigger:
+    question: "JSONB validation trigger for the 4 new config keys — should it hard-fail on unknown keys, or warn-and-store-anyway?"
+    resolution: Hard-fail; only documented keys may be set. Per master brief §1 Rule 2 (Schema before code).
+
+# ============================================================================
+# §10 — Why this supplement is the right unblock
+# ============================================================================
+
+rationale: |
+  Round-8 categorization (per disagreement doc Phase 4 Cat-β) identified that
+  4 of 5 remaining agent.md scaffolds (Janitor, Scribe, Cash Conductor,
+  Concierge) cannot re-ratify until the schema fields they reference exist
+  in the canonical schema. v0.3 supplement adds the 14 entity fields + 2
+  auxiliary tables + 4 config fields + 1 payload extension that close those
+  findings.
+
+  After v0.3 ratifies + migration applies:
+    - Scribe agent.md §3 entity-field table becomes verifiable (was Round-8
+      finding #1 + Round-8 finding #2)
+    - Janitor candidate.linkedin_url reference becomes valid (was Round-8 #1)
+    - Cash Conductor Postgres-tables claim in agent.md §4 Steps 3-4 becomes
+      schema-backed (was Round-8 #2)
+    - Concierge tenant_adapters.config field references become valid
+      (was Round-8 #7)
+    - Diagnostic Tier 2 schema substrate exists (per ADR-006 W4-polish)
+
+  Expected re-ratification: 1 Codex round per agent.md after v0.3 lands;
+  expect ~3-5 residual findings per agent (down from current 4-6) — those
+  residuals are per-agent specifics (workflow honesty, validate.sh/cycle.sh
+  build slices) not schema gaps.
+
+# ============================================================================
+
+end_of_supplement: true
