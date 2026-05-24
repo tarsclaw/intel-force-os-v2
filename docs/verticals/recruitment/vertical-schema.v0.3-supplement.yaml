@@ -331,7 +331,7 @@ agent_access_matrix:
     placement: none
     timesheet: none
     voice_corpus: R
-    voice_corpus_chunks: R
+    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
     tone_rule: R
     recent_edit: none
 
@@ -345,7 +345,7 @@ agent_access_matrix:
     placement: R+W         # lifecycle-state cleanup
     timesheet: R           # reads for placement-state inference
     voice_corpus: R        # tacit-note narrative voice grounding
-    voice_corpus_chunks: R
+    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
     tone_rule: R           # v0.3 NEW (was no access)
     recent_edit: R         # v0.3 NEW (was Concierge/canary/LoRA only); for tacit-note harvest
 
@@ -359,7 +359,7 @@ agent_access_matrix:
     placement: R+W         # check-in field extraction
     timesheet: R           # reads for placement-context resolution on check-in calls
     voice_corpus: R        # tacit-note voice grounding
-    voice_corpus_chunks: R
+    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
     tone_rule: R           # v0.2
     recent_edit: W         # writes its own edits for retraining
 
@@ -373,7 +373,7 @@ agent_access_matrix:
     placement: R           # reads for client linkage on invoice
     timesheet: R           # reads to verify billable hours match invoiced amounts
     voice_corpus: R        # chase-email voice grounding
-    voice_corpus_chunks: R
+    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
     tone_rule: R           # v0.2
     recent_edit: W         # writes its own chase-draft edits for retraining
     # (auxiliary-table access is documented in auxiliary_table_access_matrix below)
@@ -393,7 +393,7 @@ agent_access_matrix:
     placement: none
     timesheet: none
     voice_corpus: R        # rationale-narrative voice grounding
-    voice_corpus_chunks: R
+    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
     tone_rule: R
     recent_edit: W         # writes rationale-narrative edits for retraining
 
@@ -407,7 +407,7 @@ agent_access_matrix:
     placement: R+W         # CORRECTED v0.3 (was R); writes Bullhorn state advancement per concierge §4 Step 14
     timesheet: R           # reads to verify placement-progress for 7d/30d/90d nurture
     voice_corpus: R        # lifecycle-comms voice grounding
-    voice_corpus_chunks: R
+    # voice_corpus_chunks access is in auxiliary_table_access_matrix below (auxiliary, not entity)
     tone_rule: R           # v0.2
     recent_edit: R         # v0.2
 
@@ -420,13 +420,25 @@ agent_access_matrix:
 
 v0_2_entity_access_amendments:
 
+  voice_corpus:
+    v0_2_v1_0_agent_access: [Scribe (R), Concierge (R), voice-drift-canary (R)]
+    v0_3_v1_0_agent_access: [Scribe (R), Concierge (R), voice-drift-canary (R), Diagnostic (R), Janitor (R), Cash Conductor (R), Sourcing Scout (R)]
+    rationale: |
+      All v1.0 agents that produce voice-classified output (Diagnostic for
+      §12 conversation opener; Janitor for tacit-note narratives; Cash
+      Conductor for chase drafts; Sourcing Scout for per-candidate
+      rationale) read voice_corpus for ANN-match exemplars. v0.2 only
+      granted Scribe + Concierge; v0.3 extends to all 6.
+
   tone_rule:
     v0_2_v1_0_agent_access: [Scribe (R), Cash Conductor (R), Concierge (R)]
-    v0_3_v1_0_agent_access: [Scribe (R), Cash Conductor (R), Concierge (R), Janitor (R)]
+    v0_3_v1_0_agent_access: [Scribe (R), Cash Conductor (R), Concierge (R), Janitor (R), Diagnostic (R), Sourcing Scout (R)]
     rationale: |
       Janitor agent.md §7 calls hh_load_tone_rules filtered by
       applies_to_agents containing 'janitor' for tacit-note narrative
       voice-classification. Per Round-8 Cat-β finding for Janitor.
+      Diagnostic + Sourcing Scout also read tone_rules for their
+      voice-classified outputs (§12 opener, per-candidate rationale).
 
   recent_edit:
     v0_2_v1_0_agent_access: [voice-drift-canary (W), Concierge (R), LoRA (R)]
@@ -545,6 +557,15 @@ auxiliary_table_access_matrix:
     cash_conductor: R+W
     sourcing_scout: none
     concierge: none
+  voice_corpus_chunks:
+    # v0.2 auxiliary table holding the pgvector HNSW index over voice corpus chunks
+    # All v1.0 agents that produce voice-classified output need R for ANN-match retrieval
+    diagnostic: R
+    janitor: R
+    scribe: R
+    cash_conductor: R
+    sourcing_scout: R
+    concierge: R
 
 # ============================================================================
 # §4 — tenant_adapters.config new keys (4 keys)
