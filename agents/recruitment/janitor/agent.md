@@ -67,8 +67,8 @@ Located at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md`. Eight section
 Three write categories. Action types map to `agents/_shared/autosend-policy.yaml` — existing entries are used as-is; new entries are flagged for catalogue addition at W5 build (per `review-agent-bundle.md` §1 row §6 flag-for-addition pattern):
 
 1. **Candidate merge** (`PUT /Candidate/{primary_id}` + cascade) — only when confidence ≥0.85 per Gate A; no merge if either candidate had Bullhorn activity in last 90 days without explicit review flag (per ULTRAPLAN A2 line 510 verbatim). Action type: **`bullhorn_candidate_dedupe`** (existing in autosend-policy.yaml line 69; yellow tier; sample_rate: 10).
-2. **Field backfill** (`PATCH /Candidate/{id}` or `/Client/{id}`) — fills missing canonical schema fields (per `vertical-schema.yaml`): `candidate.location` line 89, `client.size_employees` line 243, `contractor.day_rate_min`/`day_rate_max` lines 193-197, `brief.salary_min`/`salary_max` lines 371-376 from Companies House (for clients) or LinkedIn/derivation (for candidates). Sources logged in payload. Action type: **`bullhorn_field_backfill` (new — flagged for autosend-policy.yaml addition at W5 build with proposed tier=yellow + sample_rate=10)**.
-3. **Tacit-note attach** (`POST /Note` linked to entity) — narrative summary of consultant edits + decision-log resolutions over the 30-day window. Action type: **`bullhorn_candidate_tag`** (existing in autosend-policy.yaml line 35; green tier — note appends are non-customer-facing; metadata reversible).
+2. **Field backfill** (`PATCH /Candidate/{id}` or `/Client/{id}`) — fills missing canonical schema fields (per `vertical-schema.yaml`): `candidate.location` (line 89), `client.industry` (line 238), `client.size_employees` (line 243), `client.companies_house_number` (line 252), `contractor.day_rate_min/day_rate_max` (lines 193-197), `brief.salary_min/salary_max` (lines 371-376) from Companies House (for clients) or LinkedIn/derivation (for candidates). Sources logged in payload. Action type: **`bullhorn_field_backfill`** (registered in autosend-policy.yaml; yellow tier; sample_rate: 10).
+3. **Tacit-note attach** (`POST /Note` linked to entity) — narrative summary of consultant edits + decision-log resolutions over the 30-day window. Action type: **`bullhorn_note_attach`** (registered in autosend-policy.yaml; yellow tier; sample_rate: 20).
 
 Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'`, `action_type` per the mapping above, `tier` per autosend-policy.yaml, payload includes source confidence + provenance.
 
@@ -119,8 +119,9 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → hh_decision_output("field_completeness_audit", tenant, "<N> missing-field rows")
 
 6. Companies House enrichment (clients only)
-   → companies_house.search(client.legal_name) → CRN → profile → fill industry +
-     registered_office_address + sic_codes
+   → companies_house.search(client.name per vertical-schema.yaml line 235) → CRN →
+     profile → fill canonical schema fields client.industry (line 238),
+     client.companies_house_number (line 252)
    → 7-day cache per tools.yaml; rate-limit budget shared with Diagnostic
    → ESC_RATE_LIMIT_HIT on 429
 
@@ -181,7 +182,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Janitor's `validat
 - Bullhorn write batch size ≤ 100 per minute (rate-limit defensive)
 - No PII outside firm boundary in tacit-note narratives (regex pass)
 
-Gate A failures fire `ESC_SCHEMA_VIOLATION` + draft report stays in `/tmp` (not vault); operator-review required.
+Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint; per Day-19 catalogue add at `escalation-codes.md` line 184) OR `ESC_DUPLICATE_DETECTED` (merge-confidence reject; existing line 127) per the failed condition. Draft report stays in `/tmp` (not vault); operator-review required. `ESC_SCHEMA_VIOLATION` (line 163) is NOT used by Janitor — that code is reserved for vertical-schema field-constraint violations at write-time.
 
 ### Gate B — Outcome threshold (success metric, not block)
 
@@ -189,7 +190,7 @@ Per ULTRAPLAN A2 line 511 verbatim: **"day-30 before/after report shows ≥15% d
 
 Composite score = (dedup% × 0.5) + (field-completeness% × 0.5). Target ≥12.5.
 
-Gate B doesn't block the agent. It's the v1.0 kill-criterion §2 Trigger 8 supporting metric ("Gate-B revenue uplift" — Janitor's day-30 report is THE artefact that demonstrates "DSO drops" / "consultant time saved" claims to the FD-tier closer).
+Gate B doesn't block the agent. The day-30 dedup + field-completeness improvement is Janitor's local Gate B metric per ULTRAPLAN A2 line 511 verbatim. It contributes evidence (alongside other agents' Gate-B metrics) to kill-criterion §2 Trigger 8 (average Gate-B revenue uplift after 3 completed pilots per `v1.0-kill-criterion.md` lines 158-166) — but Janitor does NOT directly claim Trigger 8 status. DSO improvement is Cash Conductor's territory per ULTRAPLAN A4 line 540, not Janitor's.
 
 Below ≥12.5 for 3 consecutive runs → fire `ESC_GATE_B_MISS` → flag for operator review (heuristic tuning may be needed; not a kill).
 

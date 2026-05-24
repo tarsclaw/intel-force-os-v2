@@ -73,6 +73,20 @@ action_types:
     reason: "Merges duplicate candidate records; reversible but high-volume; merge quality needs ongoing review"
     irreversible: false
 
+  bullhorn_field_backfill:
+    tier: yellow
+    agent: janitor
+    sample_rate: 10
+    reason: "Fills missing canonical schema fields from Companies House or LinkedIn enrichment; reversible PATCH; high-volume; source provenance logged in payload"
+    irreversible: false
+
+  bullhorn_note_attach:
+    tier: yellow
+    agent: janitor
+    sample_rate: 20
+    reason: "Attaches tacit-note narrative summary harvested from decision_log recent_edit resolutions; consultant-visible; non-customer-facing; voice-classified before write"
+    irreversible: false
+
   bullhorn_note_append_summary:
     tier: yellow
     agent: scribe
