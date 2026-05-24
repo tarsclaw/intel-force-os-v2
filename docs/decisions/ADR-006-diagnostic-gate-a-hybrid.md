@@ -1,6 +1,6 @@
 # ADR-006 — Diagnostic Gate A hybrid (per-section v0 + per-claim W4 spot-check)
 
-**Status:** Proposed (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b` as the binding text; Status flips to Accepted on Codex `review-architecture-decision` RATIFIED verdict + per the §Status section criteria below)
+**Status:** Proposed (2026-05-24, Day 19; ULTRAPLAN in-band amendment landed at commit `aed9d3b` as forward-looking placeholder text pending this ADR's ratification — if Codex REJECTS this ADR and founder doesn't accept it, the ULTRAPLAN line 496 inline parenthetical reverts in the rollback commit; Status flips to Accepted on Codex RATIFIED verdict per §Status criteria below)
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A1 line 496 — Gate A citation requirement
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
@@ -20,7 +20,7 @@ Current line 496 (post-amendment; live as of commit `aed9d3b`):
 
 The "no claims unsupported by source data" clause implies **per-claim citation validation** — every factual claim in the report must have a backing source link. The Diagnostic v0 implementation at `agents/recruitment/diagnostic/validate.sh` enforces **per-section citation** (regex `\[.+\]\(.+\)` requires ≥1 markdown link per section); per-claim validation is NOT implemented at v0.
 
-(Voice classifier ≥ 0.75 and PII boundary checks are also Gate A requirements per the same v0 contract — implemented separately in `validate.sh`; they're not affected by this ADR. This ADR addresses ONLY the "no claims unsupported by source data" clause from line 496.)
+(Voice classifier ≥ 0.75 and PII boundary checks are also Gate A requirements per the same v0 contract. Their v0 implementation in `validate.sh` is partial — `validate.sh` warns and emits `validate_check_skipped=true` when the voice-classifier URL is unreachable or the firm-domain whitelist is absent, rather than hard-failing; W4-polish closes these to hard-fail per `agents/recruitment/diagnostic/agent.md` §5 honesty note. These warn-only-paths exist in v0 but are not affected by this ADR; this ADR addresses ONLY the "no claims unsupported by source data" clause from line 496.)
 
 This creates a documented gap between the upstream spec and the v0 implementation. Codex Round 4-9 has flagged this as "Gate A weakens ULTRAPLAN source-data requirement" across 10 ratification rounds (see `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` Round 9 Diagnostic finding #1). Per-claim citation validation requires:
 
@@ -116,7 +116,7 @@ This is the explicit in-band amendment Codex `review-architecture-decision` rati
 
 ### After Codex ratifies this ADR (Status flips Proposed → Accepted)
 
-- Codex Round 10+ on Diagnostic agent.md should accept the Gate A framing because the upstream contract is now this ADR (not the unchanged ULTRAPLAN line 497 prose alone)
+- Codex Round 10+ on Diagnostic agent.md should accept the Gate A framing because the upstream contract is now this ADR (not the original ULTRAPLAN line 496 prose alone)
 - Other agents (Janitor, Scribe, Cash Conductor, Sourcing Scout, Concierge) Gate A framings can follow the same per-agent ADR pattern (ADR-007 Janitor Gate A, ADR-008 Scribe Gate A, etc.) if needed for their own Cat-ζ findings — though most other agents' Gate A is implementation-realistic at v0, so this may not be needed
 
 ### W4-polish slice (after voice-classifier microservice ships + first pilot tenant data accumulates)
