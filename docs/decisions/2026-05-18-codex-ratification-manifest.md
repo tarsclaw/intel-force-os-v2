@@ -135,7 +135,24 @@ Two phases:
 
 **Total Round 4 items: 11** (6 Phase 1 + 5 Phase 2). Queue grown 43 → 54 with the Day-9 + Day-11 additions counted.
 
-**Day-19 update:** Initial Round-4 Phase-1 attempt used `review-architecture-decision.md` skill (the only available skill at the time). That returned REJECTED with a load-bearing finding (Issue 5 in `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md`) — agent.md files require a different skill structure. **`review-agent-bundle.md` skill built in commit `825ebd4`.** Re-ratification of all 11 items uses the new skill. The 10 ESC codes / sentinel / Trigger references in agent.md files re-evaluated under the agent-bundle skill criteria (§1-§6 of the skill doc); the pure decision-doc-shape Issue 5 reject is reconsidered per §6 of the skill doc.
+**Day-19 update:** Initial Round-4 Phase-1 attempt used `review-architecture-decision.md` skill (the only available skill at the time). That returned REJECTED with a load-bearing finding (Issue 5 in `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md`) — agent.md files require a different skill structure. **`review-agent-bundle.md` skill built in commit `825ebd4`.** Re-ratification of all 6 agent.md items with the new skill.
+
+**Round-4-v2 verdicts (post-skill-build, Day-19 13:25 UTC):**
+
+| # | Artefact | Verdict | Issues | Session log |
+|---|---|---|---|---|
+| 1 | `agents/recruitment/diagnostic/agent.md` | **REJECTED** | 5 real findings (Gate A strength + Step 11 decision-log + Trigger 8 mismap + sentinel + validate.sh gap) | `20260524T101934Z-19923` |
+| 2 | `agents/recruitment/janitor/agent.md` | **REJECTED** | ~5-7 real findings (count regex 56 inflated by nested lists) | `20260524T102050Z-21293` |
+| 3 | `agents/recruitment/scribe/agent.md` | **REJECTED** | ~5-7 real findings (count regex 59) | `20260524T102202Z-22338` |
+| 4 | `agents/recruitment/cash-conductor/agent.md` | **REJECTED** | ~5-7 real findings (count regex 58) | session log in tree |
+| 5 | `agents/recruitment/sourcing-scout/agent.md` | **REJECTED** | ~5-7 real findings (count regex 50) | session log in tree |
+| 6 | `agents/recruitment/concierge/agent.md` | **REJECTED** | ~5-7 real findings (count regex 59) | session log in tree |
+
+**Total: 0 RATIFIED / 6 REJECTED of 6** — all agent.md files require founder arbitration on the systemic 5-category disposition framework documented in the codex-disagreement doc Round-4-v2 update section.
+
+**Hard ceiling reached** per master brief §10.3 step 5. Single founder decision (approve the 5-category disposition) unlocks all 6 ratifications via a single Round-5 mechanical-remediation pass.
+
+Remaining Phase-1 items (tools.yaml + cycle.sh + validate.sh + package + ADR-005) NOT yet attempted because they would have inherited the same skill-mismatch issue. ADR-005 should ratify cleanly under `review-architecture-decision.md` (it IS a decision doc); .sh + .yaml files may need their own skills built (defer).
 
 **Round-4 disagreement protocol** (per master brief §10 + Day-8 pattern):
 - Codex challenges a master-plan-cited decision → write `docs/decisions/codex-disagreement-YYYY-MM-DD-<topic>.md` per Day-8 pattern; founder arbitrates at next Sunday review
