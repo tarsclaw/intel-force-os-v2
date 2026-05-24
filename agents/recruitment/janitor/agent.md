@@ -54,11 +54,11 @@ Located at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md`. Eight section
 | # | Section | Content |
 |---|---|---|
 | 1 | **Record counts** | Total candidates / contractors / clients / contacts / placements / opportunities before + after this run; deltas per entity type |
-| 2 | **Dedup pairs** | List of duplicate candidate pairs identified this run (confidence ≥0.85 only); for each pair: CRNs, match dimensions (name + email + phone + LinkedIn), confidence score, action taken (merged vs flagged-for-review) |
+| 2 | **Dedup pairs** | List of duplicate candidate pairs identified this run (confidence ≥0.85 only); for each pair: candidate `bullhorn_id` per vertical-schema.yaml candidate entity, match dimensions (name + email + phone + LinkedIn), confidence score, action taken (merged vs flagged-for-review) |
 | 3 | **Field-completeness deltas** | Per entity-type table: which fields were filled in (e.g., candidate.location, contractor.day_rate); source of the backfill (Companies House lookup, LinkedIn enrichment, derivation from related entities) |
 | 4 | **Tacit-note coverage** | Notes harvested from `decision_log` resolved with `outcome='approved_after_edit'` per master brief §8.1 Change 2; attached to relevant Bullhorn entities; coverage rate over the 30-day window |
 | 5 | **Agent vs. consultant attribution** | Rows attributed to Janitor automated work vs consultant manual entry; supports the day-30 before/after narrative |
-| 6 | **Gate-B metric** | Composite score: (dedup % improvement × 0.5) + (field-completeness % improvement × 0.5). Target ≥12.5 (≥15% dedup + ≥10% field) per ULTRAPLAN A2 line 511 |
+| 6 | **Gate-B metric** | TWO independent thresholds per ULTRAPLAN A2 line 511 verbatim: dedup improvement ≥15% AND field-completeness improvement ≥10%. Both must pass. NOT a composite score — that would let one threshold cover for the other. |
 | 7 | **Exception list** | Failed writes (Bullhorn 4xx/5xx, FK violations); rate-limit hits; dedup proposals flagged for review (confidence between 0.7-0.85); operator action items |
 | 8 | **Executive summary** | 200-word narrative suitable for forwarding to the tenant's hiring leader; cites top-3 cleanup wins; quantifies time saved (hours of consultant data-entry work avoided) |
 
@@ -67,7 +67,7 @@ Located at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md`. Eight section
 Three write categories. Action types map to `agents/_shared/autosend-policy.yaml` — existing entries are used as-is; new entries are flagged for catalogue addition at W5 build (per `review-agent-bundle.md` §1 row §6 flag-for-addition pattern):
 
 1. **Candidate merge** (`PUT /Candidate/{primary_id}` + cascade) — only when confidence ≥0.85 per Gate A; no merge if either candidate had Bullhorn activity in last 90 days without explicit review flag (per ULTRAPLAN A2 line 510 verbatim). Action type: **`bullhorn_candidate_dedupe`** (existing in autosend-policy.yaml line 69; yellow tier; sample_rate: 10).
-2. **Field backfill** (`PATCH /Candidate/{id}` or `/Client/{id}`) — fills missing canonical schema fields (per `vertical-schema.yaml`): `candidate.location` (line 89), `client.industry` (line 238), `client.size_employees` (line 243), `client.companies_house_number` (line 252), `contractor.day_rate_min/day_rate_max` (lines 193-197), `brief.salary_min/salary_max` (lines 371-376) from Companies House (for clients) or LinkedIn/derivation (for candidates). Sources logged in payload. Action type: **`bullhorn_field_backfill`** (registered in autosend-policy.yaml; yellow tier; sample_rate: 10).
+2. **Field backfill** (`PATCH /Candidate/{id}` or `/Client/{id}`) — fills missing canonical schema fields (per `vertical-schema.yaml`): `candidate.location` (line 124), `client.industry` (line 238), `client.size_employees` (line 243), `client.companies_house_number` (line 252), `contractor.day_rate_min/day_rate_max` (lines 193-197), `brief.salary_min/salary_max` (lines 371-376) from Companies House (for clients) or LinkedIn/derivation (for candidates). Sources logged in payload. Action type: **`bullhorn_field_backfill`** (registered in autosend-policy.yaml; yellow tier; sample_rate: 10).
 3. **Tacit-note attach** (`POST /Note` linked to entity) — narrative summary of consultant edits + decision-log resolutions over the 30-day window. Action type: **`bullhorn_note_attach`** (registered in autosend-policy.yaml; yellow tier; sample_rate: 20).
 
 Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'`, `action_type` per the mapping above, `tier` per autosend-policy.yaml, payload includes source confidence + provenance.
@@ -110,8 +110,8 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
      (vertical-schema.yaml §1)
 
 5. Field completeness audit (canonical field names per vertical-schema.yaml)
-   → for each entity, check critical fields: candidate.location (line 89),
-     client.industry (line 252), client.size_employees (line 243),
+   → for each entity, check critical fields: candidate.location (line 124),
+     client.industry (line 238), client.size_employees (line 243),
      contractor.day_rate_min/day_rate_max (lines 193-197),
      brief.salary_min/salary_max (lines 371-376)
    → identify missing-field rows
@@ -132,9 +132,11 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
      current_company → write back
 
 8. Tacit-note harvest
-   → query decision_log for recent_edit rows in last 30 days for this tenant
-     where resolution='approved_after_edit'
-   → group by target_entity (candidate / contractor / contact / brief / etc.)
+   → query the `recent_edit` v0.2 table directly (per vertical-schema.v0.2-supplement.yaml
+     §1.3): SELECT FROM recent_edit WHERE resolved_at > now() - interval '30 days'
+     AND resolution='approved_after_edit' AND tenant_slug=$tenant
+   → join to decision_log only if action-context lookups needed
+   → group by target_entity_type (candidate / contractor / contact / brief / etc.)
    → for each group, generate narrative summary via voice-classified LLM
      (voice corpus + tone rules; ESC_VOICE_DRIFT if classifier <0.75)
 
@@ -188,11 +190,11 @@ Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint; per Day-
 
 Per ULTRAPLAN A2 line 511 verbatim: **"day-30 before/after report shows ≥15% dedup, ≥10% field completeness improvement"**.
 
-Composite score = (dedup% × 0.5) + (field-completeness% × 0.5). Target ≥12.5.
+Two independent thresholds (both must pass): dedup improvement ≥15% AND field-completeness improvement ≥10%. NOT a composite — composite would let one cover the other.
 
 Gate B doesn't block the agent. The day-30 dedup + field-completeness improvement is Janitor's local Gate B metric per ULTRAPLAN A2 line 511 verbatim. It contributes evidence (alongside other agents' Gate-B metrics) to kill-criterion §2 Trigger 8 (average Gate-B revenue uplift after 3 completed pilots per `v1.0-kill-criterion.md` lines 158-166) — but Janitor does NOT directly claim Trigger 8 status. DSO improvement is Cash Conductor's territory per ULTRAPLAN A4 line 540, not Janitor's.
 
-Below ≥12.5 for 3 consecutive runs → fire `ESC_GATE_B_MISS` → flag for operator review (heuristic tuning may be needed; not a kill).
+Failing either threshold for 3 consecutive runs → fire `ESC_GATE_B_MISS` → flag for operator review (heuristic tuning may be needed; not a kill).
 
 ---
 
@@ -208,7 +210,7 @@ Below ≥12.5 for 3 consecutive runs → fire `ESC_GATE_B_MISS` → flag for ope
 | `ESC_VOICE_DRIFT` (existing, line 120) | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` (existing, line 148) | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` (existing Day-19, line 184) | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
-| `ESC_DUPLICATE_DETECTED` (existing, line 127) | Merge proposal rejected at validate.sh: confidence below threshold OR activity-window block | warn | operator_chat_id |
+| `ESC_DUPLICATE_DETECTED` (existing, line 127) | Per catalogue trigger: dedup confidence ≥0.85 cases requiring human review (NOT used for <0.85 reject cases — those silently drop per Step 3 algorithm) | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` (new — W5 catalogue add) | Composite Gate-B score <12.5 for 3 consecutive runs | warn | operator_chat_id |
 | `ESC_AUTOSEND_YELLOW_SPOT_CHECK` (new — W5 catalogue add; could alternatively map to existing `ESC_AUTOSEND_NEEDS_REVIEW` line 33) | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
