@@ -135,6 +135,8 @@ Two phases:
 
 **Total Round 4 items: 11** (6 Phase 1 + 5 Phase 2). Queue grown 43 → 54 with the Day-9 + Day-11 additions counted.
 
+**Day-19 update:** Initial Round-4 Phase-1 attempt used `review-architecture-decision.md` skill (the only available skill at the time). That returned REJECTED with a load-bearing finding (Issue 5 in `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md`) — agent.md files require a different skill structure. **`review-agent-bundle.md` skill built in commit `825ebd4`.** Re-ratification of all 11 items uses the new skill. The 10 ESC codes / sentinel / Trigger references in agent.md files re-evaluated under the agent-bundle skill criteria (§1-§6 of the skill doc); the pure decision-doc-shape Issue 5 reject is reconsidered per §6 of the skill doc.
+
 **Round-4 disagreement protocol** (per master brief §10 + Day-8 pattern):
 - Codex challenges a master-plan-cited decision → write `docs/decisions/codex-disagreement-YYYY-MM-DD-<topic>.md` per Day-8 pattern; founder arbitrates at next Sunday review
 - Codex flags a citation drift → mechanical fix; re-submit; counts as Round 5 remediation
