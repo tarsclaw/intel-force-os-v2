@@ -39,7 +39,7 @@ ifosctl janitor --tenant <slug> [--dry-run] [--report-only]
 ### v1.1+ surfaces (deferred)
 
 - Brain UI "Run Janitor now" button → triggers via internal API
-- Tenant-admin override for dedup confidence threshold (default 0.85; per-tenant via `tenant_adapters.config.janitor_dedup_threshold`)
+- Tenant-admin override for dedup confidence threshold (default 0.85; per-tenant via `tenant_adapters.config.janitor_dedup_threshold` — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist)
 
 ---
 
@@ -66,7 +66,7 @@ Located at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md`. Eight section
 
 Three write categories. Action types map to `agents/_shared/autosend-policy.yaml` — existing entries are used as-is; new entries are flagged for catalogue addition at W5 build (per `review-agent-bundle.md` §1 row §6 flag-for-addition pattern):
 
-1. **Candidate merge** (`PUT /Candidate/{primary_id}` + cascade) — only when confidence ≥0.85 per Gate A; no merge if either candidate had Bullhorn activity in last 90 days without explicit review flag (per ULTRAPLAN A2 line 510 verbatim). Action type: **`bullhorn_candidate_dedupe`** (existing in autosend-policy.yaml line 69; yellow tier; sample_rate: 10).
+1. **Candidate merge** (`PUT /Candidate/{primary_id}` + cascade) — only when confidence ≥0.85 per Gate A; no merge if either candidate had Bullhorn activity in last 90 days without explicit review flag (per ULTRAPLAN A2 line 510 verbatim). Action type: **`bullhorn_candidate_dedupe`** (registered in `agents/_shared/autosend-policy.yaml` under §YELLOW action_types; yellow tier; sample_rate: 10).
 2. **Field backfill** (`PATCH /Candidate/{id}` or `/Client/{id}`) — fills missing canonical schema fields (per `vertical-schema.yaml`): `candidate.location` (line 124), `client.industry` (line 238), `client.size_employees` (line 243), `client.companies_house_number` (line 252), `contractor.day_rate_min/day_rate_max` (lines 193-197), `brief.salary_min/salary_max` (lines 371-376) from Companies House (for clients) or LinkedIn/derivation (for candidates). Sources logged in payload. Action type: **`bullhorn_field_backfill`** (registered in autosend-policy.yaml; yellow tier; sample_rate: 10).
 3. **Tacit-note attach** (`POST /Note` linked to entity) — narrative summary of consultant edits + decision-log resolutions over the 30-day window. Action type: **`bullhorn_note_attach`** (registered in autosend-policy.yaml; yellow tier; sample_rate: 20).
 
@@ -92,9 +92,9 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 2. Bullhorn entity scan (read-only)
    → enumerate candidates + contractors + clients + contacts + placements +
      opportunities created/modified since last Janitor run (last_run_at in
-     tenant_adapters.config.janitor_last_run)
+     tenant_adapters.config.janitor_last_run — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist)
    → hh_decision_output("janitor_scan", "tenant:<slug>", "<N> entities scanned")
-   → ESC_RATE_LIMIT_HIT if Bullhorn 429 (60s backoff per §1.1.2 of v0.2 supplement)
+   → ESC_RATE_LIMIT_HIT if Bullhorn 429 (60s backoff per ESC_RATE_LIMIT_HIT catalogue §2.5 standard handling)
 
 3. Dedup pass — candidate entity type
    → fuzzy-match across (name, email, phone, linkedin_url) tuples
@@ -184,7 +184,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Janitor's `validat
 - Bullhorn write batch size ≤ 100 per minute (rate-limit defensive)
 - No PII outside firm boundary in tacit-note narratives (regex pass)
 
-Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint; per Day-19 catalogue add at `escalation-codes.md` line 184) OR `ESC_DUPLICATE_DETECTED` (merge-confidence reject; existing line 127) per the failed condition. Draft report stays in `/tmp` (not vault); operator-review required. `ESC_SCHEMA_VIOLATION` (line 163) is NOT used by Janitor — that code is reserved for vertical-schema field-constraint violations at write-time.
+Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint per catalogue §2.5) — applicable to ALL Gate A conditions (per-merge confidence, voice classifier, PII, write-batch size). `ESC_DUPLICATE_DETECTED` (catalogue §2.5) is NOT fired for sub-threshold rejects: per catalogue trigger, that code is for dedup confidence ≥0.85 review-required cases (which is a SUCCESS path, not a Gate A failure). Sub-0.85 confidence pairs silently drop in Step 3 algorithm; no ESC fire. Draft report stays in `/tmp` (not vault); operator-review required. `ESC_SCHEMA_VIOLATION` (catalogue line 163) is NOT used by Janitor — reserved for vertical-schema field-constraint violations at write-time.
 
 ### Gate B — Outcome threshold (success metric, not block)
 
@@ -210,8 +210,8 @@ All codes are registered in `agents/_shared/escalation-codes.md` (catalogue exte
 | `ESC_VOICE_DRIFT` | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
-| `ESC_DUPLICATE_DETECTED` | Per catalogue trigger: dedup confidence ≥0.85 cases requiring human review (NOT used for <0.85 reject cases — those silently drop per Step 3 algorithm) | warn | operator_chat_id |
-| `ESC_GATE_B_MISS` | Either independent Gate-B threshold (dedup <15% OR field-completeness <10%) missed for 3 consecutive runs. NOT a composite — see §5 Gate B for the two-threshold rule. | warn | operator_chat_id |
+| `ESC_DUPLICATE_DETECTED` | Per catalogue §2.5 trigger: dedup confidence ≥0.85 review-required cases (SUCCESS path; Telegram approval gate fires). NOT a Gate A failure code. | warn | operator_chat_id (via Telegram approval gate per catalogue routing) |
+| `ESC_GATE_B_MISS` | Per catalogue §2.10 trigger: per-agent local Gate B metric threshold missed for the per-agent window. For Janitor: dedup-improvement <15% OR field-completeness-improvement <10% (two independent thresholds; missing EITHER triggers; per §5 Gate B). Catalogue routing: operator_chat_id | warn | operator_chat_id |
 | `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
 Janitor does NOT use:
