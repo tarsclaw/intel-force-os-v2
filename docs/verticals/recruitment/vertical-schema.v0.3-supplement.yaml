@@ -5,9 +5,16 @@
 # Author: Founder (Maddox) + Claude Code
 # Predecessor: docs/verticals/recruitment/vertical-schema.v0.2-supplement.yaml
 #
-# Closes Round-8 Cat-β findings (Janitor + Scribe + Cash Conductor + Concierge
-# schema gaps) per docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md
-# Phase 4 Cat-β section.
+# Partially addresses Round-8 Cat-β findings (Janitor + Scribe + Cash Conductor +
+# Concierge schema gaps) per docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md
+# Phase 4 Cat-β section. Closes the v0.3-scoped subset (14 entity JSONB keys + 2
+# auxiliary tables + 3 tenant_adapters.config keys + v0.2 entity-access amendments).
+# Residual Cat-β gaps require either (a) Scribe agent.md consistency-pass to align
+# its §3 narrative with canonical v0.1/v0.2/v0.3 field names (current_role vs
+# current_role_title; start_date_target vs brief.start_date; etc.) OR (b) a follow-on
+# v0.4-supplement that adds the remaining Scribe-referenced fields (seniority,
+# opportunity.sector, current_role_title). v0.4 work is queued for W4-polish slice;
+# v0.3 ratification does not block on it.
 #
 # Companion migrations: migrations/v0.2-to-v0.3.sql + migrations/v0.3-to-v0.2.sql
 #   Both files drafted at commit alongside this supplement.
@@ -305,12 +312,20 @@ agent_access_matrix:
   #
   # SCOPE: This matrix is rectangular across `entities:` entity_types ONLY
   # (candidate, contractor, client, contact, brief, opportunity, placement,
-  # timesheet — 8 v0.1 entity_types). v0.2 voice_corpus / tone_rule /
-  # recent_edit are defined in v0.2 supplement as AUXILIARY POSTGRES TABLES,
-  # NOT entities.data entity_types (see v0.2 supplement §1 "LAYERING
-  # DISCLOSURE"). Per the v0.2 entity-vs-auxiliary layering invariant, those
-  # tables' access lives in `auxiliary_table_access_matrix` below + their
-  # v1_0_agent_access amendments in §2a — NOT in this entity matrix.
+  # timesheet — 8 v0.1 entity_types).
+  #
+  # SCHEMA-LAYERING CORRECTION: The v0.2 supplement uses the YAML key
+  # `entities:` for voice_corpus / voice_corpus_chunks / tone_rule /
+  # recent_edit, but its §1 "LAYERING DISCLOSURE" explicitly states they are
+  # "auxiliary Postgres tables (real CREATE TABLE statements in
+  # migrations/v0.1-to-v0.2.sql), NOT as entity_types in the
+  # entities/entity_links generic primitive layer from Day-4 §6.3." v0.3
+  # adopts this disclosure as the authoritative classification: those four
+  # tables are AUXILIARY, NOT entities. Their access lives in
+  # `auxiliary_table_access_matrix` below + §2a access amendments — NOT in
+  # this entity matrix. The v0.2 YAML key `entities:` is a documentation
+  # convention; this v0.3 supplement reclassifies them as auxiliary per the
+  # v0.2 LAYERING DISCLOSURE intent.
   #
   # ENTITY-LEVEL vs FIELD-LEVEL ACCESS:
   # The matrix below is ENTITY-LEVEL — declares the maximum disposition an
@@ -772,7 +787,7 @@ rationale: |
   Round-8 categorization (disagreement doc Phase 4 Cat-β) identified that
   4-of-5 remaining agent.md scaffolds (Janitor, Scribe, Cash Conductor,
   Concierge) cannot re-ratify until referenced schema fields exist. v0.3
-  adds 14 entity JSONB keys + 2 auxiliary tables + 4 config keys. The
+  adds 14 entity JSONB keys + 2 auxiliary tables + 3 config keys. The
   per_claim_confidence_distribution payload key originally planned for
   v0.3 is DEFERRED to the future W4-polish ADR (per ADR-006 Tier 2 +
   §5 of this supplement); v0.3 is silent on payload schema extensions.
