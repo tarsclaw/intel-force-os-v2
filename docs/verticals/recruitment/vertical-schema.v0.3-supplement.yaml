@@ -312,8 +312,7 @@ agent_access_matrix:
     voice_corpus_chunks: R
     tone_rule: R           # v0.2
     recent_edit: W         # writes its own chase-draft edits for retraining
-    cash_conductor_transactions: R+W  # v0.3 NEW auxiliary table
-    cash_conductor_invoices: R+W      # v0.3 NEW auxiliary table
+    # (auxiliary-table access is documented in auxiliary_table_access_matrix below)
 
   sourcing_scout:
     candidate: R+W         # writes candidate proposals from multi-source aggregation

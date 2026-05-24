@@ -380,7 +380,8 @@ DECLARE
     -- v0.1 + v0.2 keys (forwarded; do not remove)
     'tier_overrides', 'blocked_recipients', 'janitor_dedup_threshold',
     'janitor_last_run',
-    -- autosend-safety-policy.md keys (per §8 + §10 references in that document)
+    'pii_retention_days',  -- v0.2 PII purge runbook key
+    -- autosend-safety-policy.md keys
     'approval_routing', 'approval_timeouts', 'sampling_rates',
     -- v0.3 additions
     'cash_conductor_last_run',
@@ -416,6 +417,27 @@ BEGIN
     END IF;
     IF NOT (c->'concierge_send_window' ? 'timezone') THEN
       RAISE EXCEPTION 'concierge_send_window must include timezone';
+    END IF;
+    IF NOT (c->'concierge_send_window' ? 'weekday_start') OR
+       NOT (c->'concierge_send_window' ? 'weekday_end') THEN
+      RAISE EXCEPTION 'concierge_send_window must include weekday_start + weekday_end';
+    END IF;
+    IF c->'concierge_send_window' ? 'weekend_send_enabled' AND
+       jsonb_typeof(c->'concierge_send_window'->'weekend_send_enabled') != 'boolean' THEN
+      RAISE EXCEPTION 'concierge_send_window.weekend_send_enabled must be boolean';
+    END IF;
+  END IF;
+
+  -- v0.3 timestamp-typed keys
+  IF c ? 'cash_conductor_last_run' THEN
+    IF jsonb_typeof(c->'cash_conductor_last_run') NOT IN ('string', 'null') THEN
+      RAISE EXCEPTION 'cash_conductor_last_run must be ISO-8601 timestamp string or null';
+    END IF;
+  END IF;
+
+  IF c ? 'concierge_last_poll' THEN
+    IF jsonb_typeof(c->'concierge_last_poll') NOT IN ('string', 'null') THEN
+      RAISE EXCEPTION 'concierge_last_poll must be ISO-8601 timestamp string or null';
     END IF;
   END IF;
 
