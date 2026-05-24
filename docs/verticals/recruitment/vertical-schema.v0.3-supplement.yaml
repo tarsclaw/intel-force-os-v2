@@ -737,8 +737,10 @@ rationale: |
   Round-8 categorization (disagreement doc Phase 4 Cat-β) identified that
   4-of-5 remaining agent.md scaffolds (Janitor, Scribe, Cash Conductor,
   Concierge) cannot re-ratify until referenced schema fields exist. v0.3
-  adds 14 entity JSONB keys + 2 auxiliary tables + 4 config keys + 1
-  payload extension, closing those findings.
+  adds 14 entity JSONB keys + 2 auxiliary tables + 4 config keys. The
+  per_claim_confidence_distribution payload key originally planned for
+  v0.3 is DEFERRED to the future W4-polish ADR (per ADR-006 Tier 2 +
+  §5 of this supplement); v0.3 is silent on payload schema extensions.
 
   After v0.3 ratifies + migration applies:
     - Scribe agent.md §3 entity-field table becomes PARTIALLY schema-verifiable:

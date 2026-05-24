@@ -304,13 +304,17 @@ BEGIN
       END IF;
     END IF;
 
-    IF d ? 'week_1_status_note' THEN
-      IF jsonb_typeof(d->'week_1_status_note') NOT IN ('string', 'null') THEN
-        RAISE EXCEPTION 'week_1_status_note must be string or null';
+    IF d ? 'week_1_status_vault_path' THEN
+      IF jsonb_typeof(d->'week_1_status_vault_path') NOT IN ('string', 'null') THEN
+        RAISE EXCEPTION 'week_1_status_vault_path must be string or null';
       END IF;
-      IF d->>'week_1_status_note' IS NOT NULL
-         AND length(d->>'week_1_status_note') > 500 THEN
-        RAISE EXCEPTION 'week_1_status_note exceeds 500 chars (got %)', length(d->>'week_1_status_note');
+      IF d->>'week_1_status_vault_path' IS NOT NULL
+         AND d->>'week_1_status_vault_path' !~ '^/vault/[a-z0-9-]+/scribe-notes/[a-zA-Z0-9-]+\.md$' THEN
+        RAISE EXCEPTION 'week_1_status_vault_path must match vault-path pattern (got %)', d->>'week_1_status_vault_path';
+      END IF;
+      IF d->>'week_1_status_vault_path' IS NOT NULL
+         AND length(d->>'week_1_status_vault_path') > 200 THEN
+        RAISE EXCEPTION 'week_1_status_vault_path exceeds 200 chars';
       END IF;
     END IF;
 
