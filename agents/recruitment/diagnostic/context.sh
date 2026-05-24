@@ -111,9 +111,11 @@ done
 if [[ -n "${TARGET_PATCH_FILE}" ]]; then
   CTX_TARGET_PATCH=$(<"${TARGET_PATCH_FILE}")
 else
+  # shellcheck disable=SC2089,SC2090
   CTX_TARGET_PATCH='{"sectors":[],"size_bands":[],"geographies":[]}'
   printf 'context.sh: no target_patch.json found; ICP fit will degrade to "not computable"\n' >&2
 fi
+# shellcheck disable=SC2090
 export CTX_TARGET_PATCH
 
 # ────────────────────────────────────────────────────────────────────────
