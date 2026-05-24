@@ -108,6 +108,75 @@ Three named outreach paths from `bullhorn-integration-path.md` §1.3 — flips S
 
 ## Shipped
 
+### Day 14-19 (2026-05-24+) — Week 3 polish + 5 agent.md scaffolds (PARTIAL — Steps 1, 3, 6, 8-12 of 14)
+
+Week-3 /goal at `docs/operations/goal-week-3-polish-and-scaffold.md` executing autonomously. **9 of 14 steps shipped; 5 pending founder gates.**
+
+**Completed steps:**
+
+- **Step 1** (`53228d0`) — substrate verification: 57 tests pass (12 web-scraper + 13 companies-house + 3 diagnostic-generator + 20 hook-helpers + 9 voice-loader); shellcheck clean
+- **Step 3** (`662a7c4`) — LinkedIn slug suffix-strip extension; 3 new vitest tests; Hays plc → linkedin.com/company/hays (not /hays-plc/)
+- **Step 6** (`910a3c2`) — Codex Round 4 manifest §1.10 prepared with 11 items (Diagnostic re-ratify + 5 new scaffolds)
+- **Step 8** (`2340e24`) — Janitor agent.md (296 lines) per ULTRAPLAN §8.1 A2 (W5 build wave)
+- **Step 9** (`7730baa`) — Scribe agent.md (336 lines) per ULTRAPLAN §8.1 A3 (W6 build wave)
+- **Step 10** (`d64d1c5`) — Cash Conductor agent.md (377 lines) per ULTRAPLAN §8.1 A4 (W7-8 build wave; Hire #1 anchor)
+- **Step 11** (`1472e04`) — Sourcing Scout agent.md (335 lines) per ULTRAPLAN §8.1 A5 (W9 build wave)
+- **Step 12** (`94485aa`) — Concierge agent.md (387 lines) per ULTRAPLAN §8.1 A6 (W10-13 build wave; XL complexity)
+
+**Pending founder gates:**
+
+- **Step 2** ⏸ — Companies House API key registration (founder self-service; ~15 min); save to `/vault/migration-test/_secrets.env` mode 0600
+- **Step 4** ⏸ — Anthropic API key registration; same `_secrets.env` save protocol; required for LLM-driven §12 conversation opener
+- **Step 5** ⏸ — Re-smoke Hays plc with real CH key + LLM §12 (depends on Steps 2 + 4)
+- **Step 7** ⏸ — Codex Round 4 Phase 1 (Diagnostic-only): founder runs `bash scripts/run-codex-ratification.sh --round 4 --subset diagnostic`
+- **Step 13** ⏸ — Codex Round 4 Phase 2 (full): founder runs `bash scripts/run-codex-ratification.sh --round 4 --full`
+- **Step 14** (partial — this commit) — final state sync + Week-3 close after Steps 7+13 complete
+
+**Master plan alignment:**
+
+All 6 v1.0 agents now have ratified-or-pending-ratification output contracts (master brief §1 Rule 1 satisfied):
+- Diagnostic: ratified Day-13 (commit `97a57a2`); ready for Codex Round 4 Phase 1 re-ratify
+- Janitor / Scribe / Cash Conductor / Sourcing Scout / Concierge: Proposed; ready for Codex Round 4 Phase 2
+
+Per master brief §8.2 + ULTRAPLAN §8.1, each scaffold cites verbatim:
+| Agent | Build wave (master brief) | ULTRAPLAN line range |
+|---|---|---|
+| Diagnostic | W3-4 | A1 lines 487-499 |
+| Janitor | W5 | A2 lines 501-514 |
+| Scribe | W6 | A3 lines 515-527 |
+| Cash Conductor | W7-8 (Hire #1 anchor) | A4 lines 529-542 |
+| Sourcing Scout | W9 | A5 lines 543-555 |
+| Concierge | W10-13 | A6 lines 557-570 |
+
+Drift flags surfaced for Sourcing Scout (master brief W9 vs ULTRAPLAN W8-9) and Concierge (master brief W10-13 = 4w vs ULTRAPLAN W9-10 = 2w). Master brief authoritative per project hierarchy; XL complexity in ULTRAPLAN A6 line 568 corroborates 4-week duration for Concierge.
+
+**Week-4 backlog (per ADR-005 sequencing + agent.md §8 prereq lists):**
+
+Track 1 (Bullhorn-INDEPENDENT — proceeds regardless of A+B response):
+- Cash Conductor MCP connectors (Xero + QuickBooks + Sage + Open Banking)
+- Diagnostic voice classifier microservice
+- Diagnostic LinkedIn deep data (if Proxycurl signed up)
+- ADR-006 source-abstraction layer (per Sourcing Scout §9 Q6)
+
+Track 2 (Bullhorn-GATED — conditional on A+B Accepted):
+- Bullhorn MCP connector (auth + read + write endpoints)
+- Janitor build (depends on Bullhorn R+W)
+- Scribe build (depends on Bullhorn W + Fathom MCP)
+
+**Codex Round 4 ratification queue:** 11 items prepared in manifest §1.10. Phase 1 (6 items) ready when founder runs Step 7; Phase 2 (5 items) ready when founder runs Step 13. Hard ceiling per master brief §10.3 step 5: ≤2 round-trips per artefact (Round 4 + Round 5 max).
+
+**Pending founder actions (consolidated):**
+
+1. **Step 2 (~15 min):** Register Companies House API key at https://developer.company-information.service.gov.uk/; save to `_secrets.env`; reply "CH key saved"
+2. **Step 4 (~5 min):** Register/use Anthropic API key at https://console.anthropic.com/; save to `_secrets.env`; reply "Anthropic key saved"
+3. **Step 7 (~45 min):** Run Codex Round 4 Phase 1 (Diagnostic-only ratification) once Steps 2+4 + my Step 5 re-smoke complete
+4. **Step 13 (~2 hours):** Run Codex Round 4 Phase 2 (full ratification of 5 new scaffolds)
+5. **Founder Decision D1** (autosend orange-tier path) — required before Concierge W10 build slice; recommend D1-B Telegram shim for v1.0 ship per Concierge §9 Q1
+
+**Open Codex disagreements:** None surfaced yet (will manifest at Round 4 if any).
+
+**Trigger 2 status (per `v1.0-kill-criterion.md` §2):** Diagnostic shipped end-to-end Day-13; Codex Round 4 Phase 1 ratification clears Trigger 2 well before 2026-06-14 deadline (currently 21 days buffer).
+
 ### Day 13 (2026-05-24) — Diagnostic end-to-end pipeline live (Option C / ADR-005)
 
 **This is the Week-4 milestone arriving on Day 13 of Week 2.** Per ULTRAPLAN line 753-755: "Diagnostic produces a 12-page audit on a real firm; sales motion has its first artefact." Day-13 v0 delivery satisfies the structural form of this milestone — pending Step 7 real-firm smoke run after founder registers Companies House API key.
