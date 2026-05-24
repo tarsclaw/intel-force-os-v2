@@ -42,7 +42,7 @@ Resolved by cortextOS daemon → spawns Diagnostic in Tier-2 batch mode (no pers
 
 ## §3 — The 12 required sections
 
-Every report MUST contain these 12 sections in order. Gate A enforces section count + per-section citation.
+Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-generator`) emits them in the order listed below. Gate A at v0 enforces (a) ≥12 `##` headings present in the rendered draft AND (b) per-section citation coverage; exact-heading-title-and-order matching is W4 polish (validate.sh §1.3 currently counts `##` headings without exact-title matching, per `validate.sh` lines 89-97 "exact-heading matching not implemented at v0; W4 polish adds title + order check").
 
 | # | Section | What it contains | Source(s) |
 |---|---|---|---|
@@ -150,7 +150,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4 + `docs/decisions/A
 - Section 12 voice classifier score ≥ 0.75. Sample retrieval is via `hh_load_voice_samples` (returns top-N voice corpus chunks); the classifier itself is a separate service called by `validate.sh` via `IFOS_VOICE_CLASSIFIER_URL` per `agents/_shared/voice-loader.sh` design — sample retrieval ≠ classifier scoring. **v0: warns + exit 0 if voice-classifier URL unreachable; W4 polish closes to hard-fail.**
 - Report length 400-2000 words — **v0: hard-fails as specified**
 - No banned phrases per `tone_rule` table (`hh_load_tone_rules` filter) — **v0: hard-fails as specified**
-- No PII (email-domain mismatch) outside the firm boundary (regex pass for emails that don't match `{firm}.com` or known director email patterns) — fires `ESC_PII_LEAKAGE_RISK` immediately on hit when the firm-domain whitelist is available. **v0: warns + exit 0 if firm-domain whitelist absent; W4 polish closes to hard-fail. v0 PII regex covers emails only; phone-number PII detection deferred to W4 polish.**
+- No PII (emails) outside the firm boundary. **v0 behavior:** validate.sh runs a generic email-regex pass and warns on any email found (no firm-domain whitelist implemented in v0; warn-only; exit 0). W4 polish adds the firm-domain whitelist + hard-fail behavior + `ESC_PII_LEAKAGE_RISK` emission. **v0 PII coverage:** emails only via regex; phone-number PII detection + whitelist enforcement deferred to W4 polish.
 
 ### Gate B — Outcome threshold (success metric, not block)
 

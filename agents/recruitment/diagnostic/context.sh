@@ -3,7 +3,7 @@
 #
 # Diagnostic agent — context.sh
 #
-# Status: Proposed (pre-W3-build scaffold; Day-12 author).
+# Status: Proposed (Day-19; voice + tone + recent_edits + target_patch hydration via voice-loader.sh + tone-loader + Postgres).
 # Reading order: agent.md §4 Step 0 (session start) + §7 (voice + tone) first.
 #
 # Purpose: hydrate the agent's session with tenant-scoped context BEFORE

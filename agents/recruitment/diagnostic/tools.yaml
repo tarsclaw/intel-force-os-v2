@@ -1,7 +1,7 @@
 # Diagnostic agent — MCP tool declarations
 #
-# Status: Proposed (pre-W3-build scaffold; Day-11 author, awaits W3-4 build).
-# Author: Claude Code (initial scaffold) + W3 build slice
+# Status: Proposed (Day-19; @ifos/web-scraper + @ifos/companies-house MCP connectors shipped Day 13; LinkedIn via web-scraper page-fetch in v0; Proxycurl deferred to W4 polish).
+# Author: Claude Code (Day 11 initial scaffold + Day 13 connector wiring)
 # Ratifies as part of full bundle via review-agent-bundle.md skill.
 #
 # Reading order: agent.md §3 (12 required sections) + §4 (10-step workflow) +

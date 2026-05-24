@@ -5,7 +5,7 @@
 # hh_decision_action() invocation. Per-tenant overrides live in Postgres
 # tenant_adapters.config.tier_overrides (§8).
 #
-# 43 v1.0 action_types: 15 green + 10 yellow + 10 orange + 8 red.
+# 47 v1.0 action_types: 19 green + 10 yellow + 10 orange + 8 red.
 # Each row carries:
 #   tier            green|yellow|orange|red
 #   agent           v1.0 owning agent (or "all" if cross-cutting red rule)
@@ -23,7 +23,7 @@ version: "v1.0-2026-05-24"
 action_types:
 
   # ───────────────────────────────────────────────────────────
-  # GREEN — auto-send without review (15 action_types)
+  # GREEN — auto-send without review (19 action_types)
   # ───────────────────────────────────────────────────────────
 
   diagnostic_report_render:
@@ -114,6 +114,30 @@ action_types:
     tier: green
     agent: all
     reason: "Internal audit row written by validate.sh when Gate A enforcement fails. Carries the specific ESC code (e.g. ESC_AGENT_OUTPUT_SHAPE | ESC_PII_LEAKAGE_RISK) in the payload; the action itself is just the audit-row write, not an external send. Each agent's validate.sh emits this row before exit 1."
+    irreversible: false
+
+  diagnostic_input_invalid:
+    tier: green
+    agent: diagnostic
+    reason: "Internal audit row written by cycle.sh Step 1 when firm-name validation fails. Carries ESC_INPUT_VALIDATION_FAIL payload; just the audit-row write, not external send."
+    irreversible: false
+
+  diagnostic_generator_empty:
+    tier: green
+    agent: diagnostic
+    reason: "Internal audit row written by cycle.sh when @ifos/diagnostic-generator produces empty stdout. Carries ESC_AGENT_OUTPUT_SHAPE payload."
+    irreversible: false
+
+  linkedin_cache_purge_fail:
+    tier: green
+    agent: all
+    reason: "Internal audit row written by cleanup.sh when the transient LinkedIn /tmp cache cannot be purged (defense-in-depth per LinkedIn ToS gotcha; tools.yaml sets ttl=0 but explicit purge can still fail). Operator must manually verify cache cleared."
+    irreversible: false
+
+  diagnostic_cleanup:
+    tier: green
+    agent: diagnostic
+    reason: "Internal audit row written by cleanup.sh at end of normal-completion run. Records cache-purge status + workspace cleanup; no external comms."
     irreversible: false
 
   # ───────────────────────────────────────────────────────────
@@ -345,4 +369,4 @@ invariants:
   - "orange action_types MUST declare timeout (ISO-8601 duration)"
   - "red action_types MUST declare block_reason"
   - "tenant overrides may only ELEVATE tier (green→yellow→orange→red); red is floor"
-  - "43 total action_types (15 green + 10 yellow + 10 orange + 8 red); v1.0 frozen as of 2026-05-24 bilateral-disposition extension"
+  - "47 total action_types (19 green + 10 yellow + 10 orange + 8 red); v1.0 frozen as of 2026-05-24 bilateral-disposition extension"

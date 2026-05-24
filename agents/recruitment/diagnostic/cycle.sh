@@ -2,7 +2,7 @@
 #
 # Diagnostic agent — cycle.sh (workflow orchestration)
 #
-# Status: Proposed (pre-W3-build scaffold; Day-12 author).
+# Status: Proposed (Day-19; v0 implementation using @ifos/diagnostic-generator + web-scraper + companies-house MCP connectors all wired).
 # Reading order: agent.md §1 (output contract) + §4 (10-step workflow) first.
 #
 # This is the main orchestration loop. Sources context.sh, runs the 10
@@ -26,13 +26,18 @@
 #   2  Invocation error (bad args)
 #   3  Gate A validation failed
 #
-# Build state: SCAFFOLD. MCP connectors not yet wired (Companies House,
-# LinkedIn, web scraper) — those land at W3 start. This script:
-#   - Structures the 10-step flow with proper hook-helpers integration
-#   - Stubs each external call with a clear "W3 BUILD: <what's missing>"
-#     comment + a fail-clean fallback message
-#   - Generates a valid-shape Markdown report that passes V1+V2 even
-#     without real upstream data, useful for fixture-driven testing
+# Build state: v0 PRODUCTION. MCP connectors wired Day 13: @ifos/companies-house
+# (HTTP Basic auth, 7-day cache); @ifos/web-scraper (HEAD + first-N-lines fetch,
+# robots.txt aware, rate-limit aware) for online footprint + LinkedIn page-fetch.
+# Proxycurl deep-data integration deferred to W4 polish per ADR-005.
+# This script:
+#   - Implements the 14-step cycle (per agent.md §4) via a single
+#     @ifos/diagnostic-generator package call that composes all 12 sections
+#   - Emits audit rows at draft + report + render boundaries (not per-section;
+#     per-section telemetry is W4 polish optional per §4)
+#   - Uses validate.sh for Gate A enforcement (per-section citation hard-fail
+#     per ADR-006; voice + PII subchecks warn-only on upstream-unavailable per
+#     §5 honesty note; W4 polish closes those to hard-fail)
 
 set -uo pipefail
 
