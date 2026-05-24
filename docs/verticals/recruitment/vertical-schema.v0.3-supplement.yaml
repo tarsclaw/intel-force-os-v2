@@ -331,12 +331,24 @@ agent_access_matrix:
   #
   # ENTITY-LEVEL vs FIELD-LEVEL ACCESS:
   # The matrix below is ENTITY-LEVEL — declares the maximum disposition an
-  # agent may have on any field of that entity. Per-field access (in §1
-  # entity_field_additions[*].v1_0_agent_access) NARROWS the entity-level
-  # disposition. Example: Scribe.candidate: R+W at entity level; per-field
-  # candidate.employment_type grants Scribe: W (because Scribe doesn't read
-  # employment_type, just writes it). This is intentional — the entity-level
-  # token is the ceiling; field-level may be narrower but never broader.
+  # agent may have on any field of that entity.
+  #
+  # FIELD_ACCESS_NARROWING_RULE (v0.3 explicit scope rule, ratified as part
+  # of this supplement):
+  #   Per-field access (in §1 entity_field_additions[*].v1_0_agent_access)
+  #   NARROWS the entity-level disposition. The entity-level token is the
+  #   CEILING; field-level may be narrower (or absent — implying the agent
+  #   has the entity-level default) but NEVER BROADER than the matrix entry.
+  #   Example: Scribe.candidate: R+W at entity level; per-field
+  #   candidate.employment_type grants Scribe: W (Scribe writes employment_type
+  #   without reading it). Another example: Diagnostic.candidate: R at entity
+  #   level; candidate.linkedin_url has no Diagnostic field entry; Diagnostic
+  #   gets R on linkedin_url (entity-level default), not the broader Sourcing
+  #   Scout R+W. Implementation: cycle.sh + hh_decision_action records which
+  #   agent + which fields were touched in decision_log payload; reviewers
+  #   audit via that trail. v0.3 does NOT enforce this rule at the database
+  #   layer (column-level RLS would be required; v1.1+ work per the
+  #   "documentary not enforced" note above).
   #
   # Validation: the validate_entities_data_v0_3 trigger validates FIELD
   # SHAPE only (type checks, enum membership, length caps, array element
@@ -581,21 +593,21 @@ auxiliary_tables:
       §4 Step 3 + ADR-002 vault/Postgres split.
     sql_definition_in: migrations/v0.2-to-v0.3.sql §2 (migration is authoritative; this section mirrors the SQL columns)
     columns:
-      id: {type: integer, required: true, notes: BIGSERIAL primary key in SQL}
-      tenant_slug: {type: string, required: true, notes: RLS isolation key per Day-4 §6.3}
-      transaction_id: {type: string, required: true, notes: Provider-supplied (TrueLayer / Plaid)}
-      posted_at: {type: timestamp, required: true}
-      amount: {type: number, required: true, notes: NUMERIC(15,2) GBP; negative for outgoing}
-      currency: {type: string, required: true, default: GBP}
-      payee_name_raw: {type: string, required: false, pii: true, retention: Pseudonymized at year 7 per Q4 v0_3_default}
-      description: {type: string, required: false, pii: true, retention: Pseudonymized at year 7 per Q4 v0_3_default}
-      bank_provider: {type: string, required: true, enum: [truelayer, plaid_uk, open_banking_direct]}
-      match_status: {type: string, required: true, enum: [unmatched, matched, ambiguous], default: unmatched}
-      matched_invoice_id: {type: string, required: false, notes: "Logical reference (NOT DB-enforced FK) to cash_conductor_invoices.invoice_id when match_status='matched'; application-layer integrity check"}
-      match_confidence: {type: number, required: false, notes: "range [0.00, 1.00]"}
-      match_dimensions: {type: array, items: {type: string}, required: false}
-      ingested_at: {type: timestamp, required: true, default: now()}
-      raw_payload: {type: object, required: false, pii: true, notes: Full Open Banking response; pseudonymized at year 7}
+      id: {type: integer, required: true, source: IFOS-internal, notes: BIGSERIAL primary key in SQL}
+      tenant_slug: {type: string, required: true, source: IFOS-internal, notes: RLS isolation key per Day-4 §6.3}
+      transaction_id: {type: string, required: true, source: Open Banking provider (TrueLayer / Plaid)}
+      posted_at: {type: timestamp, required: true, source: Open Banking provider}
+      amount: {type: number, required: true, source: Open Banking provider, notes: NUMERIC(15,2) GBP; negative for outgoing}
+      currency: {type: string, required: true, default: GBP, source: Open Banking provider}
+      payee_name_raw: {type: string, required: false, source: Open Banking provider, pii: true, retention: Pseudonymized at year 7 per Q4 v0_3_default}
+      description: {type: string, required: false, source: Open Banking provider, pii: true, retention: Pseudonymized at year 7 per Q4 v0_3_default}
+      bank_provider: {type: string, required: true, enum: [truelayer, plaid_uk, open_banking_direct], source: IFOS-internal (per-tenant config)}
+      match_status: {type: string, required: true, enum: [unmatched, matched, ambiguous], default: unmatched, source: IFOS-derived (Cash Conductor reconciliation algorithm)}
+      matched_invoice_id: {type: string, required: false, source: IFOS-derived, notes: "Logical reference (NOT DB-enforced FK) to cash_conductor_invoices.invoice_id when match_status='matched'; application-layer integrity check"}
+      match_confidence: {type: number, required: false, source: IFOS-derived (Cash Conductor algorithm), notes: "range [0.00, 1.00]"}
+      match_dimensions: {type: array, items: {type: string}, required: false, source: IFOS-derived}
+      ingested_at: {type: timestamp, required: true, default: now(), source: IFOS-internal}
+      raw_payload: {type: object, required: false, source: Open Banking provider, pii: true, notes: Full Open Banking response; pseudonymized at year 7}
     indexes:
       - "(tenant_slug, posted_at DESC)"
       - "(tenant_slug, match_status, posted_at DESC) WHERE match_status IN ('unmatched','ambiguous')"
@@ -617,23 +629,23 @@ auxiliary_tables:
       table pattern as transactions. Per Cash Conductor §4 Step 4.
     sql_definition_in: migrations/v0.2-to-v0.3.sql §3 (migration is authoritative)
     columns:
-      id: {type: integer, required: true}
-      tenant_slug: {type: string, required: true}
-      invoice_id: {type: string, required: true}
-      accounting_provider: {type: string, required: true, enum: [xero, quickbooks, sage]}
-      invoice_number: {type: string, required: false}
-      issued_at: {type: timestamp, required: true}
-      due_at: {type: timestamp, required: true}
-      amount_total: {type: number, required: true, notes: NUMERIC(15,2) GBP}
-      amount_paid: {type: number, required: true, default: 0}
-      currency: {type: string, required: true, default: GBP}
-      status: {type: string, required: true, enum: [open, partial, paid, overdue, cancelled, voided], default: open}
-      client_contact_id: {type: string, required: false, notes: Links to Bullhorn placement.client_contact_id}
-      client_billing_email: {type: string, required: false, pii: true}
-      last_chase_position: {type: integer, required: true, default: 0, notes: 0-4 per Cash Conductor §3.2}
-      last_chase_sent_at: {type: timestamp, required: false}
-      ingested_at: {type: timestamp, required: true, default: now()}
-      raw_payload: {type: object, required: false, pii: true}
+      id: {type: integer, required: true, source: IFOS-internal}
+      tenant_slug: {type: string, required: true, source: IFOS-internal}
+      invoice_id: {type: string, required: true, source: Accounting provider (Xero/QuickBooks/Sage)}
+      accounting_provider: {type: string, required: true, enum: [xero, quickbooks, sage], source: IFOS-internal (per-tenant config)}
+      invoice_number: {type: string, required: false, source: Accounting provider}
+      issued_at: {type: timestamp, required: true, source: Accounting provider}
+      due_at: {type: timestamp, required: true, source: Accounting provider}
+      amount_total: {type: number, required: true, source: Accounting provider, notes: NUMERIC(15,2) GBP}
+      amount_paid: {type: number, required: true, default: 0, source: Accounting provider + IFOS-derived (Cash Conductor reconciliation updates)}
+      currency: {type: string, required: true, default: GBP, source: Accounting provider}
+      status: {type: string, required: true, enum: [open, partial, paid, overdue, cancelled, voided], default: open, source: Accounting provider}
+      client_contact_id: {type: string, required: false, source: IFOS-derived (Cash Conductor links to Bullhorn placement.client_contact_id)}
+      client_billing_email: {type: string, required: false, source: Accounting provider, pii: true}
+      last_chase_position: {type: integer, required: true, default: 0, source: IFOS-derived (Cash Conductor escalation ladder), notes: 0-4 per Cash Conductor §3.2}
+      last_chase_sent_at: {type: timestamp, required: false, source: IFOS-derived}
+      ingested_at: {type: timestamp, required: true, default: now(), source: IFOS-internal}
+      raw_payload: {type: object, required: false, source: Accounting provider, pii: true}
     indexes:
       - "(tenant_slug, due_at)"
       - "(tenant_slug, status, due_at) WHERE status IN ('open','partial','overdue')"
@@ -706,15 +718,6 @@ auxiliary_table_access_matrix:
     cash_conductor: R+W
     sourcing_scout: none
     concierge: none
-  voice_corpus_chunks:
-    # v0.2 auxiliary table holding the pgvector HNSW index over voice corpus chunks
-    # All v1.0 agents that produce voice-classified output need R for ANN-match retrieval
-    diagnostic: R
-    janitor: R
-    scribe: R
-    cash_conductor: R
-    sourcing_scout: R
-    concierge: R
 
 # ============================================================================
 # §4 — tenant_adapters.config new keys (3 keys)
