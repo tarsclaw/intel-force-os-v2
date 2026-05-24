@@ -13,7 +13,7 @@
 --   - JSONB validation trigger updates for entities.data: validate new keys on
 --     candidate, contact, brief, placement, opportunity (14 fields across 5
 --     entity_types)
---   - JSONB validation trigger for tenant_adapters.config: 4 new keys
+--   - JSONB validation trigger for tenant_adapters.config: 3 new keys
 --   - decision_log.payload extension is DEFERRED to a future W4-polish ADR
 --     + schema supplement (per ADR-006 Tier 2 + v0.3 supplement §5). v0.3
 --     does NOT extend the payload shape; the W4 ADR will add both the new
@@ -372,7 +372,7 @@ CREATE TRIGGER validate_entities_data_v0_3
 -- §5 — tenant_adapters.config validation trigger (new keys)
 -- ----------------------------------------------------------------------------
 --
--- v0.3 codifies 4 new config keys agents read. The validation trigger ensures
+-- v0.3 codifies 3 new config keys agents read. The validation trigger ensures
 -- only the documented keys are stored (hard-fail on unknown keys per Rule 2
 -- Schema before code).
 

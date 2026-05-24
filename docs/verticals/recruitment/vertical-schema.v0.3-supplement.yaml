@@ -303,6 +303,15 @@ agent_access_matrix:
 
   # Disposition tokens: R | W | R+W | none
   #
+  # SCOPE: This matrix is rectangular across `entities:` entity_types ONLY
+  # (candidate, contractor, client, contact, brief, opportunity, placement,
+  # timesheet — 8 v0.1 entity_types). v0.2 voice_corpus / tone_rule /
+  # recent_edit are defined in v0.2 supplement as AUXILIARY POSTGRES TABLES,
+  # NOT entities.data entity_types (see v0.2 supplement §1 "LAYERING
+  # DISCLOSURE"). Per the v0.2 entity-vs-auxiliary layering invariant, those
+  # tables' access lives in `auxiliary_table_access_matrix` below + their
+  # v1_0_agent_access amendments in §2a — NOT in this entity matrix.
+  #
   # ENTITY-LEVEL vs FIELD-LEVEL ACCESS:
   # The matrix below is ENTITY-LEVEL — declares the maximum disposition an
   # agent may have on any field of that entity. Per-field access (in §1
@@ -544,7 +553,7 @@ auxiliary_table_access_matrix:
     concierge: R
 
 # ============================================================================
-# §4 — tenant_adapters.config new keys (4 keys)
+# §4 — tenant_adapters.config new keys (3 keys)
 # ============================================================================
 #
 # tenant_adapters.config is JSONB; validation via
@@ -660,7 +669,7 @@ migration_sequence:
       v0.3 keys are validated by the trigger, not via ALTER TABLE.
     5: |
       CREATE OR REPLACE FUNCTION validate_tenant_adapters_config_v0_3() —
-      hard-fails on unknown config keys (Rule 2); type-validates the 4 new
+      hard-fails on unknown config keys (Rule 2); type-validates the 3 new
       v0.3 keys. Trigger attached to tenant_adapters table (migration §5).
     6: |
       Smoke verification DO block confirms both cash_conductor_*

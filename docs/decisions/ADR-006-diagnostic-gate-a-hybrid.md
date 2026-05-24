@@ -116,7 +116,7 @@ This is the explicit in-band amendment Codex `review-architecture-decision` rati
 ### W4-polish slice (after voice-classifier microservice ships + first pilot tenant data accumulates)
 
 - Per-claim spot-check pipeline lands as Tier 2 validate.sh extension
-- Sample rate configurable per tenant via field landing in v0.3 vertical-schema supplement (concrete field name + type specified there, not in this ADR)
+- Sample rate configurable per tenant via field landing in the future W4-polish vertical-schema supplement (concrete field name + type specified there alongside the Tier 2 writer + sampling-activation work; NOT in v0.3 supplement — v0.3 explicitly defers per its §5 `deferred_to_future_adr` block to avoid speculative schema without a current consumer)
 - Aggregate metric writes to `decision_log.payload` via key landing in autosend-safety-policy §7 supplement (concrete key name specified there, not in this ADR)
 - Threshold breach → `ESC_AGENT_OUTPUT_SHAPE` warn (info-only; no block)
 
