@@ -150,4 +150,33 @@ These are not unprincipled compromises — they're the right v0 stance with W4-1
 
 ---
 
-*End of Codex disagreement document (Round-4-v2 update).*
+---
+
+## Janitor Round-5 (remediation) — empirical confirmation of bilateral pattern
+
+After all 6 Round-4-v2 issues remediated on Janitor (commit `2392af8`), Round-5 ratification returned REJECTED with **5 NEW findings** — none of the original 6 reappeared. New issues at Janitor session `20260524T103757Z-37420`:
+
+1. **Autosend tier contradiction internal to artefact:** §1 says all Bullhorn writes yellow-tier; §3.Output 2 mapped tacit-note to `bullhorn_candidate_tag` which is GREEN. Internal §1/§3/§4 inconsistency.
+2. **`bullhorn_field_backfill` unregistered, would fail-safe to red:** my flag-for-addition framing didn't satisfy because `hook-helpers.sh::autosend_policy_lookup` fails to red on unknown action types AT RUNTIME, regardless of flag prose. Real bug requires either (a) policy row added BEFORE ratification, OR (b) explicit "blocked W5 prerequisite" framing not "executable output."
+3. **§5 vs §6 ESC code contradiction:** §5 prose retains `ESC_SCHEMA_VIOLATION` reference even though §6 explicitly says Janitor doesn't use it. Mechanical fix missed by my Round-4-v2 remediation.
+4. **Schema field names STILL wrong:** my Round-4-v2 fix touched `headcount_band → size_employees` but missed `client.legal_name → name`, `registered_office_address` (doesn't exist; canonical is `address` per line 248), `sic_codes` (doesn't exist as canonical field). Schema audit was incomplete.
+5. **Trigger 8 framing — DSO claim:** Trigger 8 is revenue uplift after 3 pilots; DSO improvement is Cash Conductor's metric not Janitor's. My §5 prose conflated the two agents' Gate B narratives.
+
+**Empirical confirmation of the pattern documented in master brief §10.3 step 5:** Codex finds new issues at each round. Hard ceiling of ≤2 round-trips is the right structural protocol. Further autonomous Claude remediation passes will continue surfacing new issues that may not have been visible at earlier rounds (each fix changes the document, exposing different inconsistencies).
+
+This isn't Codex being adversarial — it's doing its job as "second pair of eyes" per top-level SKILL.md. The agent.md drafts I authored have systematic citation-drift + internal-consistency issues that need careful bilateral pass.
+
+## The bilateral session — what it would look like
+
+90-min Sunday founder review:
+1. Founder reads each Codex output log (~10 min per artefact × 6 = 60 min)
+2. Founder + Claude jointly walk through 5-category disposition (above) + per-agent specifics (15 min)
+3. Founder approves: (a) catalogue extensions (escalation-codes + autosend-policy batch additions), (b) schema field corrections, (c) §5/§6/§7 prose standardisation pattern (15 min)
+4. Single Claude execution pass applies all approved corrections to all 6 agent.md files
+5. Single Codex re-ratification round (Round 6) expected RATIFIED for the artefacts where Codex's framing was accepted, with documented disagreements for any artefacts where founder counter-argues
+
+Estimated wall-clock after founder review starts: ~2 hours (founder review + Claude remediation + Codex run).
+
+Without founder bilateral involvement, each autonomous remediation round burns ~30-60 min Claude time + 2-5 min Codex tokens, with low probability of RATIFIED on artefacts that have multiple systemic issues.
+
+*End of Codex disagreement document (Janitor Round-5 confirmation).*
