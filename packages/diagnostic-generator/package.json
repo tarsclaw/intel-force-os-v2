@@ -19,6 +19,7 @@
   "dependencies": {
     "@ifos/web-scraper": "workspace:*",
     "@ifos/companies-house": "workspace:*",
+    "@anthropic-ai/sdk": "^0.30.1",
     "commander": "^12.1.0"
   },
   "devDependencies": {

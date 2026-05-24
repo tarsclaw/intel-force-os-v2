@@ -50,6 +50,15 @@ export async function generateReport(input: GenerateInput): Promise<string> {
     "",
   ].join("\n");
 
+  // §12 is async (LLM call when key set; deterministic fallback otherwise)
+  const conversationOpener = await renderConversationOpener({
+    firmName,
+    firmSignal,
+    painSignals,
+    recentActivity,
+    sectorHint,
+  });
+
   const sections: string[] = [
     renderFirmSignal(firmName, firmSignal),
     renderOnlineFootprint(firmName, onlineFootprint),
@@ -62,13 +71,7 @@ export async function generateReport(input: GenerateInput): Promise<string> {
     renderCompetitorPositioning(firmSignal, firmName),
     renderRecentActivity(firmSignal, firmName, recentActivity),
     renderDecisionMakerMap(firmSignal, firmName),
-    renderConversationOpener({
-      firmName,
-      firmSignal,
-      painSignals,
-      recentActivity,
-      sectorHint,
-    }),
+    conversationOpener,
   ];
 
   return [header, ...sections].join("\n\n").trim() + "\n";
