@@ -243,20 +243,71 @@ entity_field_additions:
 # ============================================================================
 #
 # Per review-schema-change skill §5: full matrix across all v1.0 agents
-# and all v0.1 + v0.2 entities. v0.3 changes:
+# and all v0.1 + v0.2 entities. v0.3 is a CUMULATIVE matrix that includes
+# v0.1 + v0.2 + v0.3 dispositions. Where this matrix differs from
+# vertical-schema.yaml v0.1 §3, the cell is an EXPLICIT v0.3 amendment
+# with a marker comment in-line. Full list of v0.3 amendments:
+#
+# Cells changed from v0.1 baseline:
+#   - Diagnostic client: none → R (reads Companies House data via cached
+#     client entity; sales-tool source-of-truth context — v0.3 amendment)
+#   - Diagnostic contact: none → R (reads §11 decision-maker map context)
+#   - Diagnostic opportunity: none → R (reads prospect-firm opportunity if exists)
+#   - Janitor contact: R → R+W (dedup + field-backfill on contacts; same
+#     pattern as candidate/contractor — v0.3 amendment)
+#   - Janitor opportunity: none → R (reads opportunity context for cleanup)
+#   - Janitor placement: R → R+W (lifecycle-state cleanup writes —
+#     v0.3 amendment)
+#   - Janitor timesheet: none → R (reads for placement-state inference)
 #   - Scribe Contact: none → R+W (writes preferred_channel + next_action_target_date
 #     ONLY; decision_authority remains v0.1-owned by founder/v1.1 Triage)
 #   - Scribe Brief: R → R+W (writes must_haves + nice_to_haves + deal_breakers
 #     ONLY; existing salary_min/max + start_date_target remain Bullhorn-sourced,
 #     R-only for Scribe)
 #   - Scribe Opportunity: none → R+W (writes 3 new prospecting-call fields)
-#   - Janitor recent_edit: + R access (was Concierge/canary/LoRA only)
-#   - Janitor tone_rule: + R access (was Scribe/Cash Conductor/Concierge only)
-# All other access levels carry forward from v0.1 + v0.2.
+#   - Scribe timesheet: none → R (reads for placement-context resolution
+#     on check-in calls)
+#   - Cash Conductor contact: none → R (reads for invoice addressee resolution
+#     — v0.3 amendment)
+#   - Cash Conductor placement: none → R (reads for client linkage on invoice)
+#   - Cash Conductor timesheet: none → R (reads to verify billable hours
+#     match invoiced amounts)
+#   - Sourcing Scout candidate: R → R+W (writes proposed-candidate rows
+#     from multi-source aggregation — v0.3 amendment)
+#   - Sourcing Scout contractor: R → R+W (same; contractor-mode briefs)
+#   - Sourcing Scout opportunity: none → R (reads opportunity context for ICP)
+#   - Concierge candidate: R → R+W (writes lifecycle-state-derived fields +
+#     activity-log links per concierge §4 Step 13-14 — v0.3 amendment)
+#   - Concierge contractor: R → R+W (lifecycle states for contractor placements)
+#   - Concierge opportunity: none → R (reads for outbound lifecycle-event context)
+#   - Concierge placement: R → R+W (writes Bullhorn state advancement per
+#     concierge §4 Step 14 — v0.3 amendment)
+#   - Concierge timesheet: none → R (reads to verify placement-progress for
+#     7d/30d/90d nurture)
+#   - Janitor recent_edit: + R access (was Concierge/canary/LoRA only — v0.2
+#     extended)
+#   - Janitor tone_rule: + R access (was Scribe/Cash Conductor/Concierge only
+#     — v0.2 extended)
+#
+# All other access levels carry forward unchanged from v0.1 + v0.2.
 
 agent_access_matrix:
 
   # Disposition tokens: R | W | R+W | none
+  #
+  # ENTITY-LEVEL vs FIELD-LEVEL ACCESS:
+  # The matrix below is ENTITY-LEVEL — declares the maximum disposition an
+  # agent may have on any field of that entity. Per-field access (in §1
+  # entity_field_additions[*].v1_0_agent_access) NARROWS the entity-level
+  # disposition. Example: Scribe.candidate: R+W at entity level; per-field
+  # candidate.employment_type grants Scribe: W (because Scribe doesn't read
+  # employment_type, just writes it). This is intentional — the entity-level
+  # token is the ceiling; field-level may be narrower but never broader.
+  #
+  # Validation: the validate_entities_data_v0_3 trigger enforces field-level
+  # writes per the per-field constraints; entity-level RLS enforces tenant
+  # isolation. There is no separate field-level permission enforcement layer
+  # in v0.3 (would need column-level RLS or app-level mediation; W4+ work).
 
   diagnostic:
     candidate: R           # reads for outreach context (§11 decision-maker map)

@@ -54,7 +54,7 @@ DROP FUNCTION IF EXISTS validate_entities_data_v0_3();
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'validate_voice_scores') THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'validate_voice_score_fields') THEN
     RAISE EXCEPTION 'v0.2 validate_voice_scores function missing — rollback cannot complete; re-apply v0.1-to-v0.2.sql §4 to restore';
   END IF;
 END $$;
