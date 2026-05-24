@@ -5,7 +5,7 @@
 # hh_decision_action() invocation. Per-tenant overrides live in Postgres
 # tenant_adapters.config.tier_overrides (§8).
 #
-# 42 v1.0 action_types: 14 green + 10 yellow + 10 orange + 8 red.
+# 43 v1.0 action_types: 15 green + 10 yellow + 10 orange + 8 red.
 # Each row carries:
 #   tier            green|yellow|orange|red
 #   agent           v1.0 owning agent (or "all" if cross-cutting red rule)
@@ -23,7 +23,7 @@ version: "v1.0-2026-05-24"
 action_types:
 
   # ───────────────────────────────────────────────────────────
-  # GREEN — auto-send without review (14 action_types)
+  # GREEN — auto-send without review (15 action_types)
   # ───────────────────────────────────────────────────────────
 
   diagnostic_report_render:
@@ -108,6 +108,12 @@ action_types:
     tier: green
     agent: diagnostic
     reason: "Gate B feedback row written when consultant tags a Diagnostic report as booked|not-booked via Telegram (/diagnostic-feedback <report-id> ...) or Brain UI button. agent_name='diagnostic'; phase='action'; payload includes report_id + outcome. Internal-only; no external send."
+    irreversible: false
+
+  validate_gate_a_fail:
+    tier: green
+    agent: all
+    reason: "Internal audit row written by validate.sh when Gate A enforcement fails. Carries the specific ESC code (e.g. ESC_AGENT_OUTPUT_SHAPE | ESC_PII_LEAKAGE_RISK) in the payload; the action itself is just the audit-row write, not an external send. Each agent's validate.sh emits this row before exit 1."
     irreversible: false
 
   # ───────────────────────────────────────────────────────────
@@ -339,4 +345,4 @@ invariants:
   - "orange action_types MUST declare timeout (ISO-8601 duration)"
   - "red action_types MUST declare block_reason"
   - "tenant overrides may only ELEVATE tier (green→yellow→orange→red); red is floor"
-  - "42 total action_types (14 green + 10 yellow + 10 orange + 8 red); v1.0 frozen as of 2026-05-24 bilateral-disposition extension"
+  - "43 total action_types (15 green + 10 yellow + 10 orange + 8 red); v1.0 frozen as of 2026-05-24 bilateral-disposition extension"
