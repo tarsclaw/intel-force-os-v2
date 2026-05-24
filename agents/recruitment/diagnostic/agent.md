@@ -1,6 +1,6 @@
 # Diagnostic — the sales tool
 
-**Status:** Proposed (Day-19; full bundle built — agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures all present. Status flips Proposed → Accepted when ALL of these complete: (a) Codex RATIFIED verdict on this agent.md via review-agent-bundle.md skill, AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds (per ADR-003 §4 + ADR-004 Decision 7 audit row), AND (d) Gate B baseline measurement begins (30% target; 4-week window). See §10 for the same checklist.)
+**Status:** Pre-Build-Round-16-Reviewed (Day-19; full bundle built — agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures all present. 16 Codex review-agent-bundle rounds attempted; ADR-006 closed Cat-1/Cat-ζ Gate A architectural finding (R10); subsequent rounds reduced from 5→5→4→5→5→4→5 mechanical findings with steady-state ~5 findings/round at the cross-reference-sync layer. Per master brief §10.3 step 5: founder-arbitrated Accepted on next bilateral pass OR per documented disagreement. Status flips Proposed → Accepted when ALL: (a) bilateral founder review of remaining mechanical findings, AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds, AND (d) Gate B baseline measurement begins.)
 **Date:** 2026-05-22.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W3-4 per master brief §8.2 line 595 (row 1; anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`. **Drift flag:** Ultraplan §8.1 A1 (line 489) calls Diagnostic build wave 4-5; master brief line 595 calls it W3-4. Master brief is authoritative per CLAUDE.md (master brief wins on every conflict); W3-4 is the build wave for IFOS.
@@ -42,7 +42,7 @@ Resolved by cortextOS daemon → spawns Diagnostic in Tier-2 batch mode (no pers
 
 ## §3 — The 12 required sections
 
-Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-generator`) emits them in the order listed below. Gate A at v0 enforces (a) ≥12 `##` headings present in the rendered draft AND (b) per-section citation coverage; exact-heading-title-and-order matching is W4 polish (validate.sh §1.3 currently counts `##` headings without exact-title matching, per `validate.sh` lines 89-97 "exact-heading matching not implemented at v0; W4 polish adds title + order check").
+Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-generator`) emits them in the order listed below. Gate A at v0 enforces (a) ≥12 `##` headings present in the rendered draft AND (b) per-section citation coverage. v0 validate.sh §1.3 counts `##` headings without enforcing exact section titles or order; exact-heading-title-and-order matching is W4 polish per the comment in `validate.sh` near the section-count check.
 
 **v0 source-coverage state:** Companies House data (§1, §10) is live via `@ifos/companies-house` MCP connector. Web-scraped pages (§2 footprint URLs, §8 careers-page pain signals) are live via `@ifos/web-scraper`. **LinkedIn deep-data sections (§3 job posts, §5 placement timeline, §7 employee skills, §9 competitor employee scan, §11 decision-maker profiles) currently use `@ifos/diagnostic-generator` stub-with-Companies-House-fallback citations** — Proxycurl integration deferred to W4 polish per ADR-005. Each LinkedIn-dependent section still emits ≥1 evidence link (per-section Gate A satisfied) by falling back to Companies House URLs, but the data depth is degraded vs the full-coverage W4 target.
 
@@ -105,8 +105,8 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
    → generator writes complete draft Markdown to /tmp/diagnostic-<firm-slug>-<ISO-date>.draft.md
    → on empty stdout: hh_decision_action("diagnostic_generator_empty", ...) with
      payload {escalation_code: ESC_AGENT_OUTPUT_SHAPE, ...}; exit 1
-   → ESC_RATE_LIMIT_HIT raised internally by web-scraper / companies-house on 429
-   → ESC_VOICE_DRIFT raised internally by §12 LLM step if classifier <0.75 after 3 retries
+   → v0 NOTE: rate-limit catches (429 → ESC_RATE_LIMIT_HIT) and per-section retry logic are NOT implemented at v0 cycle.sh; W4 polish adds 429 catch + retry-with-backoff to cycle.sh. v0 generator throws-and-exits on upstream errors; validate.sh catches Gate A failure downstream.
+   → v0 NOTE: per-§12 LLM voice classifier retry loop is NOT implemented in generator at v0 (§12 stub-via-Companies-House fallback). Voice classification happens at validate.sh V3 (single call to IFOS_VOICE_CLASSIFIER_URL when set; warn + exit 0 when unset/unreachable). W4 polish adds full LLM §12 pipeline with 3-retry classifier loop and explicit ESC_VOICE_DRIFT emission in the generator.
    → hh_decision_output("diagnostic_draft", "<draft_path>", "<firm> 12-section draft (pre-validate)")
 
 12. Validate (Gate A) (cycle.sh Step 12)
@@ -115,8 +115,10 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
    → voice classifier + PII subchecks per §5 honesty note (warn-only on
      upstream-unavailable in v0; W4 closes to hard-fail)
    → on fail: validate.sh emits hh_decision_action("validate_gate_a_fail", ...)
-     with payload carrying specific ESC code (ESC_AGENT_OUTPUT_SHAPE or
-     ESC_PII_LEAKAGE_RISK) and exit 1
+     with payload carrying specific ESC code (ESC_AGENT_OUTPUT_SHAPE for
+     section count / citation / length failures; ESC_VOICE_DRIFT for V3
+     voice-classifier-score-low failures; ESC_PII_LEAKAGE_RISK for PII
+     boundary breaches) and exit 1
    → cycle.sh deletes draft on Gate A fail
 
 13. Atomic vault write + report-render audit row (cycle.sh Step 13)
@@ -235,7 +237,7 @@ Full bundle (all 6 files + 3 fixtures) is built as of Day 19. Production readine
 |---|---|---|
 | Q1 | Is "12 sections" the right number? Ultraplan §8.1 A1 says "12 required sections" but doesn't enumerate. This document proposes a 12-section list (§3); founder may want to revise. | Founder reviews §3 table; can split/merge sections. Lands as Edit in next commit. |
 | Q2 | Should §11 (decision-maker map) be a separate section OR rolled into §3 + §4 + §5 + §7 as a sub-row? Currently named as a separate section. | Founder review at agent.md ratification. |
-| Q3 | Proxycurl vs alternative LinkedIn API surface? Cost + ToS implications. | Resolved at W3 start before Companies House + LinkedIn MCP connectors authored. Founder + Claude decide together. |
+| Q3 | Proxycurl vs alternative LinkedIn API surface? Cost + ToS implications. | v0 (Day 13 ship) skipped Proxycurl: LinkedIn deep-data sections (§3, §5, §7, §9, §11) use Companies House fallback citations per §3 table. W4 polish slice will commercially sign up for Proxycurl OR alternative (PhantomBuster, Bright Data, scraper.api) and wire it in. Cost: ~$39/mo at low volume per Proxycurl pricing. |
 | Q4 | Gate B (30% discovery-call-to-report ratio) measured how? Manual tagging by consultant OR auto-detection via Bullhorn calendar links? | v1.0 manual tagging via Telegram resolution; v1.1 auto-detection. |
 | Q5 | What's the "firm-slug" canonical form for the output filename? Companies House registration number? URL-slugified firm name? | Recommend Companies House number for stability; canonical-slug fallback for non-UK firms (v1.1+). |
 | Q6 | Should §10 (recent activity) include Glassdoor reviews? ToS implications. | Per gotcha §6 below: caution; default OFF for v1.0; explicit founder enable for v1.1+. |
