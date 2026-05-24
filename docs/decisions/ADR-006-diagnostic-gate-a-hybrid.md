@@ -38,30 +38,22 @@ This ADR formalises that disposition as a ratified architectural decision so fut
 
 ## Decision
 
-### Decision 1 — Diagnostic Gate A citation validation is a two-tier policy (per-section v0 hard-fail + per-claim W4 spot-check warn)
+### Decision 1 — Diagnostic Gate A citation validation is per-section coverage ONLY (hard-fail)
 
-### Tier 1 (v0; hard-fail) — per-section citation coverage
+Every one of the 12 sections in the rendered Diagnostic Markdown report MUST contain ≥1 evidence link (markdown link of the form `[label](url)`). Implemented at `agents/recruitment/diagnostic/validate.sh` via regex check per section heading. Hard-fail on miss → `ESC_AGENT_OUTPUT_SHAPE`. **No warn-only paths in Gate A.** This satisfies Rule 4 (Quality gates before features) — Gate A is unambiguously hard-fail; the upstream ULTRAPLAN clause "no claims unsupported by source data" is interpreted as "every section has at least one evidence link", consistent with the implementation.
 
-Every one of the 12 sections in the rendered Diagnostic Markdown report MUST contain ≥1 evidence link (markdown link of the form `[label](url)`). Implemented at `agents/recruitment/diagnostic/validate.sh` via regex check per section heading. Hard-fail on miss → `ESC_AGENT_OUTPUT_SHAPE`.
+### Decision 2 — Per-claim citation validation is a SEPARATE post-launch quality metric (NOT Gate A)
 
-### Tier 2 (W4 polish; warn-only sampling) — per-claim citation spot-check
+The per-claim citation pipeline (NLP claim-extraction + per-claim evidence-link matching + aggregate quality metric) is **explicitly outside Gate A** in v1.0. It lands as:
 
-A statistical sample (1-in-N, configurable per tenant; default 1-in-10) of Diagnostic reports undergo post-render per-claim citation validation:
+- A separate post-launch Diagnostic quality signal — analogous to Gate B's outcome threshold (30% discovery-call conversion) but for citation quality
+- Authored as a separate W4 ADR (e.g. ADR-008 "Diagnostic per-claim citation quality metric") together with the schema supplements that define its payload key + per-tenant config field
+- Sampling-based (1-in-N) post-launch quality monitoring; warn-level; never blocks v0 sends
+- Activates after voice classifier microservice ships + first pilot tenant accumulates ≥30 Diagnostic reports
 
-- NLP claim-extraction (sentence-level)
-- Per-claim evidence-link matching (semantic similarity against cited URLs)
-- Per-claim confidence score
-- Aggregate report quality metric written to `decision_log.payload` (a NEW payload key, name to be specified by the autosend-safety-policy §7 supplement that lands as part of W4-polish — this ADR does NOT name the key; concrete schema work belongs in the supplement, not this ADR)
+**Rule 2 (Schema before code) satisfied:** the schema work for the per-claim quality metric (payload key + per-tenant config field) lands in ADR-008's supplements before any code reads/writes those fields. This ADR-006 does NOT introduce schema fields; it only specifies Gate A as per-section hard-fail.
 
-Below threshold (e.g. <80% of claims with confidence ≥0.6) → warn (not block); operator review queue entry.
-
-The per-tenant sample-rate override is also a NEW config field whose name + type lands with the v0.3 vertical-schema supplement (this ADR does NOT name the field; concrete schema work belongs in the supplement).
-
-**Owner of both schema supplements:** Claude Code. **Trigger:** W4-polish (after Diagnostic v0 first-pilot launch); estimated 2026-06-21 to 2026-06-28. **Sequencing constraint:** Tier 2 sampling MUST NOT activate until BOTH supplements (autosend-safety-policy §7 audit-shape supplement + v0.3 vertical-schema supplement) land AND ratify via Codex. This ADR's Decision 1 stands; Decision 1's Tier 2 mechanism is architecturally specified, but the concrete payload + config-field shapes are downstream schema work outside this ADR's scope.
-
-### W4 polish trigger
-
-When the voice classifier microservice ships + first pilot tenant accumulates ≥30 Diagnostic reports, the per-claim spot-check pipeline activates. Until then, Tier 2 is documented intent only.
+**Rule 4 (Quality gates before features) satisfied:** Gate A is exclusively hard-fail; nothing in Gate A is warn-only. Per-claim quality is a separate signal, not a weakening of Gate A.
 
 ---
 
@@ -73,7 +65,7 @@ When the voice classifier microservice ships + first pilot tenant accumulates �
 
 After this ADR ratifies, the canonical interpretation is:
 
-> **Gate A (per ADR-006):** report contains all 12 required sections; each section has at least 1 evidence link (per-section, Tier 1, hard-fail at v0 — already implemented); "no claims unsupported by source data" is enforced via per-claim citation spot-check sampling (Tier 2, W4 polish, warn-only). See `docs/decisions/ADR-006-diagnostic-gate-a-hybrid.md` for the two-tier framing.
+> **Gate A (per ADR-006):** report contains all 12 required sections; each section has at least 1 evidence link — hard-fail (no warn-only paths). The ULTRAPLAN clause "no claims unsupported by source data" is interpreted at Gate A as "every section has at least one evidence link"; per-claim citation analysis is a SEPARATE post-launch quality metric outside Gate A (see ADR-008 when authored at W4).
 
 **In-band amendment (landed in commit `aed9d3b`):** `docs/specs/ULTRAPLAN.md` line 496 now reads verbatim:
 
