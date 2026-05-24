@@ -1,6 +1,6 @@
 # Sourcing Scout — request-response passive sourcing
 
-**Status:** Proposed (Day-19 pre-W9-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice).
+**Status:** Proposed (2026-05-24 pre-W9-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice + tenant_adapters.config v0.4-supplement adding blocked_recipients + auto_source_on_brief_create).
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W9 per master brief §8.2 line 599 + ULTRAPLAN §8.1 A5 line 545 (master brief says W9; ULTRAPLAN says W8-9; master brief authoritative).
@@ -125,7 +125,11 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
    → per-source auth failure fires the catalogue-specified ESC code with
      its catalogue-specified degraded-mode behavior:
      - ESC_BULLHORN_AUTH (catalogue §2.3): blocking → Sourcing Scout
-       enters degraded mode (skip Bullhorn source; continue with other 3)
+       enters degraded mode per catalogue ("drafts-only, no auto-send" —
+       Sourcing-Scout-specific interpretation: skip Bullhorn source +
+       continue with other 3 sources, since Sourcing Scout has no
+       auto-send path of its own; the "drafts-only" framing maps to
+       "report-only with Bullhorn data omitted from the sourcing set")
      - ESC_LINKEDIN_AUTH (catalogue §2.7): blocking → degraded mode
        (Sourcing Scout: cached LinkedIn search only; live profile fetches
        skipped)
@@ -185,9 +189,14 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 
 8. "Do not contact" filter (pre-outbound sourcing filter; NOT outbound refusal)
    → load tenant DNC list from `tenant_adapters.config.blocked_recipients`
-     (already a registered config key per autosend-policy.yaml red-tier
-     `send_to_blocked_recipient`; canonical Postgres-stored structured
-     state per ADR-002 vault/Postgres split — NOT vault markdown)
+     (concept referenced by autosend-policy.yaml red-tier
+     `send_to_blocked_recipient` action_type + ESC_DNC_FILTER_HIT catalogue
+     §2.10; the actual config-key SCHEMA registration is v0.4-supplement-
+     pending — v0.3 supplement §4 only registers cash_conductor_last_run +
+     concierge_last_poll + concierge_send_window. Production-readiness
+     gate: v0.4 supplement must land before Sourcing Scout's DNC filter
+     path runs against real pilot data. Postgres-backed per ADR-002
+     vault/Postgres split — NOT vault markdown.)
    → remove any candidate matching any DNC identifier from the sourcing list
    → log dropped candidates to exception list in §3 output
    → NOTE: ESC_DNC_FILTER_HIT is catalogue §2.10 reserved for OUTBOUND SEND
@@ -360,7 +369,7 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `825ebd4`): this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
+Per `.codex/ratification/review-agent-bundle.md` skill (built 2026-05-24, commit `825ebd4`): this agent.md ratifies when Codex review-agent-bundle returns RATIFIED verdict.
 
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies
