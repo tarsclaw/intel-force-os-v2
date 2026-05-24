@@ -56,7 +56,7 @@ Located at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md`. Eight section
 | 1 | **Record counts** | Total candidates / contractors / clients / contacts / placements / opportunities before + after this run; deltas per entity type |
 | 2 | **Dedup pairs** | List of duplicate candidate pairs identified this run (confidence ≥0.85 only); for each pair: candidate `bullhorn_id` per vertical-schema.yaml candidate entity, match dimensions (name + email + phone + LinkedIn), confidence score, action taken (merged vs flagged-for-review) |
 | 3 | **Field-completeness deltas** | Per entity-type table: which fields were filled in (e.g., candidate.location, contractor.day_rate); source of the backfill (Companies House lookup, LinkedIn enrichment, derivation from related entities) |
-| 4 | **Tacit-note coverage** | Notes harvested from `decision_log` resolved with `outcome='approved_after_edit'` per master brief §8.1 Change 2; attached to relevant Bullhorn entities; coverage rate over the 30-day window |
+| 4 | **Tacit-note coverage** | Notes harvested from `recent_edit` table rows with `resolution='approved_after_edit'` (per v0.2-supplement.yaml recent_edit definition; v0.3 supplement §2a grants Janitor R access); attached to relevant Bullhorn entities; coverage rate over the 30-day window |
 | 5 | **Agent vs. consultant attribution** | Rows attributed to Janitor automated work vs consultant manual entry; supports the day-30 before/after narrative |
 | 6 | **Gate-B metric** | TWO independent thresholds per ULTRAPLAN A2 line 511 verbatim: dedup improvement ≥15% AND field-completeness improvement ≥10%. Both must pass. NOT a composite score — that would let one threshold cover for the other. |
 | 7 | **Exception list** | Failed writes (Bullhorn 4xx/5xx, FK violations); rate-limit hits; dedup proposals flagged for review (confidence between 0.7-0.85); operator action items |
@@ -133,7 +133,8 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 
 8. Tacit-note harvest
    → query the `recent_edit` v0.2 table directly (per vertical-schema.v0.2-supplement.yaml
-     §1.3): SELECT FROM recent_edit WHERE resolved_at > now() - interval '30 days'
+     recent_edit definition; v0.3 supplement §2a grants Janitor R access):
+     SELECT FROM recent_edit WHERE resolved_at > now() - interval '30 days'
      AND resolution='approved_after_edit' AND tenant_slug=$tenant
    → join to decision_log only if action-context lookups needed
    → group by target_entity_type (candidate / contractor / contact / brief / etc.)
@@ -184,7 +185,13 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Janitor's `validat
 - Bullhorn write batch size ≤ 100 per minute (rate-limit defensive)
 - No PII outside firm boundary in tacit-note narratives (regex pass)
 
-Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint per catalogue §2.5) — applicable to ALL Gate A conditions (per-merge confidence, voice classifier, PII, write-batch size). `ESC_DUPLICATE_DETECTED` (catalogue §2.5) is NOT fired for sub-threshold rejects: per catalogue trigger, that code is for dedup confidence ≥0.85 review-required cases (which is a SUCCESS path, not a Gate A failure). Sub-0.85 confidence pairs silently drop in Step 3 algorithm; no ESC fire. Draft report stays in `/tmp` (not vault); operator-review required. `ESC_SCHEMA_VIOLATION` (catalogue line 163) is NOT used by Janitor — reserved for vertical-schema field-constraint violations at write-time.
+Gate A failure routing by class (per catalogue §2.5):
+- PII detected outside firm boundary → `ESC_PII_LEAKAGE_RISK` (blocking; operator + ifos_oncall per catalogue routing)
+- Tacit-note voice classifier <0.75 → `ESC_VOICE_DRIFT` (warn; operator_chat_id)
+- Tone-rule violations → `ESC_TONE_RULE_VIOLATION` (warn; operator_chat_id per catalogue §2.10)
+- Output-shape failures (section count, write-batch size, dedup confidence below threshold for action) → `ESC_AGENT_OUTPUT_SHAPE` (warn; operator_chat_id)
+
+`ESC_DUPLICATE_DETECTED` (catalogue §2.5) is NOT a Gate A failure code — per catalogue trigger it's for dedup confidence ≥0.85 review-required cases (SUCCESS path; Telegram approval gate). Sub-0.85 confidence pairs silently drop in Step 3 algorithm; no ESC fire. Draft report stays in `/tmp` (not vault); operator-review required. `ESC_SCHEMA_VIOLATION` (catalogue line 163) is NOT used by Janitor — reserved for vertical-schema field-constraint violations at write-time.
 
 ### Gate B — Outcome threshold (success metric, not block)
 
