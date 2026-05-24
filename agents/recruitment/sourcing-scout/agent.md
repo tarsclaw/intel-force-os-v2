@@ -113,35 +113,55 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
    → if brief_id: bullhorn.get_brief(brief_id) → fetch fields
    → if free-text description: LLM parse → extract role / location / sector
      / seniority / day-rate-band / must-haves / nice-to-haves
-   → ESC_BRIEF_UNDERSPECIFIED if extraction yields <3 key dimensions
+   → ESC_BRIEF_AMBIGUITY if extraction yields <3 key dimensions (per
+     escalation-codes.md §2.5 — canonical code for under-resolvable briefs)
+   → hh_decision_output("brief_ingested", "<brief_id_or_slug>",
+     "key_dims:<N>")
 
 2. Multi-source auth refresh
    → bullhorn (read-only); LinkedIn/Proxycurl; Reed; CV-Library
-   → per-source ESC_<SOURCE>_AUTH on refresh failure
-   → if 2+ sources fail auth: ESC_SCHEMA_VIOLATION (abort early; insufficient
-     coverage for Gate A 5-15 candidates)
+   → per-source: ESC_BULLHORN_AUTH | ESC_LINKEDIN_AUTH | ESC_REED_AUTH |
+     ESC_CVLIBRARY_AUTH on refresh failure (all now registered in
+     escalation-codes.md §2.7)
+   → if 2+ sources fail auth: ESC_AGENT_OUTPUT_SHAPE (Sourcing Scout cannot
+     produce its declared output shape — 5-15 candidates aggregated across
+     sources — when 2+ sources are down)
+   → hh_decision_output("auth_refresh_complete", "tenant:<slug>",
+     "sources_ok:<N>/4")
 
 3. Bullhorn passive-match query
-   → bullhorn.search_candidates(filter=brief_key_dimensions, status=passive)
+   → bullhorn.search_candidates(filter=brief_key_dimensions,
+     status='active', last_activity_at < now() - interval '90 days')
+     — "passive" is a derived state (active candidate with no recent
+     activity); NOT a vertical-schema enum value. The schema defines
+     candidate.status as [active, archived, do_not_contact, placed,
+     contractor_promoted]; passive-match queries filter on activity recency
+     within the active set.
    → up to 30 candidates fetched (will rank+filter later)
-   → ESC_RATE_LIMIT_HIT on 429
+   → ESC_RATE_LIMIT_HIT on Bullhorn 429 (payload.upstream='bullhorn')
+   → hh_decision_output("bullhorn_query", "brief:<id>", "results:<N>")
 
 4. LinkedIn search (via Proxycurl)
    → proxycurl.search_people(query=brief_key_dimensions, location=brief_location,
      industry=brief_sector)
    → up to 30 profiles
    → cache 1h per (query, location, sector) tuple
-   → ESC_LINKEDIN_RATE_LIMIT on Proxycurl quota hit
+   → ESC_RATE_LIMIT_HIT on Proxycurl quota hit (payload.upstream='linkedin')
+   → hh_decision_output("linkedin_query", "brief:<id>", "results:<N>")
 
 5. Reed query
    → reed.search_candidates(query=brief_dimensions, location, salary_band)
    → up to 30 candidates
-   → ESC_REED_AUTH on auth fail; ESC_REED_RATE_LIMIT on quota
+   → ESC_REED_AUTH on auth fail; ESC_RATE_LIMIT_HIT on quota
+     (payload.upstream='reed')
+   → hh_decision_output("reed_query", "brief:<id>", "results:<N>")
 
 6. CV-Library query
    → cvlibrary.search_candidates(query, location, salary_band)
    → up to 30 candidates
-   → ESC_CVLIBRARY_AUTH or _RATE_LIMIT
+   → ESC_CVLIBRARY_AUTH on auth fail; ESC_RATE_LIMIT_HIT on quota
+     (payload.upstream='cv-library')
+   → hh_decision_output("cvlibrary_query", "brief:<id>", "results:<N>")
 
 7. Aggregate + dedupe
    → merge all sources into single candidate set
@@ -149,14 +169,18 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
      (LinkedIn URL) — same fuzzy matcher as Janitor (confidence ≥0.85)
    → annotate each row with source provenance (e.g., "from Bullhorn + LinkedIn
      match" if found in both)
+   → hh_decision_output("aggregate_dedupe", "brief:<id>",
+     "pre_dedupe:<N>; post_dedupe:<N>")
 
 8. "Do not contact" filter
    → load tenant /vault/<slug>/do-not-contact.list (one identifier per line:
-     email / phone / LinkedIn URL / Bullhorn CRN)
+     email / phone / LinkedIn URL / Bullhorn bullhorn_id per canonical schema)
    → remove any candidate matching any DNC identifier
    → log dropped candidates to exception list
-   → ESC_DNC_FILTER_HIT if >5 candidates dropped (suggests over-eager
-     search; brief may be poorly scoped)
+   → ESC_DNC_FILTER_HIT per blocked candidate (catalogue line: §2.10 — DNC
+     hit is a blocking outbound refusal; fires per-candidate, not aggregate)
+   → hh_decision_output("dnc_filter", "brief:<id>",
+     "dropped:<N>; kept:<N>")
 
 9. LLM ranking + rationale generation (per candidate)
    → for top 15 by source-aggregated confidence: generate per-candidate
@@ -171,8 +195,10 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
     → ensure each has working contact method (email validated via simple
       regex + domain MX check; phone validated via E.164 format)
     → ensure each rationale ≥50 words
-    → if any condition fails: ESC_SCHEMA_VIOLATION; partial draft to /tmp;
-      abort
+    → if any condition fails: ESC_AGENT_OUTPUT_SHAPE (output-shape violation
+      per catalogue line 184 — distinct from ESC_SCHEMA_VIOLATION which is
+      reserved for vertical-schema field-constraint violations at write time);
+      partial draft to /tmp; abort
     → write Markdown report to vault path per §3
     → hh_decision_output("scout_report", report_path, "N candidates from M sources")
 
@@ -193,14 +219,16 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 Per master brief §8.1 Change 2 + autosend-safety-policy §4. Sourcing Scout's `validate.sh` enforces (per ULTRAPLAN A5 line 553 verbatim):
 
 - **"5–15 candidates returned per brief"** (count within range)
-- **"each has a working contact method"** (email format + MX check OR E.164 phone OR LinkedIn URL OR Bullhorn CRN-with-contact)
+- **"each has a working contact method"** (email format + MX check OR E.164 phone OR LinkedIn URL OR Bullhorn bullhorn_id-with-contact)
 - **"each has rationale ≥ 50 words"**
 - **"no candidate flagged 'do not contact' in tenant vault"** (DNC list scan)
 - All rationales pass voice classifier ≥0.75
 - No PII outside firm boundary in rationale text
 - No source contributed 0 candidates (suggests source auth failure undetected by Step 2)
 
-Gate A failures fire `ESC_SCHEMA_VIOLATION`; draft to `/tmp`; operator review.
+Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape violation per catalogue line 184); draft to `/tmp`; operator review.
+
+**Honesty note (per bilateral-disposition Cat-5):** Sourcing Scout `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W9 build slice. The W9 build delivers `agents/recruitment/sourcing-scout/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
 
 ### Gate B — Outcome threshold (success metric, not block)
 
@@ -208,9 +236,9 @@ Per ULTRAPLAN A5 line 554 verbatim: **"≥6 of 10 candidates advance past first 
 
 Measured via consultant feedback loop: each candidate in a Sourcing Scout report gets a "useful / not useful" tag from the consultant via Brain UI v1.1 OR Telegram reply OR Bullhorn note. Aggregate over rolling 30-day window per tenant.
 
-Below 6-of-10 for 30 consecutive days → `ESC_GATE_B_MISS` → founder + operator review (likely indicates ranking heuristic drift, source-mix imbalance, OR brief-input quality issue).
+Per bilateral-disposition Cat-3: Gate B is a local leading metric for Sourcing Scout quality; NOT mapped to any v1.0 kill-criterion trigger. Below 6-of-10 for 30 consecutive days → `ESC_GATE_B_MISS` → founder + operator review (likely indicates ranking heuristic drift, source-mix imbalance, OR brief-input quality issue).
 
-Shared target with Night Sourcer (v1.1) means: both agents are measured against the same 6-of-10 bar, and the source-abstraction layer (per gotcha §6.4 of ULTRAPLAN A5 line 555) ensures rank+rationale logic is shared not duplicated.
+Shared target with Night Sourcer (v1.1) means: both agents are measured against the same 6-of-10 bar, and the source-abstraction layer (per gotcha of ULTRAPLAN A5 line 555) ensures rank+rationale logic is shared not duplicated.
 
 ---
 
@@ -222,24 +250,22 @@ Sourcing Scout uses these ESC codes from `agents/_shared/escalation-codes.md`:
 |---|---|---|---|
 | `ESC_BULLHORN_AUTH` | Bullhorn OAuth refresh fails | **blocking** (2+ source fails abort) | operator |
 | `ESC_LINKEDIN_AUTH` | Proxycurl API key invalid | warn (single-source fail OK if 2+ others succeed) | operator_chat_id |
-| `ESC_LINKEDIN_RATE_LIMIT` | Proxycurl quota exceeded | warn | operator_chat_id |
 | `ESC_REED_AUTH` | Reed API fail | warn | operator_chat_id |
-| `ESC_REED_RATE_LIMIT` | Reed 429 | warn | operator_chat_id |
 | `ESC_CVLIBRARY_AUTH` | CV-Library API fail | warn | operator_chat_id |
-| `ESC_CVLIBRARY_RATE_LIMIT` | CV-Library 429 | warn | operator_chat_id |
-| `ESC_BRIEF_UNDERSPECIFIED` | LLM brief-parse yields <3 key dimensions | warn | operator_chat_id |
+| `ESC_RATE_LIMIT_HIT` | Any source 429 (payload.upstream identifies which: bullhorn / linkedin / reed / cv-library) | warn | operator_chat_id |
+| `ESC_BRIEF_AMBIGUITY` | LLM brief-parse yields <3 key dimensions (canonical code per catalogue §2.5) | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries | warn | operator_chat_id |
-| `ESC_DNC_FILTER_HIT` | >5 candidates dropped by DNC list | warn | operator_chat_id |
+| `ESC_DNC_FILTER_HIT` | Outbound candidate matches tenant DNC list (per-candidate; blocks the candidate's inclusion) | **blocking** (per-candidate) | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in rationale | **blocking** | operator + ifos_oncall |
-| `ESC_SCHEMA_VIOLATION` | Gate A failure | **blocking** | operator + ifos_oncall |
+| `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | Below 6-of-10 for 30 consecutive days | warn | founder + operator |
-| `ESC_RATE_LIMIT_HIT` | Any source 429 (general) | warn | operator_chat_id |
 
 Sourcing Scout does NOT use:
 
 - `ESC_AUTOSEND_*` — no auto-send actions; pure read + report
 - `ESC_BULLHORN_WRITE_FAIL` — Bullhorn read-only
-- `ESC_VOICE_DRIFT_TENANT` — per-candidate drift detected at run time (above); no separate 30-day tenant drift signal
+- `ESC_SCHEMA_VIOLATION` — reserved for vertical-schema field-constraint violations at write time per catalogue line 163; Sourcing Scout's Gate A misses are output-shape failures (use `ESC_AGENT_OUTPUT_SHAPE`)
+- `ESC_VOICE_DRIFT_TENANT` — fired by the nightly voice-drift cron per catalogue §2.5; Sourcing Scout fires only per-run `ESC_VOICE_DRIFT`, never the aggregate
 
 ---
 
@@ -253,7 +279,7 @@ Step 9 (per-candidate rationale generation) is voice-classified. The agent integ
   - No claims about candidate intent ("looking to leave their role") without evidence in source data
   - No mention of competing agency placements except in risk-flag context
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "candidate sourcing rationale" task context.
-- **`hh_load_recent_edits` last 30 days for `sourcing_scout` agent**: detects consultant edit patterns on rationales. Edit-distance >100 chars on >40% of recent_edit rows fires `ESC_VOICE_DRIFT_TENANT`.
+- **`hh_load_recent_edits` last 30 days for `sourcing_scout` agent**: detects consultant edit patterns on rationales. Per-run `ESC_VOICE_DRIFT` fires when a per-candidate rationale voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Sourcing Scout does NOT fire `_TENANT` directly. Edit-distance metrics are tracked for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Sourcing Scout.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
@@ -316,7 +342,7 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill: this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
+Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `825ebd4`): this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
 
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies

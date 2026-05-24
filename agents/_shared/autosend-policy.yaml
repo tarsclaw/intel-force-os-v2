@@ -5,7 +5,7 @@
 # hh_decision_action() invocation. Per-tenant overrides live in Postgres
 # tenant_adapters.config.tier_overrides (§8).
 #
-# 39 v1.0 action_types: 13 green + 8 yellow + 10 orange + 8 red.
+# 41 v1.0 action_types: 13 green + 10 yellow + 10 orange + 8 red.
 # Each row carries:
 #   tier            green|yellow|orange|red
 #   agent           v1.0 owning agent (or "all" if cross-cutting red rule)
@@ -105,7 +105,7 @@ action_types:
     irreversible: false
 
   # ───────────────────────────────────────────────────────────
-  # YELLOW — auto-send with 1-in-N spot-check (8 action_types)
+  # YELLOW — auto-send with 1-in-N spot-check (10 action_types)
   # ───────────────────────────────────────────────────────────
 
   bullhorn_candidate_dedupe:
@@ -162,6 +162,20 @@ action_types:
     agent: scribe
     sample_rate: 10
     reason: "Scribe writes structured fields (call outcome, next action, sentiment) to Bullhorn placement/candidate; reversible PATCH; high-volume; extraction quality needs ongoing review"
+    irreversible: false
+
+  accounting_reconciliation_write:
+    tier: yellow
+    agent: cash-conductor
+    sample_rate: 10
+    reason: "Cash Conductor writes payment-received reconciliation rows to tenant accounting system (Xero/QuickBooks/Sage). Match-confidence ≥0.85 (Stage 1-2 algorithm) only auto-writes; reversible via accounting undo; high-volume; reconciliation match quality needs ongoing review"
+    irreversible: false
+
+  concierge_email_draft:
+    tier: yellow
+    agent: concierge
+    sample_rate: 20
+    reason: "Concierge drafts customer-facing email per lifecycle event (acknowledgement / prep / debrief / rejection / placement / nurture etc); draft is internal (not yet sent); the actual customer-facing send is a separate orange-tier action_type (gmail_outlook_send_to_candidate or bullhorn_note_customer_visible). Voice-classified at draft time; sample for ongoing quality review"
     irreversible: false
 
   # ───────────────────────────────────────────────────────────
@@ -319,4 +333,4 @@ invariants:
   - "orange action_types MUST declare timeout (ISO-8601 duration)"
   - "red action_types MUST declare block_reason"
   - "tenant overrides may only ELEVATE tier (green→yellow→orange→red); red is floor"
-  - "39 total action_types (13 green + 8 yellow + 10 orange + 8 red); v1.0 frozen as of 2026-05-24 bilateral-disposition extension"
+  - "41 total action_types (13 green + 10 yellow + 10 orange + 8 red); v1.0 frozen as of 2026-05-24 bilateral-disposition extension"

@@ -139,7 +139,9 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
 
 11. Operator notification (optional, per --notify-via flag)
     → if telegram: send via primitive 5 with report path + executive summary (first 200 chars)
-    → if no flag: silent completion (consultant checks vault)
+      → hh_decision_action("operator_notify_telegram", "operator:{chat_id}", payload_hash, payload_preview)
+      → action tier per autosend-policy.yaml: green (operator-only Telegram; no customer-facing comms)
+    → if no flag: silent completion (consultant checks vault) — no decision-log row needed
 
 12. Session close
     → hh_decision_action("diagnostic_report_render", "firm:{slug}", payload_hash, payload_preview)
@@ -153,20 +155,20 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
 
 ### Gate A — validate.sh (hard-fail before action)
 
-Per master brief §8.1 Change 2 + autosend-safety-policy §4. Diagnostic's `validate.sh` enforces:
+Per master brief §8.1 Change 2 + autosend-safety-policy §4. Diagnostic's `validate.sh` enforces the following SPEC. **Honesty note (per bilateral-disposition Cat-5):** the v0 `validate.sh` at `agents/recruitment/diagnostic/validate.sh` implements most of these checks today but warns-only on two upstream-unavailable cases (voice-classifier URL unreachable, firm-domain whitelist absent). Hard-fail behaviour on those two cases is a W4 polish item; current v0 honesty-flags them in `decision_log` payload with `validate_check_skipped=true` instead of hard-failing. The spec below describes the W4-complete contract; the W4 build slice closes the two gaps.
 
-- All 12 sections present in the assembled report (count + heading check)
-- Every section has ≥ 1 markdown link (regex `\[.+\]\(.+\)` per section)
-- Section 12 voice classifier score ≥ 0.75 (`hh_load_voice_samples` returns ANN match + classifier; score computed via tenant's voice classifier per Ultraplan §5.3)
-- Report length 400-2000 words
-- No banned phrases per `tone_rule` table (`hh_load_tone_rules` filter)
-- No PII outside the firm boundary (regex pass for emails/phones that don't match `{firm}.com` or known director email patterns) — fires `ESC_PII_LEAKAGE_RISK` immediately on hit
+- All 12 sections present in the assembled report (count + heading check) — **v0: hard-fails as specified**
+- Every section has ≥ 1 markdown link (regex `\[.+\]\(.+\)` per section) — **v0: hard-fails as specified**
+- Section 12 voice classifier score ≥ 0.75 (`hh_load_voice_samples` returns ANN match + classifier; score computed via tenant's voice classifier per Ultraplan §5.3) — **v0: warns + flags `validate_check_skipped=true` if voice-classifier URL unreachable; W4 polish closes to hard-fail**
+- Report length 400-2000 words — **v0: hard-fails as specified**
+- No banned phrases per `tone_rule` table (`hh_load_tone_rules` filter) — **v0: hard-fails as specified**
+- No PII outside the firm boundary (regex pass for emails/phones that don't match `{firm}.com` or known director email patterns) — fires `ESC_PII_LEAKAGE_RISK` immediately on hit — **v0: warns + flags `validate_check_skipped=true` if firm-domain whitelist absent; W4 polish closes to hard-fail**
 
 ### Gate B — Outcome threshold (success metric, not block)
 
-Per Ultraplan §8.1 A1: ≥ 30% of Diagnostic reports lead to a discovery call booked within 14 days of generation. Measured by consultant feedback loop — Telegram reply `/diagnostic-feedback <report-id> booked|not-booked` (v1.0) or Brain UI button (v1.1). Aggregated as `decision_log` rows with `agent_name='_consultant_feedback'` + `phase='action'`; outcome metric computed by Gate-B rollup query at the weekly review (not stored as a single `decision_log.payload` field).
+Per Ultraplan §8.1 A1: ≥ 30% of Diagnostic reports lead to a discovery call booked within 14 days of generation. Measured by consultant feedback loop — Telegram reply `/diagnostic-feedback <report-id> booked|not-booked` (v1.0) or Brain UI button (v1.1). Aggregated as `decision_log` rows with `agent_name='diagnostic'` + `phase='action'` + `payload.action_type='consultant_feedback'`; outcome metric computed by Gate-B rollup query at the weekly review (not stored as a single `decision_log.payload` field). Sentinel agent_names (`_renderer`, `_tenant_admin`, `_codex_ratifier`) are reserved for system actors — consultant feedback is conceptually Diagnostic's domain (validating Diagnostic's output), so the firing agent_name is `diagnostic` with a payload action_type marker rather than a new sentinel.
 
-Gate B doesn't block the agent. It contributes to v1.0 kill-criterion §2 Trigger 8 ("Gate-B revenue uplift" — Diagnostic's discovery-call conversion is one of three signals feeding Trigger 8, alongside Janitor day-30 reports and Cash Conductor DSO improvement). Below 30% sustained for 4 weeks → revisit Diagnostic's output quality at next Sunday review (not an immediate trigger fire).
+Gate B is a local leading metric for Diagnostic quality; it does NOT feed any v1.0 kill-criterion trigger directly. (Per bilateral-disposition Cat-3 at `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md`: kill-criterion §2 Trigger 8 is revenue uplift after 3 completed pilots, not Diagnostic conversion. A separate agent-specific Trigger 11 may be added in v1.1 if conversion-driven scope cuts become operationally relevant.) Below 30% sustained for 4 weeks → revisit Diagnostic's output quality at next Sunday review.
 
 ---
 
@@ -224,7 +226,7 @@ Diagnostic build cannot start until ALL of the following are confirmed:
 | `validate.sh` Gate A logic (12-section check) | Build at W3 start (~0.5 day) | ⏸ Not built |
 | `context.sh` hydration | Build at W3 start (~0.5 day) | ⏸ Not built |
 | 3 fixtures with golden outputs (01-primary + 02-edge-case-no-online-footprint + 99-voice-drift-canary) | Build at W3 start (~1 day) | ⏸ Not built |
-| Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ⏸ Skill not built yet (lazy per execution plan §3) |
+| Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ✅ Skill built Day 19 (`.codex/ratification/review-agent-bundle.md`) |
 
 **Until ALL ratified items have ⏸ → ✅, W3 build slice does not start.**
 
@@ -257,7 +259,7 @@ Diagnostic build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` (skill not yet built; lazy per execution-plan §3): this agent.md plus the 5 sibling bundle files plus 3 fixtures ratify as a unit at W3 build end.
+Per `.codex/ratification/review-agent-bundle.md` (skill built Day 19; commit `825ebd4`): this agent.md plus the 5 sibling bundle files plus 3 fixtures ratify as a unit at W3 build end.
 
 Status flips to Accepted when:
 - Codex Round-3+ ratifies the full bundle

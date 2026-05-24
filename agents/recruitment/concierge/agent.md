@@ -13,7 +13,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Concierge is the customer-comms agent — it makes sure no candidate is ghosted.** It monitors lifecycle events across the candidate journey in Bullhorn (interview-booked → interview-completed → offer-extended → offer-accepted → placement-confirmed → start-date-confirmed → 7-day-check-in → 30-day-check-in → 90-day-check-in, plus rejection / withdrawal / on-hold branches) and produces customer-facing email drafts (acknowledgement, prep, debrief, rejection, placement, check-ins ×6) at each event. Drafts are orange-tier per `autosend-safety-policy.yaml` — consultant approval required before send via the autosend-bridge mechanism (Founder Decision D1 path A bridge OR D1-B shim OR D1-C manual; W10 design selects). Sends route via tenant's Microsoft Graph OR Gmail (per-tenant config; AgentMail deferred to v1.1+). Gate A hard-fails any draft generated >30 minutes after lifecycle event, any draft with voice classifier <0.75, or any draft with incorrect addressee resolution (per ULTRAPLAN A6 line 566 — "no candidates emailed under another's name"). Gate B success threshold: <5% candidate-ghosted rate + ≥60% send-as-is rate on drafts (per ULTRAPLAN A6 line 567). This is the highest-stakes v1.0 agent — every send is customer-facing; voice quality on rejections is the hardest test case (per ULTRAPLAN A6 line 570 gotcha). XL build complexity (4 weeks) reflects the state-machine surface area + comms-type breadth + cortextOS primitive integration depth.
+> **Concierge is the customer-comms agent — it makes sure no candidate is ghosted.** It monitors lifecycle events across the candidate journey in Bullhorn (interview-booked → interview-completed → offer-extended → offer-accepted → placement-confirmed → start-date-confirmed → 7-day-check-in → 30-day-check-in → 90-day-check-in, plus rejection / withdrawal / on-hold branches) and produces customer-facing email drafts (acknowledgement, prep, debrief, rejection, placement, check-ins ×6) at each event. Each draft is written to vault at `/vault/<tenant>/concierge-drafts/<draft_id>.md` (canonical narrative source per ADR-002 vault/Postgres split); approval routes through the autosend-bridge (Founder Decision D1 path) and on approval the send executes via tenant's Microsoft Graph OR Gmail (per-tenant config; AgentMail deferred to v1.1+). Drafts are yellow-tier `concierge_email_draft` (internal, voice-classified, sample-spot-checked); the customer-facing send is orange-tier (`gmail_outlook_send_to_candidate` or `bullhorn_note_customer_visible` depending on channel per autosend-policy.yaml lines 122-149). Gate A hard-fails any draft with voice classifier below the position-specific threshold (≥0.75 standard / ≥0.82 sensitive) OR any draft with incorrect addressee resolution (per ULTRAPLAN A6 line 566 — "no candidates emailed under another's name"). The 30-minute SLA from lifecycle event to draft is a Gate B leading metric (warning + aggregated; NOT a Gate A hard-fail) per the same ULTRAPLAN line — making it a hard-fail would block legitimate delayed drafts caused by Bullhorn polling fallbacks. Gate B success thresholds: <5% candidate-ghosted rate + ≥60% send-as-is rate on drafts + ≥90% 30-min SLA hit (per ULTRAPLAN A6 line 567). This is the highest-stakes v1.0 agent — every send is customer-facing; voice quality on rejections is the hardest test case (per ULTRAPLAN A6 line 570 gotcha). XL build complexity (4 weeks) reflects the state-machine surface area + comms-type breadth + cortextOS primitive integration depth.
 
 ---
 
@@ -99,9 +99,15 @@ escalation_position: 1-3 (for sensitive sends like rejection)
 expected_send_window: <ISO; respects sending-hours per tenant config>
 ```
 
-Each draft: `decision_log` row with `agent_name='concierge'`, `phase='action'`, `action_type='concierge_draft_<event_type>'`, `tier='orange'`, payload includes voice_score + recipient + escalation_position.
+Each draft: `decision_log` row with `agent_name='concierge'`, `phase='output'`, `action_type='concierge_email_draft'` (registered yellow tier per autosend-policy.yaml), `tier='yellow'`, payload includes `event_type` + `voice_score` + `recipient` + `escalation_position` (event-type is a payload field, not part of action_type — keeps action_type stable across 12 lifecycle events).
 
-The actual SEND happens through the autosend-bridge (D1 path) — consultant approves → send routes through Microsoft Graph / Gmail; Bullhorn activity-log entry written post-send.
+The actual SEND is a separate orange-tier action_type:
+- `gmail_outlook_send_to_candidate` (per autosend-policy.yaml line 130) when channel=email
+- `bullhorn_note_customer_visible` (line 122) when channel=Bullhorn note with isExternal=true
+- `twilio_sms_send` (line 137) when channel=SMS (v1.1+)
+- `calendar_invite_send` (line 144) when event includes calendar attachment
+
+Consultant approves via autosend-bridge (D1 path) → orange-tier send executes → Bullhorn activity-log entry written post-send.
 
 ---
 
@@ -125,21 +131,31 @@ The actual SEND happens through the autosend-bridge (D1 path) — consultant app
    → mode=nurture-sweep: query Bullhorn placements for time-elapsed events
      (7d/30d/90d post-start with no concierge action in last 14d)
    → ESC_LIFECYCLE_STATE_UNKNOWN if state transition not in 12-event taxonomy
+   → hh_decision_output("lifecycle_event_detected",
+     "<entity_type>:<bullhorn_id>", "<from>→<to>")
 
 2. Anti-duplicate guard
-   → query decision_log for prior concierge_draft for same (candidate_id,
-     event_type) in last 24h
-   → if found: skip (avoid re-drafting same event); log info
-   → ensures webhook + poll redundancy doesn't fire double drafts
+   → query decision_log for prior `concierge_email_draft` row for same
+     (candidate_id, payload.event_type) in last 24h with phase IN
+     ('output', 'action') — if a prior draft was emitted AND either sent OR
+     is still pending consultant action, the new event is a duplicate trigger
+   → if found AND send-completed: skip (true duplicate)
+   → if found BUT prior draft never sent (no `gmail_outlook_send_to_candidate`
+     follow-up action row): allow the new draft attempt (per Q7 disposition)
+   → hh_decision_output("anti_duplicate_check", "<entity_type>:<bullhorn_id>",
+     "<duplicate_status>")
 
 3. Bullhorn context fetch
    → bullhorn.get_candidate(candidate_id) → name, current state, comms history
    → bullhorn.get_placement(placement_id) → role, client, dates
    → bullhorn.get_client(client_id) → company name, primary contact
    → bullhorn.get_contact(contact_id) → name, email
-   → ESC_BULLHORN_RATE_LIMIT on 429; ESC_BULLHORN_AUTH on auth fail
+   → ESC_RATE_LIMIT_HIT on Bullhorn 429 (payload.upstream='bullhorn');
+     ESC_BULLHORN_AUTH on auth fail
    → ESC_CANDIDATE_DATA_INCOMPLETE if critical fields missing (no email,
      no name) — draft cannot proceed
+   → hh_decision_output("bullhorn_context_fetched",
+     "candidate:<bullhorn_id>", "fields_present:<N>")
 
 4. Addressee resolution (Gate A critical)
    → recipient = candidate.email OR client_contact.email per event_type
@@ -147,23 +163,30 @@ The actual SEND happens through the autosend-bridge (D1 path) — consultant app
      (NOT another candidate's email — per ULTRAPLAN A6 line 566 verbatim
      "correct addressee resolution; no candidates emailed under another's name")
    → ESC_ADDRESSEE_MISMATCH if check fails (blocking); draft aborted
+   → hh_decision_output("addressee_resolved", "candidate:<bullhorn_id>",
+     "recipient_role:<role>")
 
 5. Comms-template selection
    → tenant comms-template library at /vault/<slug>/concierge-templates/
    → per event_type: select template; per recipient_role: candidate vs client
    → fallback: shared/common-comms-templates.yaml if tenant has no override
+   → hh_decision_output("template_selected", "<event_type>:<recipient_role>",
+     "template_id:<id>")
 
 6. Sensitive-event escalation routing
    → if event_type=rejection (event 6) OR event_type=withdrawal (event 7)
      OR (event_type=on-hold AND placement value >£10k): set escalation_position=3
      (highest voice-classifier bar; mandatory consultant approval per autosend-policy)
    → else: escalation_position=1 (standard orange tier)
+   → hh_decision_output("escalation_position_set", "candidate:<bullhorn_id>",
+     "position:<N>")
 
 7. LLM draft generation
    → prompt = (event context + candidate state history + voice corpus
      ANN-matched on event_type + tone rules filtered for concierge +
      comms-template structure)
    → output = email body + subject + recommended_send_time
+   → write to /vault/<tenant>/concierge-drafts/<draft_id>.md
    → ESC_VOICE_DRIFT if classifier <0.75 after 3 retries
 
 8. Voice + tone validation
@@ -173,18 +196,25 @@ The actual SEND happens through the autosend-bridge (D1 path) — consultant app
      position 2: ≥0.78
      position 3 (rejections / sensitive): ≥0.82
    → tone-rule check (block-severity rules → ESC_TONE_RULE_VIOLATION)
+   → on success: hh_decision_action("concierge_email_draft",
+     "<candidate_bullhorn_id>:<event_type>", payload_hash, payload_preview);
+     tier=yellow per autosend-policy.yaml
 
-9. SLA timing check (Gate A)
+9. SLA timing check (Gate B leading metric — NOT Gate A hard-fail)
    → elapsed = now() - event_timestamp
    → if elapsed > 30 minutes: ESC_CONCIERGE_SLA_MISS (warn; aggregate to Gate B)
    → per ULTRAPLAN A6 line 566 verbatim "every lifecycle event has a draft
-     generated within 30 minutes"
+     generated within 30 minutes" — interpreted as a Gate B leading metric
+     (90% of drafts within 30 min) rather than per-draft hard fail (legitimate
+     polling-fallback delays would otherwise block drafts entirely)
 
 10. PII boundary check
     → no PII from other candidates referenced in body
     → no PII from competitor clients referenced
     → no compensation specifics outside what's already in candidate's record
     → ESC_PII_LEAKAGE_RISK on hit (blocking)
+    → hh_decision_output("pii_check_passed", "candidate:<bullhorn_id>",
+     "result:passed")
 
 11. Autosend-bridge routing (D1 path)
     → per Founder Decision D1 (final selection at W10 design):
@@ -194,22 +224,27 @@ The actual SEND happens through the autosend-bridge (D1 path) — consultant app
     → per autosend-policy.yaml: orange-tier; consultant approves
     → ESC_APPROVAL_BRIDGE_TIMEOUT if no approval within 24h (D1-A/B)
 
-12. (After operator approval) Send execution
+12. (After operator approval) Send execution — orange-tier
     → microsoft-graph.send_email() OR gmail.send_email() per tenant config
     → BCC: tenant's archive address (per tenant config)
+    → hh_decision_action("gmail_outlook_send_to_candidate",
+      "candidate:<bullhorn_id>", payload_hash, payload_preview)
+      [or `bullhorn_note_customer_visible` if channel=Bullhorn-note]
     → ESC_SEND_FAIL on 4xx/5xx; retry once 30s backoff
 
 13. Bullhorn activity-log write
     → bullhorn.create_activity_log(candidate_id, "concierge: <event_type>
       sent at <ISO>")
     → maintains audit trail in Bullhorn itself
+    → hh_decision_output("bullhorn_activity_logged",
+      "candidate:<bullhorn_id>", "event_type:<type>")
 
-14. Lifecycle state advance (Bullhorn write)
+14. Lifecycle state advance (Bullhorn write, conditional)
     → some events trigger Bullhorn state changes (e.g., interview-completed
       sent → advances state to "post-interview" if tenant policy says so)
     → per-tenant policy; opt-in; not all tenants want this
-    → hh_decision_action("concierge_send_complete", candidate_id, payload_hash,
-      "event=<type> elapsed=<seconds>")
+    → hh_decision_action("concierge_send_complete", "candidate:<bullhorn_id>",
+      payload_hash, "event=<type> elapsed=<seconds>")
 
 15. Session close + Gate B metric
     → compute elapsed (event → send) for Gate B SLA tracking
@@ -226,17 +261,20 @@ The actual SEND happens through the autosend-bridge (D1 path) — consultant app
 
 ### Gate A — validate.sh (hard-fail before action)
 
-Per master brief §8.1 Change 2 + autosend-safety-policy §4 + ULTRAPLAN A6 line 566 verbatim:
+Per master brief §8.1 Change 2 + autosend-safety-policy §4 + ULTRAPLAN A6 line 566 (interpreted per bilateral-disposition Cat-5):
 
-- **"every lifecycle event has a draft generated within 30 minutes"** (SLA timing check Step 9)
-- **"voice classifier score ≥ 0.75"** (per position; position-3 sensitive sends ≥0.82)
-- **"correct addressee resolution (no candidates emailed under another's name)"** (Step 4 critical)
-- No tone-rule block-severity violations
-- No PII outside firm boundary
-- Anti-duplicate guard passed (Step 2)
-- All Bullhorn context fields present (no missing candidate name / no missing email)
+- **"voice classifier score ≥ position-specific threshold"** (≥0.75 position 1, ≥0.78 position 2, ≥0.82 position 3) — hard-fail
+- **"correct addressee resolution (no candidates emailed under another's name)"** — hard-fail (Step 4 critical; ESC_ADDRESSEE_MISMATCH)
+- No tone-rule block-severity violations — hard-fail (ESC_TONE_RULE_VIOLATION)
+- No PII outside firm boundary — hard-fail (ESC_PII_LEAKAGE_RISK)
+- Anti-duplicate guard passed (Step 2) — hard-fail (skip if true duplicate)
+- All Bullhorn context fields present (no missing candidate name / no missing email) — hard-fail (ESC_CANDIDATE_DATA_INCOMPLETE)
 
-Gate A failures fire `ESC_SCHEMA_VIOLATION` or `ESC_ADDRESSEE_MISMATCH` or `ESC_TONE_RULE_VIOLATION` (all blocking); draft to `/tmp`; operator notified immediately.
+The 30-minute draft SLA (ULTRAPLAN A6 line 566) is interpreted as a Gate B leading metric (90% target) per §1 framing, NOT a per-draft Gate A hard-fail. Polling-fallback delays would otherwise block legitimate drafts. Per-draft SLA misses fire `ESC_CONCIERGE_SLA_MISS` (warn, aggregated).
+
+Gate A failures fire `ESC_ADDRESSEE_MISMATCH` or `ESC_TONE_RULE_VIOLATION` or `ESC_PII_LEAKAGE_RISK` or `ESC_CANDIDATE_DATA_INCOMPLETE` or `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint when voice threshold misses persistently) — all blocking; draft to `/tmp`; operator notified immediately.
+
+**Honesty note (per bilateral-disposition Cat-5):** Concierge `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W10-13 build slice. The W10-13 build delivers `agents/recruitment/concierge/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
 
 ### Gate B — Outcome thresholds (success metrics, not block)
 
@@ -256,10 +294,10 @@ Concierge uses these ESC codes from `agents/_shared/escalation-codes.md`:
 
 | Code | Trigger | Severity | Routing |
 |---|---|---|---|
-| `ESC_BULLHORN_AUTH` | OAuth refresh fails | **blocking** | operator + ifos_oncall |
-| `ESC_BULLHORN_OAUTH_REVOKED` | 6+ consecutive auth failures | **blocking** | founder + ifos_oncall + tenant-admin |
-| `ESC_BULLHORN_RATE_LIMIT` | 429 from Bullhorn | warn | operator_chat_id |
-| `ESC_MS_GRAPH_AUTH` / `ESC_GMAIL_AUTH` | Email-provider auth fail | **blocking** | operator + ifos_oncall + tenant-admin (token re-auth required) |
+| `ESC_BULLHORN_AUTH` | OAuth refresh fails (payload.failure_type='refresh_failed' or 'revoked_401' covers the 6+ consecutive failure case) | **blocking** | operator + ifos_oncall |
+| `ESC_RATE_LIMIT_HIT` | 429 from Bullhorn or email provider (payload.upstream identifies which) | warn | operator_chat_id |
+| `ESC_MS_GRAPH_AUTH` | Microsoft Graph OAuth fail | **blocking** | operator + ifos_oncall + tenant-admin (token re-auth required) |
+| `ESC_GMAIL_AUTH` | Gmail OAuth fail | **blocking** | operator + ifos_oncall + tenant-admin |
 | `ESC_LIFECYCLE_STATE_UNKNOWN` | Bullhorn state transition not in 12-event taxonomy | warn (handler logs + skips draft) | operator_chat_id |
 | `ESC_CANDIDATE_DATA_INCOMPLETE` | Missing email / name in Bullhorn entity | warn | operator_chat_id |
 | `ESC_ADDRESSEE_MISMATCH` | Step 4 critical — wrong recipient | **blocking** | operator + ifos_oncall |
@@ -269,13 +307,18 @@ Concierge uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_CONCIERGE_SLA_MISS` | Draft >30 min after lifecycle event | warn | (logged; aggregated to Gate B) |
 | `ESC_APPROVAL_BRIDGE_TIMEOUT` | No consultant approval within 24h | warn | operator + tenant-admin |
 | `ESC_SEND_FAIL` | Email provider 4xx/5xx | warn | operator_chat_id |
-| `ESC_AUTOSEND_BLOCKED` | Send attempted on red-tier action OR Gate A failed | **blocking** | operator + ifos_oncall |
+| `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) — distinct from ESC_AUTOSEND_BLOCKED which is for red-tier action attempts only | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | Ghosted-rate >5% OR send-as-is <60% for 30 consecutive days | warn | founder + operator |
-| `ESC_VOICE_DRIFT_TENANT` | Cross-30-day consultant edit-rate >50% | warn | operator + tenant-admin |
-| `ESC_AUTOSEND_ORANGE_PENDING` | Draft awaiting approval (info) | info | (logged) |
-| `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Orange-tier sample row selected for audit | info | operator_chat_id |
+| `ESC_AUTOSEND_ORANGE_PENDING` | Draft awaiting approval (info — heartbeat reminder when ≥50% of timeout elapsed) | info | (logged) |
+| `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow/orange-tier sample row selected for audit | info | operator_chat_id |
 
 Concierge has the largest escalation surface of any v1.0 agent — appropriate for the highest-stakes customer-facing comms.
+
+Concierge does NOT use:
+
+- `ESC_AUTOSEND_BLOCKED` — reserved for red-tier action attempts per catalogue line 41; Concierge has no red-tier actions. Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` instead.
+- `ESC_SCHEMA_VIOLATION` — reserved for vertical-schema field-constraint violations at write time per catalogue line 163; Concierge's Gate A failures are output-shape or addressee-resolution failures.
+- `ESC_VOICE_DRIFT_TENANT` (direct firing) — that's fired by the nightly voice-drift cron per catalogue §2.5; Concierge fires only per-run `ESC_VOICE_DRIFT`.
 
 ---
 
@@ -291,7 +334,7 @@ Steps 7-8 (draft generation + voice/tone validation) are the load-bearing voice 
   - No salary/rate specifics outside what's already on the candidate's record
   - No competing-agency references
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching the specific event_type (e.g., "rejection email" task context surfaces rejection-style samples).
-- **`hh_load_recent_edits` last 30 days for `concierge` agent**: drift signal at tenant level. Edit-distance >150 chars on >40% of recent_edit rows → ESC_VOICE_DRIFT_TENANT → tenant-admin reviews voice corpus + tone rules.
+- **`hh_load_recent_edits` last 30 days for `concierge` agent**: drift signal. Per-run `ESC_VOICE_DRIFT` fires when a draft's voice classifier score is below the position-specific threshold after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Concierge does NOT fire `_TENANT` directly. Edit-distance metrics are tracked for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Concierge.
 
 **Position-specific thresholds:**
 - Position 1 (standard sends — acknowledgement, prep, debrief, nurture): voice ≥0.75
@@ -366,7 +409,7 @@ Concierge build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill: this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
+Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `825ebd4`): this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
 
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies

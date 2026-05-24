@@ -13,7 +13,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Scribe ingests a call transcript from Fathom / Fireflies / Ringover (webhook-triggered within 30 seconds of call end) and produces TWO outputs:** (1) a structured Bullhorn write payload populating ≥3 placement-relevant fields on the appropriate entity (candidate / contractor / contact / brief / opportunity / placement per the call context), and (2) one tacit-note Markdown attachment containing the consultant's "things I'd write down but there's no field for" observations. End-to-end SLA: post-call note in Bullhorn within 10 minutes of webhook receipt per master brief §8.2 line 597. Gate A hard-fails any transcript that doesn't produce ≥3 structured-field extractions AND 1 tacit-note with confidence ≥0.6 (per ULTRAPLAN A3 line 524). Gate B success threshold: 90% of calls processed within 5 minutes; consultant edit-rate on structured fields ≤20% (per ULTRAPLAN A3 line 525). Bullhorn writes are yellow-tier per `autosend-safety-policy.yaml`; tacit-notes are voice-classified (≥0.75 score) per master brief §8.1 Change 1.
+> **Scribe ingests a call transcript from Fathom / Fireflies / Ringover (webhook-triggered within 30 seconds of call end) and produces TWO outputs:** (1) a structured Bullhorn write payload populating ≥3 placement-relevant fields on the appropriate entity (candidate / contractor / contact / brief / opportunity / placement per the call context), and (2) one tacit-note Markdown artefact written to `/vault/<tenant>/scribe-notes/<call_id>-<ISO-date>.md` containing the consultant's "things I'd write down but there's no field for" observations. The tacit-note vault artefact is also mirrored as a Bullhorn `Note` attachment on the resolved entity (consultant-visible in their ATS); the vault copy is the canonical narrative source per ADR-002 vault/Postgres split. End-to-end SLA: post-call note in Bullhorn within 10 minutes of webhook receipt per master brief §8.2 line 597. Gate A hard-fails any transcript that doesn't produce ≥3 structured-field extractions AND 1 tacit-note with confidence ≥0.6 (per ULTRAPLAN A3 line 524). Gate B success threshold: 90% of calls processed within 5 minutes; consultant edit-rate on structured fields ≤20% (per ULTRAPLAN A3 line 525). Bullhorn writes are yellow-tier per `autosend-safety-policy.yaml`; tacit-notes are voice-classified (≥0.75 score) per master brief §8.1 Change 1.
 
 ---
 
@@ -67,17 +67,17 @@ Bullhorn entity inferred from call participants + tenant Bullhorn lookup:
 - Placement check-in (consultant + placed candidate) → Placement entity update
 - Opportunity scoping (consultant + prospect) → Opportunity entity update
 
-Minimum 3 fields extracted per call (Gate A). Typical fields by entity:
+Minimum 3 fields extracted per call (Gate A). Canonical fields by entity (names per `vertical-schema.yaml` v0.1 + v0.2):
 
-| Entity | Likely fields |
+| Entity | Canonical fields (schema-verified) |
 |---|---|
-| Candidate | location, current_role, notice_period, salary_expectation, work_style (perm/contract/hybrid), key_skills_summary |
-| Contact | seniority, decision_authority_level, prefers_comms_via, next_meeting_target |
-| Brief | budget_range, deadline_date, role_type, must_haves, nice_to_haves, deal_breakers, decision_committee |
-| Placement | start_date_confirmation, week_1_status, blockers, satisfaction_signal |
-| Opportunity | sector, headcount_growth_signal, hiring_velocity, decision_window |
+| Candidate | `location`, `current_role_title`, `notice_period_weeks`, `salary_expectation_min` + `salary_expectation_max`, `employment_type` (perm/contract/hybrid), `key_skills` (list) |
+| Contact | `seniority`, `decision_authority` (enum: yes/no/influencer/blocker/unknown per Q5 v0.1), `preferred_channel`, `next_action_target_date` |
+| Brief | `salary_min` + `salary_max`, `start_date`, `role_type`, `must_haves` (list), `nice_to_haves` (list), `deal_breakers` (list) |
+| Placement | `start_date`, `placement_status`, `week_1_status_note` (free-text), `satisfaction_signal` (enum) |
+| Opportunity | `sector`, `headcount_growth_signal_text`, `hiring_velocity_band`, `decision_window_text` |
 
-Per `vertical-schema.yaml` v0.1 + v0.2; field names match canonical schema.
+Field names match canonical schema verbatim; some v0.1 fields (e.g. `headcount_growth_signal_text`, `satisfaction_signal`, `week_1_status_note`) are scheduled for v0.3 supplement at W6 build start — flagged here as pre-build references requiring schema-supplement landing before Scribe references them in `cycle.sh`. The Q1 verification pass (W6 Day 1) audits all field names against the schema as it exists then.
 
 Each write emits one `decision_log` row: `agent_name='scribe'`, `phase='action'`, `action_type='bullhorn_scribe_field_write'`, `tier='yellow'`, payload includes confidence per field + transcript timestamp anchors.
 
@@ -134,8 +134,9 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
 
 1. Webhook signature verification
    → per-provider HMAC / bearer / OAuth check
-   → ESC_SCHEMA_VIOLATION on signature mismatch; reject with 401
+   → ESC_INPUT_VALIDATION_FAIL on signature mismatch; reject with 401
    → record provider + call_id in trigger payload
+   → hh_decision_output("webhook_verified", "call:<id>", "provider:<name>")
 
 2. Bullhorn auth refresh
    → bullhorn.refresh_access_token() per per-agent 8-min refresh loop
@@ -151,8 +152,11 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
    → match transcript participants against Bullhorn contacts + candidates
      + consultant accounts (per tenant config)
    → infer call context (1:1 vs briefing vs placement vs opportunity)
-   → resolve target Bullhorn entity (CRN + entity_type)
-   → ESC_SCHEMA_VIOLATION if no resolvable entity (e.g., unknown phone number)
+   → resolve target Bullhorn entity (bullhorn_id + entity_type per
+     vertical-schema.yaml canonical id field)
+   → ESC_AGENT_OUTPUT_SHAPE if no resolvable entity (output shape violation:
+     a Scribe run with no resolvable target cannot produce structured writes)
+   → hh_decision_output("entity_resolved", "<entity_type>:<bullhorn_id>", confidence)
 
 5. LLM field extraction
    → prompt = (transcript + entity context + vertical-schema entity field list
@@ -160,6 +164,8 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
    → output = JSON with per-field confidence scores
    → discard fields confidence <0.6 (per Gate A)
    → require ≥3 fields with confidence ≥0.6 OR fire ESC_FIELD_EXTRACTION_LOW_CONFIDENCE
+   → hh_decision_output("fields_extracted", "<entity_type>:<bullhorn_id>",
+     "<N> fields ≥0.6 confidence")
 
 6. LLM tacit-note generation
    → prompt = (transcript + 8-category taxonomy + 3 voice-corpus examples
@@ -167,21 +173,27 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
    → output = Markdown narrative per §3 Output 2 shape
    → voice classifier scores against tenant style guide
    → ESC_VOICE_DRIFT if score <0.75 after 3 retries
+   → write to /vault/<tenant>/scribe-notes/<call_id>-<ISO-date>.md
+   → hh_decision_output("tacit_note_rendered", "<vault_path>",
+     "voice_score:<N>; words:<N>")
 
 7. Field-extraction validation against vertical-schema
    → verify each extracted field name exists in target entity schema
    → verify each extracted value passes per-field type/range checks
-   → drop invalid; require ≥3 valid (per Gate A; failure = ESC_SCHEMA_VIOLATION)
+   → drop invalid; require ≥3 valid (per Gate A; failure = ESC_SCHEMA_VIOLATION
+     per catalogue line 163 — vertical-schema field-constraint violation at write time)
 
 8. Bullhorn write — structured fields (yellow tier)
    → PATCH /<EntityType>/<id> with field map
    → atomic transaction; rollback on Bullhorn 4xx/5xx
-   → ESC_BULLHORN_WRITE_FAIL on failure; do NOT proceed to Step 9
+   → on success: hh_decision_action("bullhorn_scribe_field_write",
+     "<entity_type>:<bullhorn_id>", payload_hash, payload_preview)
+   → on failure: ESC_BULLHORN_WRITE_FAIL; do NOT proceed to Step 9
 
 9. Bullhorn write — tacit-note attachment (yellow tier)
-   → POST /Note linked to entity from Step 4
-   → on success: hh_decision_action("bullhorn_scribe_field_write" +
-     "bullhorn_scribe_note_attach", target_entity, payload_hash, payload_preview)
+   → POST /Note linked to entity from Step 4 (mirror of vault artefact from Step 6)
+   → on success: hh_decision_action("bullhorn_note_attach",
+     "<entity_type>:<bullhorn_id>", note_payload_hash, payload_preview)
    → on failure: rollback Step 8 (best-effort PATCH /<EntityType>/<id>
      reversing the field changes); ESC_BULLHORN_WRITE_FAIL
 
@@ -209,7 +221,9 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Scribe's `validate
 - No PII outside firm boundary in tacit-note narrative
 - Bullhorn auth refresh succeeded
 
-Gate A failures fire `ESC_SCHEMA_VIOLATION` or `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE`; transcript stays in `/tmp` (auto-purged 24h); operator notified.
+Gate A failures fire `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE` (extraction quality) or `ESC_AGENT_OUTPUT_SHAPE` (output-shape violation: insufficient fields or no resolvable entity) or `ESC_SCHEMA_VIOLATION` (field-constraint violation at vertical-schema write-time per catalogue line 163); transcript stays in `/tmp` (auto-purged 24h); operator notified.
+
+**Honesty note (per bilateral-disposition Cat-5):** Scribe `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W6 build slice. The W6 build delivers `agents/recruitment/scribe/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
 
 ### Gate B — Outcome thresholds (success metrics, not block)
 
@@ -237,10 +251,12 @@ Scribe uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_VOICE_DRIFT` | Tacit-note voice classifier <0.75 after 3 retries | warn | operator_chat_id |
 | `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE` | <3 fields with confidence ≥0.6 | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in transcript or note | **blocking** | operator + ifos_oncall |
-| `ESC_SCHEMA_VIOLATION` | Webhook signature fail OR vertical-schema validation fail | **blocking** | operator + ifos_oncall |
+| `ESC_INPUT_VALIDATION_FAIL` | Webhook signature mismatch (Step 1) | warn | operator_chat_id |
+| `ESC_AGENT_OUTPUT_SHAPE` | No resolvable target entity (Step 4) — Scribe run cannot produce its declared output shape | warn | operator_chat_id |
+| `ESC_SCHEMA_VIOLATION` | Vertical-schema field-constraint violation at write time (Step 7) per catalogue line 163 | warn | operator_chat_id |
 | `ESC_SCRIBE_SLA_MISS` | Webhook-to-Bullhorn-write >10 min (Gate B miss) | info | (logged; aggregated to Gate B metric) |
 | `ESC_RATE_LIMIT_HIT` | Bullhorn or provider 429 | warn | operator_chat_id |
-| `ESC_AUTOSEND_YELLOW_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
+| `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
 Scribe does NOT use:
 
@@ -258,7 +274,7 @@ Step 6 (tacit-note generation) is the only voice-classified output. The agent in
   - No verbatim quotes longer than 12 words from candidate (paraphrase for privacy)
   - No compensation specifics in tacit notes (those go to structured fields only)
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "internal call summary note" task context.
-- **`hh_load_recent_edits` last 30 days for `scribe` agent**: detects consultant edit patterns. Edit-distance >100 chars on >40% of recent_edit rows fires `ESC_VOICE_DRIFT_TENANT` (separate from per-run drift).
+- **`hh_load_recent_edits` last 30 days for `scribe` agent**: detects consultant edit patterns. Per-run `ESC_VOICE_DRIFT` fires when the tacit-note voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Scribe does NOT fire `_TENANT` directly. Edit-distance metrics are tracked separately for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Scribe.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
@@ -318,7 +334,7 @@ Scribe build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill: this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
+Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `825ebd4`): this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
 
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies

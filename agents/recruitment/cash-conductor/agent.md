@@ -4,7 +4,7 @@
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W7-8 per master brief §8.2 line 598 + ULTRAPLAN §8.1 A4 line 531 (both say W7-8; consistent).
-**Build complexity:** L (2 weeks) per ULTRAPLAN A4 line 541.
+**Build complexity:** L (2 weeks) per ULTRAPLAN A4 line 540.
 **Tier:** Tier 1 (persistent watcher on accounting + bank webhooks + cron sweep) per ULTRAPLAN A4 line 532.
 **Hire #1 anchor:** per master brief §8.2 line 604 — "Cash Conductor at week 7-8 because Hire #1 is assumed to start week 7". First sprint for Hire #1.
 
@@ -14,7 +14,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Cash Conductor produces THREE outputs continuously:** (1) real-time invoice ↔ bank-deposit reconciliation rows written to the tenant's accounting system (Xero / QuickBooks / Sage per tenant config), (2) consultant-approved orange-tier payment-chase email drafts queued to Concierge for send (Concierge handles the actual send; Cash Conductor only drafts), and (3) a weekly cash-flow Markdown report at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md` (generated Monday 06:00 UTC). NO Bullhorn dependency — Cash Conductor operates entirely against the tenant's accounting + Open Banking stack, making it the most-independent v1.0 agent (per ADR-005 §5.1: this independence is its strategic value when Bullhorn paths are delayed). Gate A hard-fails any chase draft that doesn't reference the correct invoice number AND correct amount AND correct contact (per ULTRAPLAN A4 line 539). Gate A also blocks any chase for an invoice paid in last 24 hours (per ULTRAPLAN A4 line 539 verbatim). Gate B success threshold: tenant DSO at month-3 ≥ 12 days lower than month-0 baseline (per ULTRAPLAN A4 line 540) — the FD-tier closer metric. Chase drafts are orange-tier per `autosend-safety-policy.yaml` (consultant approval required before send via Concierge); reconciliation writes are yellow-tier.
+> **Cash Conductor produces THREE outputs continuously:** (1) real-time invoice ↔ bank-deposit reconciliation rows written to the tenant's accounting system (Xero / QuickBooks / Sage per tenant config), (2) consultant-approved orange-tier payment-chase email drafts queued to Concierge for send (Concierge handles the actual send; Cash Conductor only drafts), and (3) a weekly cash-flow Markdown report at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md` (generated Monday 06:00 UTC). NO Bullhorn dependency — Cash Conductor operates entirely against the tenant's accounting + Open Banking stack, making it the most-independent v1.0 agent (per ADR-005 §5.1: this independence is its strategic value when Bullhorn paths are delayed). Gate A hard-fails any chase draft that doesn't reference the correct invoice number AND correct amount AND correct contact (per ULTRAPLAN A4 line 538). Gate A also blocks any chase for an invoice paid in last 24 hours (per ULTRAPLAN A4 line 538 verbatim). Gate B success threshold: tenant DSO at month-3 ≥ 12 days lower than month-0 baseline (per ULTRAPLAN A4 line 539) — the FD-tier closer metric. Chase drafts are orange-tier (`xero_reminder_draft_internal` per `autosend-safety-policy.yaml` line 104; consultant approval required before send via Concierge); reconciliation writes are yellow-tier (`accounting_reconciliation_write` per autosend-policy.yaml; registered as part of 2026-05-24 bilateral catalogue extension).
 
 ---
 
@@ -83,7 +83,7 @@ Per webhook event, Cash Conductor reconciles incoming bank deposits against the 
 
 Stages 1-2 auto-write reconciliation to accounting system (yellow tier; spot-check sampled). Stages 3-4 queue for consultant review. Stage 5 flagged in weekly report.
 
-Each reconciliation write: `decision_log` row with `agent_name='cash_conductor'`, `phase='action'`, `action_type='reconciliation_write'`, `tier='yellow'`, payload includes match confidence + match dimensions.
+Each reconciliation write: `decision_log` row with `agent_name='cash_conductor'`, `phase='action'`, `action_type='accounting_reconciliation_write'`, `tier='yellow'`, payload includes match confidence + match dimensions.
 
 ### Output 2 — Payment-chase drafts (orange tier)
 
@@ -104,7 +104,7 @@ escalation_ladder_position: 1-4 per §3.2 below
 expected_send_window: orange-tier approval expected within 24h
 ```
 
-Each draft: `decision_log` row `agent_name='cash_conductor'`, `phase='output'`, `action_type='chase_draft'`, `tier='orange'`, payload includes the draft.
+Each draft: `decision_log` row `agent_name='cash_conductor'`, `phase='output'`, `action_type='xero_reminder_draft_internal'` (registered yellow tier — but Cash Conductor escalates to orange-tier `xero_reminder_send_customer` for the actual customer-facing send routed via Concierge; this row is the draft itself, not the send), payload includes the draft.
 
 ### §3.2 — Chase escalation ladder
 
@@ -145,7 +145,7 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
 1. Provider auth refresh
    → accounting: Xero/QuickBooks/Sage OAuth refresh per provider
    → Open Banking: TrueLayer/Plaid UK 90-day token refresh (CRITICAL —
-     gotcha §6.1 of ULTRAPLAN A4 line 542); if <30 days until expiry,
+     gotcha per ULTRAPLAN A4 line 541); if <30 days until expiry,
      fire ESC_OPEN_BANKING_TOKEN_AGING (operator must re-authorise)
    → ESC_ACCOUNTING_AUTH or ESC_OPEN_BANKING_AUTH on failure
 
@@ -157,23 +157,34 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
 3. Bank transaction ingest (mode=webhook from Open Banking)
    → fetch latest transactions since last_ingested_at
    → normalise schema (TrueLayer vs Plaid have different formats)
-   → store in /vault/<tenant>/cash-conductor-cache/transactions.jsonl
-     (90-day rolling; chmod 0600; LUKS-encrypted)
+   → store in Postgres table `cash_conductor_transactions` (RLS-isolated per
+     tenant per Day-4 §6.3 + tenancy-invariants T1-T3; W7 build slice creates
+     the table per ADR-002 vault/Postgres split — structured state in Postgres,
+     not vault markdown)
+   → hh_decision_output("transactions_ingested", "tenant:<slug>",
+     "<N> rows since <last_ingested_at>")
 
 4. Invoice register ingest (mode=webhook from accounting OR daily-sweep)
    → accounting.list_open_invoices() per provider
-   → store in /vault/<tenant>/cash-conductor-cache/invoices.jsonl
+   → store in Postgres table `cash_conductor_invoices` (RLS-isolated;
+     W7 build slice creates per ADR-002 vault/Postgres split)
+   → hh_decision_output("invoices_ingested", "tenant:<slug>", "<N> rows")
 
 5. Reconciliation pass (5-stage match algorithm per §3 Output 1)
    → for each transaction × open invoice: compute match confidence
    → write Stage 1-2 matches to accounting (yellow tier) atomically
-   → queue Stage 3-4 matches for consultant review
+   → queue Stage 3-4 matches for consultant review (ESC_RECONCILIATION_AMBIGUOUS
+     per stage)
    → flag Stage 5 (unmatched) in weekly-report exception list
+   → hh_decision_output("reconciliation_pass", "tenant:<slug>",
+     "stage1_2:<N>; stage3_4:<N>; stage5:<N>")
 
 6. Reconciliation write (yellow tier; per match)
    → accounting.write_payment_received(invoice_id, payment_id, amount, date)
    → atomic transaction; rollback on 4xx/5xx
-   → ESC_ACCOUNTING_WRITE_FAIL on failure
+   → on success: hh_decision_action("accounting_reconciliation_write",
+     "invoice:<id>", payload_hash, payload_preview)
+   → on failure: ESC_ACCOUNTING_WRITE_FAIL
    → spot-check sampling per autosend-safety-policy.yaml yellow tier
 
 7. Chase generation pass (for overdue, unmatched invoices)
@@ -196,15 +207,22 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
    → verify: amount_due cited matches accounting record
    → verify: client_contact_email matches active billing contact
    → verify: NOT paid in last 24h (re-query accounting)
-   → ESC_SCHEMA_VIOLATION on any miss
-   → ESC_AUTOSEND_BLOCKED if chase proposed for paid invoice (defence-in-depth)
+   → ESC_AGENT_OUTPUT_SHAPE on any miss (output-shape violation: chase cannot
+     conform to its Gate A contract — invoice/amount/contact mismatch OR paid-
+     invoice precondition violated). `ESC_AUTOSEND_BLOCKED` is reserved for
+     red-tier action attempts per catalogue line 41; Cash Conductor's chase
+     pipeline is orange-tier, so a Gate A miss is output-shape failure, not
+     red-tier block.
+   → hh_decision_output("chase_draft_validated", invoice_id, "passed")
 
 10. Chase-draft queue to Concierge (orange tier)
     → POST internal API → Concierge agent receives draft
     → Concierge handles autosend-bridge call to operator (D1 path per
       Founder Decision)
-    → hh_decision_output("chase_draft", invoice_id, payload_preview);
-      tier=orange; awaiting operator approval
+    → hh_decision_action("xero_reminder_draft_internal", "invoice:<id>",
+      payload_hash, payload_preview); tier=yellow internal-draft; the
+      customer-facing send (orange tier) happens in Concierge as
+      `xero_reminder_send_customer` after operator approval
 
 11. (Operator approves via Concierge → Concierge sends → Cash Conductor
     records send event)
@@ -216,13 +234,16 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
     → re-run Step 5 to check if any chases-in-flight should be cancelled
       (paid-since-draft-but-before-send race condition)
     → if so: ESC_AUTOSEND_RACE → cancel chase draft (do NOT send)
+    → hh_decision_output("chase_cancellation_check", "invoice:<id>",
+      "cancelled:<bool>")
 
 13. Weekly report assembly (mode=weekly-report; runs Monday 06:00 UTC)
     → query decision_log + accounting + bank feed for the 7-day window
     → compute DSO metric (Gate B tracking)
     → 6-section Markdown report per §3 Output 3
     → write to /vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md
-    → hh_decision_output("weekly_report", report_path)
+    → hh_decision_output("weekly_report", report_path,
+      "dso_delta_days:<N>; sections:6")
 
 14. Session close
     → update tenant_adapters.config.cash_conductor_last_run = now()
@@ -237,7 +258,7 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
 
 ### Gate A — validate.sh (hard-fail before action)
 
-Per master brief §8.1 Change 2 + autosend-safety-policy §4. Cash Conductor's `validate.sh` enforces (per ULTRAPLAN A4 line 539 verbatim):
+Per master brief §8.1 Change 2 + autosend-safety-policy §4. Cash Conductor's `validate.sh` enforces (per ULTRAPLAN A4 line 538 verbatim):
 
 - **"chase email references correct invoice number AND correct amount AND correct contact"** (all three; AND not OR)
 - **"never proposes chase for an invoice that's been paid in last 24h"** (defence-in-depth re-query at draft time)
@@ -247,17 +268,19 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Cash Conductor's `
 - Open Banking token >30 days from expiry (otherwise warn)
 - Accounting auth refresh succeeded in Step 1
 
-Gate A failures fire `ESC_SCHEMA_VIOLATION` or `ESC_AUTOSEND_BLOCKED`; draft stays in `/tmp` (auto-purged 24h); operator notified.
+Gate A failures fire `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint: chase cannot meet its Gate A contract); draft stays in `/tmp` (auto-purged 24h); operator notified.
+
+**Honesty note (per bilateral-disposition Cat-5):** Cash Conductor `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W7 build slice. The W7 build delivers `agents/recruitment/cash-conductor/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
 
 ### Gate B — Outcome threshold (FD-tier closer metric)
 
-Per ULTRAPLAN A4 line 540 verbatim: **"tenant DSO at month-3 ≥ 12 days lower than month-0 baseline"**.
+Per ULTRAPLAN A4 line 539 verbatim: **"tenant DSO at month-3 ≥ 12 days lower than month-0 baseline"**.
 
 DSO = Days Sales Outstanding = (Accounts Receivable / Total Credit Sales) × Number of Days.
 
 Measured monthly via the weekly report's §2 trend. Month-0 baseline established at first pilot LOI signing (before Cash Conductor active). Month-3 target = month-0 minus 12 days.
 
-This is THE FD-tier closer metric per master brief §8.2 line 597. Below ≥12 days improvement for 2 consecutive months → `ESC_GATE_B_MISS` → founder + operator review (likely indicates heuristic tuning, escalation-ladder timing, OR tenant-specific late-payment patterns we haven't modelled).
+This is THE FD-tier closer metric per master brief §8.2 line 597 — a local leading metric for Cash Conductor quality. Per bilateral-disposition Cat-3: Cash Conductor's DSO improvement is NOT directly mapped to a v1.0 kill-criterion trigger; it's tracked as a local Gate B signal. Below ≥12 days improvement for 2 consecutive months → `ESC_GATE_B_MISS` → founder + operator review (likely indicates heuristic tuning, escalation-ladder timing, OR tenant-specific late-payment patterns we haven't modelled).
 
 ---
 
@@ -272,17 +295,20 @@ Cash Conductor uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_OPEN_BANKING_AUTH` | TrueLayer/Plaid UK auth fails after 2 retries | **blocking** | operator + ifos_oncall |
 | `ESC_OPEN_BANKING_TOKEN_AGING` | Open Banking token <30 days from 90-day expiry | warn (info if <60 days; warn if <30; blocking if <7) | operator_chat_id → ifos_oncall as expiry nears |
 | `ESC_RECONCILIATION_AMBIGUOUS` | Stage 3-4 match queued for review | info | (logged; aggregated to weekly report exception list) |
-| `ESC_AUTOSEND_BLOCKED` | Chase proposed for paid invoice OR race condition detected | **blocking** | operator + ifos_oncall |
 | `ESC_AUTOSEND_RACE` | Payment received between chase-draft and chase-send window | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Chase voice classifier below threshold after 3 retries | warn | operator_chat_id |
-| `ESC_VOICE_DRIFT_TENANT` | Consultant edit-rate on chase drafts >50% in 30-day window | warn | operator + tenant-admin |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in chase body | **blocking** | operator + ifos_oncall |
-| `ESC_SCHEMA_VIOLATION` | Gate A miss (invoice/amount/contact validation) | **blocking** | operator + ifos_oncall |
+| `ESC_AGENT_OUTPUT_SHAPE` | Gate A miss (invoice/amount/contact validation OR paid-invoice precondition violated) — output-shape constraint per catalogue line 184 | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | DSO improvement below 12-day target for 2 consecutive months | warn | founder + operator |
 | `ESC_RATE_LIMIT_HIT` | Accounting OR Open Banking 429 | warn | operator_chat_id |
 | `ESC_AUTOSEND_ORANGE_PENDING` | Chase draft awaiting consultant approval >24h | info | (logged; weekly report) |
 
-Cash Conductor does NOT use Bullhorn-specific codes (no Bullhorn dependency).
+Cash Conductor does NOT use:
+
+- Bullhorn-specific codes (no Bullhorn dependency)
+- `ESC_AUTOSEND_BLOCKED` — that's red-tier per catalogue line 41; Cash Conductor's pipeline is orange-tier (chase send) or yellow-tier (reconciliation write); Gate A misses fire `ESC_AGENT_OUTPUT_SHAPE` instead
+- `ESC_SCHEMA_VIOLATION` — reserved for vertical-schema field-constraint violations at write time per catalogue line 163; Cash Conductor's Gate A misses are output-shape failures, not schema-field violations
+- `ESC_VOICE_DRIFT_TENANT` — fired by the nightly voice-drift cron per catalogue §2.5; Cash Conductor fires only per-run `ESC_VOICE_DRIFT`, never the aggregate
 
 ---
 
@@ -295,7 +321,7 @@ Step 8 (chase-draft generation) is the only voice-classified output. The agent i
   - No reference to the client's industry / sector pain points (chase is operational, not strategic)
   - No mentions of late-payment fees unless tenant's terms explicitly state them
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "professional polite chase email" task context.
-- **`hh_load_recent_edits` last 30 days for `cash_conductor` agent**: detects consultant edit patterns. Edit-distance >150 chars on >40% of chase recent_edits fires `ESC_VOICE_DRIFT_TENANT`.
+- **`hh_load_recent_edits` last 30 days for `cash_conductor` agent**: detects consultant edit patterns. Per-run `ESC_VOICE_DRIFT` fires when the chase voice classifier score is below threshold after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Cash Conductor does NOT fire `_TENANT` directly. Edit-distance metrics are tracked for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Cash Conductor.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
@@ -347,7 +373,7 @@ Cash Conductor build cannot start until ALL of the following are confirmed:
 | Q7 | Hire #1 anchor — what specific Cash Conductor sub-tasks does Hire #1 take vs Claude Code? | Founder strategic decision; recommend Hire #1 owns Open Banking connector + ESC_OPEN_BANKING_TOKEN_AGING UX. Cash Conductor agent.md + cycle.sh stays with founder + Claude Code for consistency with other agents. |
 | Q8 | Sage connector — defer if no v1.0 pilot uses Sage? Saves ~2 days. Risk: blocks future Sage-using pilots. | Recommend defer to v1.1; document in W7 build start review. |
 
-### Gotchas (carried forward from ULTRAPLAN A4 line 542)
+### Gotchas (carried forward from ULTRAPLAN A4 line 541)
 
 1. **Open Banking auth is a 90-day token; rotation logic is non-trivial.** Plan for the rotation UX up-front; ESC_OPEN_BANKING_TOKEN_AGING staged at 30/14/7 days from expiry; document tenant-admin re-auth procedure.
 2. **Bank feed reconciliation against invoice register is the hard logic.** Start with exact-amount matches (Stage 1-2); expand to fuzzy (Stage 3-4) as confidence builds.
@@ -358,7 +384,7 @@ Cash Conductor build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill: this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
+Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `825ebd4`): this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
 
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies

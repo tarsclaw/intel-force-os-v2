@@ -200,19 +200,19 @@ Failing either threshold for 3 consecutive runs → fire `ESC_GATE_B_MISS` → f
 
 ## §6 — Escalation codes
 
-**Note:** Codes marked `(new)` in the table below are flagged for addition to `agents/_shared/escalation-codes.md` at this agent's W5 build slice per `review-agent-bundle.md` §1 row §6 flag-for-addition pattern. Existing codes match `escalation-codes.md` definitions verbatim.
+All codes are registered in `agents/_shared/escalation-codes.md` (catalogue extended to 52 codes per `2026-05-24` bilateral disposition; see disagreement-doc + `catalogue(bilateral)` commit).
 
 | Code | Trigger | Severity | Routing |
 |---|---|---|---|
-| `ESC_BULLHORN_AUTH` (existing, line 97) | OAuth refresh fails after 2 retries | **blocking** | operator + ifos_oncall |
-| `ESC_BULLHORN_WRITE_FAIL` (new — W5 catalogue add) | Bullhorn 4xx/5xx on merge/backfill/note write | warn | operator_chat_id |
-| `ESC_RATE_LIMIT_HIT` (existing, line 156) | Bullhorn or Companies House 429 | warn | operator_chat_id |
-| `ESC_VOICE_DRIFT` (existing, line 120) | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
-| `ESC_PII_LEAKAGE_RISK` (existing, line 148) | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
-| `ESC_AGENT_OUTPUT_SHAPE` (existing Day-19, line 184) | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
-| `ESC_DUPLICATE_DETECTED` (existing, line 127) | Per catalogue trigger: dedup confidence ≥0.85 cases requiring human review (NOT used for <0.85 reject cases — those silently drop per Step 3 algorithm) | warn | operator_chat_id |
-| `ESC_GATE_B_MISS` (new — W5 catalogue add) | Composite Gate-B score <12.5 for 3 consecutive runs | warn | operator_chat_id |
-| `ESC_AUTOSEND_YELLOW_SPOT_CHECK` (new — W5 catalogue add; could alternatively map to existing `ESC_AUTOSEND_NEEDS_REVIEW` line 33) | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
+| `ESC_BULLHORN_AUTH` | OAuth refresh fails after 2 retries | **blocking** | operator + ifos_oncall |
+| `ESC_BULLHORN_WRITE_FAIL` | Bullhorn 4xx/5xx on merge/backfill/note write | warn | operator_chat_id |
+| `ESC_RATE_LIMIT_HIT` | Bullhorn or Companies House 429 | warn | operator_chat_id |
+| `ESC_VOICE_DRIFT` | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
+| `ESC_PII_LEAKAGE_RISK` | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
+| `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
+| `ESC_DUPLICATE_DETECTED` | Per catalogue trigger: dedup confidence ≥0.85 cases requiring human review (NOT used for <0.85 reject cases — those silently drop per Step 3 algorithm) | warn | operator_chat_id |
+| `ESC_GATE_B_MISS` | Either independent Gate-B threshold (dedup <15% OR field-completeness <10%) missed for 3 consecutive runs. NOT a composite — see §5 Gate B for the two-threshold rule. | warn | operator_chat_id |
+| `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
 Janitor does NOT use:
 
@@ -289,7 +289,7 @@ Janitor build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill: this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
+Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `825ebd4`): this agent.md ratifies when Codex Round 4 Phase 2 (Day 20) returns RATIFIED verdict.
 
 Status flips Proposed → Accepted (pre-build) when:
 - Codex Round 4 Phase 2 ratifies
