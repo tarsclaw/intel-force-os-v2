@@ -172,8 +172,12 @@ hh_decision_output "diagnostic_draft" "${DRAFT_PATH}" \
   "${FIRM_NAME} 12-section draft (pre-validate)" >/dev/null
 
 if ! bash "${CTX_AGENT_DIR}/validate.sh" "${DRAFT_PATH}"; then
-  printf 'cycle.sh: Gate A failed; draft NOT moved to vault\n' >&2
-  rm -f "${DRAFT_PATH}"
+  printf 'cycle.sh: Gate A failed; draft retained at %s for postmortem\n' "${DRAFT_PATH}" >&2
+  # Draft is NOT deleted on Gate A fail — postmortem requires it (per
+  # agent.md §3 audit-row signature + fixtures/99-voice-drift-canary.yaml
+  # expected_side_effects.draft_file_at_tmp=true). cleanup.sh runs anyway
+  # to purge the LinkedIn cache + write the diagnostic_cleanup audit row.
+  bash "${CTX_AGENT_DIR}/cleanup.sh" 2>/dev/null || true
   exit 3
 fi
 

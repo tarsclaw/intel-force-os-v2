@@ -1,6 +1,7 @@
 # Diagnostic — the sales tool
 
-**Status:** Pre-Build-Round-17-Bilateral-Applied (Day-20; W4 bilateral pass applied). Full bundle built — agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures all present. R17 closes 4 of 5 R16 residuals via direct edits (§6 ESC table v0-vs-W4 status column added; §3 validate.sh citation aligned + validate.sh comment updated W3→W4; §9 Q3 cross-linked to §8 dependencies). R16 Finding 3 (Gate A failure signature missing ESC_VOICE_DRIFT) was already addressed at R15 commit `23f8c14` — Codex misread the multi-line statement at lines 117-121; ESC_VOICE_DRIFT IS listed at lines 119-120. Disagreement filed at `docs/decisions/codex-disagreement-2026-05-25-diagnostic-r17.md`. **Next:** founder authorizes Codex R18 ratification (`bash scripts/run-codex-ratification.sh agent-bundle agents/recruitment/diagnostic/agent.md`); if RATIFIED, Status flips Pre-Build → Accepted when ALL: (a) bilateral founder review confirmed, AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds, AND (d) Gate B baseline measurement begins.
+**Status:** Proposed.
+**Build state:** Full bundle built (agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures). 18 Codex review-agent-bundle rounds run as of Day-20 W4 bilateral pass; ADR-006 closed Cat-1/Cat-ζ Gate A finding (R10); subsequent rounds reduce mechanical findings to steady-state ~4-5/round at the cross-reference-sync layer per master brief §10.3 step 5. R19 in progress today (this artefact). Status flips Proposed → Accepted when ALL: (a) Codex RATIFIED verdict (R19 or escalated founder-arbitrated per §10.3 step 5), AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds, AND (d) Gate B baseline measurement begins.
 **Date:** 2026-05-22.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W3-4 per master brief §8.2 line 595 (row 1; anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`. **Drift flag:** Ultraplan §8.1 A1 (line 489) calls Diagnostic build wave 4-5; master brief line 595 calls it W3-4. Master brief is authoritative per CLAUDE.md (master brief wins on every conflict); W3-4 is the build wave for IFOS.
@@ -61,13 +62,19 @@ Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-ge
 | 11 | **Decision-maker map** | Named people likely to be buyers: head of talent / CPO / hiring manager equivalents; LinkedIn profile URL per person; tenure | **v0: stub with Companies House director list** | LinkedIn employee search filtered by title |
 | 12 | **Conversation opener** | 2-3 sentence cold outreach pitch tailored to §8 pain signals; written in consultant's voice (voice-classified); includes specific evidence anchor | LLM-generated; voice-classified ✅ (when classifier URL reachable; warn+exit 0 otherwise per §5) | (no change) |
 
-**Gate A hard-fails** (per ADR-006 + §5 spec):
+**Gate A hard-fails (v0 — unconditional hard-fail; what `validate.sh` actually enforces today):**
 
 - Fewer than 12 sections present
 - Any section with zero citation links (per-section citation subcheck; ADR-006-canonical)
-- Section 12 (conversation opener) failing voice-classifier with score < 0.75 *(v0 hard-fail when voice-classifier URL reachable; warn + exit 0 when URL unreachable per §5 honesty note; W4 polish closes to unconditional hard-fail with explicit `validate_check_skipped` audit row)*
 - Output exceeds 2000 words OR is under 400 words (length-discipline boundary)
-- PII (email-domain mismatch) detected outside firm boundary *(v0 hard-fail when firm-domain whitelist available; warn + exit 0 when whitelist absent per §5 honesty note; W4 polish closes to unconditional hard-fail. v0 PII regex covers emails only; phone-number PII detection deferred to W4 polish.)*
+- Banned phrases per `tone_rule` table
+
+**Gate A complement (v0 — warn-only-on-upstream-unavailable; W4-polish closes to hard-fail):**
+
+- Section 12 voice-classifier score < 0.75 — hard-fails IF `IFOS_VOICE_CLASSIFIER_URL` is reachable; warns + exits 0 if URL unreachable. W4 polish closes to unconditional hard-fail with explicit `validate_check_skipped` audit row.
+- PII (email-domain mismatch) outside firm boundary — hard-fails IF firm-domain whitelist is available; warns + exits 0 if whitelist absent. W4 polish closes to unconditional hard-fail. v0 PII regex covers emails only; phone-number PII detection deferred to W4 polish.
+
+The two-tier framing (hard-fails / complement) honestly reflects v0 behavior: the four hard-fails above ALWAYS block on failure; the two complement checks block ONLY when their upstream dependency is available. The agent.md previously described all six as "Gate A hard-fails" which was inconsistent with the §5 honesty note; corrected at R19.
 
 **Per-step audit-row signatures** (per `decision_log`):
 - Step 10 report assembly → `hh_decision_output("diagnostic_report", "<vault_path>", "12-section report on <firm>")`
@@ -194,7 +201,7 @@ Section 12 (conversation opener) is voice-classified. The agent integrates with 
   - No salary or commission anchors in cold outreach
   - Specific evidence anchor required (not generic "great company")
 - **`hh_load_voice_samples` ANN query against tenant's voice_corpus**: returns top-N voice-corpus chunks closest to current task context (cold-outreach-to-recruitment-firm-decision-maker); feeds LLM prompt as voice exemplars. NOTE: sample retrieval is distinct from classifier scoring — voice classification itself is a separate service called by `validate.sh` via `IFOS_VOICE_CLASSIFIER_URL` per `agents/_shared/voice-loader.sh`.
-- **`hh_load_recent_edits 30 "diagnostic"`** (signature: `hh_load_recent_edits [lookback_days] [agent_name]` per `agents/_shared/voice-loader.sh` lines 223-235; current `context.sh` line 160 passes `30 "diagnostic"`): surfaces patterns of how consultant edits Diagnostic drafts in the last 30 days. Per-run `ESC_VOICE_DRIFT` fires when the §12 voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` fires per `escalation-codes.md` ESC_VOICE_DRIFT_TENANT trigger — ≥5 `ESC_VOICE_DRIFT` rows from the same tenant within a rolling 7-day window (per the nightly voice-drift cron). Edit-distance metrics are tracked separately for analytics but do NOT fire ESC_VOICE_DRIFT_TENANT directly. v1.1 may add multi-agent edit-history merging (`concierge` + `diagnostic` joint signal); v1.0 is per-agent.
+- **`hh_load_recent_edits 30 "diagnostic"`** (signature: `hh_load_recent_edits [lookback_days] [agent_name]` per `agents/_shared/voice-loader.sh` lines 223-235; current `context.sh` line 160 passes `30 "diagnostic"`): surfaces patterns of how consultant edits Diagnostic drafts in the last 30 days. **v0: per-run `ESC_VOICE_DRIFT` fires when `validate.sh` V3 single-pass classifier call (no retries) returns score <0.75 AND `IFOS_VOICE_CLASSIFIER_URL` was reachable. W4-planned: 3-retry classifier loop in `@ifos/diagnostic-generator` §12 LLM step + unconditional hard-fail when URL unreachable.** Aggregate `ESC_VOICE_DRIFT_TENANT` fires per `escalation-codes.md` ESC_VOICE_DRIFT_TENANT trigger — ≥5 `ESC_VOICE_DRIFT` rows from the same tenant within a rolling 7-day window (per the nightly voice-drift cron). Edit-distance metrics are tracked separately for analytics but do NOT fire ESC_VOICE_DRIFT_TENANT directly. v1.1 may add multi-agent edit-history merging (`concierge` + `diagnostic` joint signal); v1.0 is per-agent.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
