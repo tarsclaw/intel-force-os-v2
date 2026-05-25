@@ -1,6 +1,7 @@
 # Cash Conductor — the FD's evenings back
 
-**Status:** Pre-Build-Round-18-Bilateral-Confirmed (Day-20; W4 bilateral pass confirmed all 3 R17 residuals already closed by post-R17 commit `9ae6874` — §8 sibling files + D1/bridge prereqs + §3 audit-row signatures correctly split into 4-row sequence per chase lifecycle). No new edits required from this round. Awaits Q1 LOI + accounting + Open Banking commercial signups + Founder Decision D1 resolved + autosend bridge built (Concierge W10) + W7 build slice. (Note: D1 + bridge are W4 founder-action queue items #4 + downstream; per §8 fallback row, Cash Conductor v1.0 can downgrade to drafts-only if D1+bridge slip past W7-8.)
+**Status:** Proposed.
+**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R17 closed §8 sibling files + D1/bridge prereqs + §3 audit-row signatures (4-row chase lifecycle sequence). R19 fixes (today): split draft body out of decision_log payload into vault path (per ADR-002 vault/Postgres split), recent_edit schema R access cite correction, Stage 3 ESC code disambiguation. Awaits Q1 LOI + accounting + Open Banking commercial signups + Founder Decision D1 resolved + autosend bridge built (Concierge W10) + W7 build slice.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W7-8 per master brief §8.2 line 598 + ULTRAPLAN §8.1 A4 line 531 (both say W7-8; consistent).
@@ -111,10 +112,11 @@ escalation_ladder_position: 1-4 per §3.2 below
 expected_send_window: orange-tier approval expected within 24h
 ```
 
-Each draft produces TWO `decision_log` rows on the cash-conductor agent_name:
+Each draft writes to vault FIRST then produces TWO `decision_log` rows on the cash-conductor agent_name (per ADR-002 vault/Postgres split — narrative content in vault, structured audit metadata in Postgres):
 
-1. `phase='output'`, `output_type='chase_draft_generated'`, payload includes the draft body + voice score + position (phase=output rows do NOT carry an autosend action_type; they're internal artefact-render markers).
-2. `phase='action'`, `action_type='xero_reminder_draft_internal'` (yellow tier per autosend-policy.yaml lines 182-187), payload links to the draft from row 1 — this row records that Cash Conductor classified the draft as yellow-tier internal.
+0. Draft body written to `/vault/<tenant>/cash-conductor-drafts/<draft_id>.md` (chmod 0600); the YAML+body structure above lands as the canonical narrative source.
+1. `phase='output'`, `output_type='chase_draft_generated'`, payload carries draft METADATA only: `{vault_path, body_sha256, voice_score, escalation_position, days_overdue, amount_due}`. The draft body itself is NOT in the payload — vault path is the authority.
+2. `phase='action'`, `action_type='xero_reminder_draft_internal'` (yellow tier per autosend-policy.yaml lines 182-187), payload links to the draft via the vault path — this row records that Cash Conductor classified the draft as yellow-tier internal.
 
 When Cash Conductor decides to actually send (after Gate A passes), it writes a third row: `phase='action'`, `action_type='xero_reminder_send_customer'` (orange tier per autosend-policy.yaml line 257; Cash Conductor owns this action_type) — this row OPENS the orange-tier approval bridge. Concierge then handles the approval + transport. After Concierge confirms send, Cash Conductor receives the webhook + writes a fourth row: `phase='output'`, `output_type='cash_conductor_chase_sent_recorded'`, recording state-mutation completion (no action_type; this is a state-marker output).
 
@@ -187,11 +189,16 @@ Located at `/vault/<tenant>/cash-conductor-reports/weekly-<ISO-date>.md`. Genera
 5. Reconciliation pass (5-stage match algorithm per §3 Output 1)
    → for each transaction × open invoice: compute match confidence
    → write Stage 1-2 matches to accounting (yellow tier) atomically
-   → queue Stage 3-4 matches for consultant review (ESC_RECONCILIATION_AMBIGUOUS
-     per stage)
+   → Stage 3 (single low-confidence exact-amount match): flag in weekly-report
+     exception list; NO ESC fire (per §6 row distinguishing Stage 3 from
+     Stage 4 — catalogue defines ESC_RECONCILIATION_AMBIGUOUS as multi-
+     candidate, not low-confidence single). W4-polish backlog: register
+     `ESC_RECONCILIATION_LOW_CONFIDENCE` OR widen catalogue trigger.
+   → Stage 4 (fuzzy multi-candidate within tolerance): fire ESC_RECONCILIATION_AMBIGUOUS
+     per catalogue (multiple candidates); queue for consultant review.
    → flag Stage 5 (unmatched) in weekly-report exception list
    → hh_decision_output("reconciliation_pass", "tenant:<slug>",
-     "stage1_2:<N>; stage3_4:<N>; stage5:<N>")
+     "stage1_2:<N>; stage3:<N>; stage4:<N>; stage5:<N>")
 
 6. Reconciliation write (yellow tier; per match)
    → accounting.write_payment_received(invoice_id, payment_id, amount, date)
@@ -358,7 +365,7 @@ Step 8 (chase-draft generation) is the only voice-classified output. The agent i
   - No reference to the client's industry / sector pain points (chase is operational, not strategic)
   - No mentions of late-payment fees unless tenant's terms explicitly state them
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "professional polite chase email" task context.
-- **`hh_load_recent_edits` last 30 days for `cash_conductor` agent**: detects consultant edit patterns. Per-run `ESC_VOICE_DRIFT` fires when the chase voice classifier score is below threshold after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Cash Conductor does NOT fire `_TENANT` directly. Edit-distance metrics are tracked for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Cash Conductor.
+- **NOTE: Cash Conductor does NOT read `recent_edit`.** Per v0.3 supplement §2a access grants (line 723), Cash Conductor has W-only access — it WRITES recent_edit rows when consultants edit its chase drafts post-send, but does NOT READ them. Voice continuity for Cash Conductor relies on the tenant voice_corpus + tone_rule reads above. Per-run `ESC_VOICE_DRIFT` fires when the chase voice classifier score is below threshold after 3 retries (LLM step internal to chase-draft generation; classifier scoring distinct from sample retrieval). Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Cash Conductor does NOT fire `_TENANT` directly. Edit-distance metrics are tracked by the canary (which has R access) for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Cash Conductor.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
