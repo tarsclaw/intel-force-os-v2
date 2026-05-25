@@ -1,6 +1,6 @@
 # Scribe — the data spine
 
-**Status:** Proposed (Day-17 pre-W6-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Fathom/Fireflies commercial signup + W6 build slice).
+**Status:** Pre-Build-Round-4-Bilateral-Applied (Day-20; W4 bilateral pass applied). All 5 R3 residuals addressed: Findings 1+2+3+4 closed by post-R3 commit `db56336` + R4 polish edits today (Finding 1: §3 line 80 stale references removed; Finding 2: hh_decision_output added at Step 3 transcript fetch + Step 7 validation success/failure; Finding 3: Ringover explicitly v1.1+ in §2 webhook example + body text; Finding 4: §5 line 223 split into decision-doc citation + runtime YAML citation; Finding 5: §6 ESC_PROVIDER_FETCH_FAIL row annotated with v1.0 scope + catalogue §2.9 amendment queued for W6 build start). Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Fathom/Fireflies commercial signup + W6 build slice.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W6 per master brief §8.2 line 597 + ULTRAPLAN §8.1 A3 line 517 (ULTRAPLAN says week 6-7; master brief says week 6; master brief authoritative).
@@ -27,7 +27,8 @@ Authorization: Bearer <fathom-or-fireflies-shared-secret>
 Content-Type: application/json
 
 {
-  "provider": "fathom" | "fireflies" | "ringover",
+  "provider": "fathom" | "fireflies",        // v1.0
+  // "ringover" added in v1.1+ — not in v0 build per §8 dependencies
   "call_id": "<provider-call-id>",
   "transcript_url": "<provider-transcript-url>",
   "duration_seconds": 1234,
@@ -36,7 +37,7 @@ Content-Type: application/json
 }
 ```
 
-Each provider has its own webhook signature scheme (Fathom HMAC-SHA256; Fireflies bearer token; Ringover OAuth-protected). Auth handled per-provider in `tools.yaml` capability declarations.
+v1.0 supports Fathom (HMAC-SHA256 signed) and Fireflies (bearer token) providers; auth handled per-provider in `tools.yaml` capability declarations. Ringover (OAuth-protected) is deferred to v1.1+ — not in the v0 build dependencies and not registered in v1.0 `tools.yaml`.
 
 ### Manual trigger (v1.0 — debugging / replay)
 
@@ -77,7 +78,7 @@ Minimum 3 fields extracted per call (Gate A). Canonical fields by entity (names 
 | Placement | `start_date`, `placement_status` (v0.3), `week_1_status_vault_path` (v0.3; vault pointer, not narrative), `satisfaction_signal` (v0.3) |
 | Opportunity | `headcount_growth_signal_text` (v0.3), `hiring_velocity_band` (v0.3), `decision_window_text` (v0.3) |
 
-Field names match canonical schema verbatim; some v0.1 fields (e.g. `headcount_growth_signal_text`, `satisfaction_signal`, `week_1_status_note`) are scheduled for v0.3 supplement at W6 build start — flagged here as pre-build references requiring schema-supplement landing before Scribe references them in `cycle.sh`. The Q1 verification pass (W6 Day 1) audits all field names against the schema as it exists then.
+Field names match canonical schema verbatim per `vertical-schema.yaml` + `vertical-schema.v0.3-supplement.yaml`. v0.3 supplement (RATIFIED commit `7b4f390`) landed all the v0.3-tagged fields above (e.g. `headcount_growth_signal_text`, `satisfaction_signal`, `placement_status`, `week_1_status_vault_path` — which replaced the earlier draft name `week_1_status_note`, and `must_haves`/`nice_to_haves`/`deal_breakers` on Brief). The W6 Day-1 verification pass audits all field names against the schema-as-of-W6 in case any further v0.4 supplement work renames anything.
 
 Each write emits one `decision_log` row: `agent_name='scribe'`, `phase='action'`, `action_type='bullhorn_scribe_field_write'`, `tier='yellow'`, payload includes confidence per field + transcript timestamp anchors.
 
@@ -148,6 +149,8 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
    → ESC_PROVIDER_FETCH_FAIL on 4xx/5xx; retry once 30s backoff
    → store transcript in /tmp/scribe-<tenant>-<call_id>.txt mode 0600
    → ESC_PII_LEAKAGE_RISK if transcript references non-tenant PII
+   → hh_decision_output("transcript_fetched", "call:<id>",
+     "provider:<name>; bytes:<N>; tmp_path:/tmp/scribe-<tenant>-<call_id>.txt")
 
 4. Participant + entity inference
    → match transcript participants against Bullhorn contacts + candidates
@@ -183,6 +186,11 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
    → verify each extracted value passes per-field type/range checks
    → drop invalid; require ≥3 valid (per Gate A; failure = ESC_SCHEMA_VIOLATION
      per catalogue line 163 — vertical-schema field-constraint violation at write time)
+   → on success: hh_decision_output("fields_validated", "<entity_type>:<bullhorn_id>",
+     "<N> valid of <M> extracted; dropped:<N-invalid>")
+   → on Gate A failure (<3 valid): hh_decision_action("scribe_gate_a_fail",
+     "<entity_type>:<bullhorn_id>", payload_hash,
+     "ESC_SCHEMA_VIOLATION; valid:<N>") and exit 1
 
 8. Bullhorn write — structured fields (yellow tier)
    → PATCH /<EntityType>/<id> with field map
@@ -212,7 +220,7 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
 
 ### Gate A — validate.sh (hard-fail before action)
 
-Per master brief §8.1 Change 2 + autosend-safety-policy §4. Scribe's `validate.sh` enforces:
+Per master brief §8.1 Change 2 + `docs/decisions/autosend-safety-policy.md` §4 (policy rationale; runtime YAML is `agents/_shared/autosend-policy.yaml`). Scribe's `validate.sh` enforces:
 
 - Webhook signature valid per provider (Step 1)
 - ≥3 structured-field extractions with confidence ≥0.6 (per ULTRAPLAN A3 line 524 verbatim)
@@ -248,7 +256,7 @@ Scribe uses these ESC codes from `agents/_shared/escalation-codes.md`:
 |---|---|---|---|
 | `ESC_BULLHORN_AUTH` | OAuth refresh fails after 2 retries | **blocking** | operator + ifos_oncall |
 | `ESC_BULLHORN_WRITE_FAIL` | Bullhorn 4xx/5xx on field write OR note attach | warn | operator_chat_id |
-| `ESC_PROVIDER_FETCH_FAIL` | Fathom/Fireflies/Ringover transcript fetch fails | warn | operator_chat_id |
+| `ESC_PROVIDER_FETCH_FAIL` | Transcript fetch fails (v1.0: Fathom or Fireflies; Ringover added v1.1+). Catalogue line 324-329 generic upstream-read code; v1.0 payload extension uses `upstream` field set to `fathom`/`fireflies`; transcript-provider examples added in catalogue §2.9 amendment (queued for catalogue extension at W6 build start) | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Tacit-note voice classifier <0.75 after 3 retries | warn | operator_chat_id |
 | `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE` | <3 fields with confidence ≥0.6 | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in transcript or note | **blocking** | operator + ifos_oncall |
