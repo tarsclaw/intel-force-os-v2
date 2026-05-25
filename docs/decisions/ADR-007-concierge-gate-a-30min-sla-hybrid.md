@@ -50,7 +50,19 @@ The 30-minute SLA IS the load-bearing UX promise of Concierge. ULTRAPLAN A6's "T
 
 This is structurally identical to ADR-006's Tier 1 (per-section, hard-fail at the agent level) vs Tier 2 (per-claim, quality metric over time) split — applied here to time (30-min threshold per draft = Tier 1; 90% within 30-min over rolling window = Tier 2).
 
+## Alternatives considered
+
+**Alternative A — Keep ULTRAPLAN A6 line 566 verbatim: 30-min SLA is per-draft Gate A hard-fail.** Rejected because Bullhorn webhook coverage is patchy per the ULTRAPLAN A6 gotcha (the same source spec acknowledging the polling-fallback requirement); per-draft hard-fail would drop legitimate drafts whose Concierge generation IS within 30 min of detection but whose upstream detection latency exceeded 30 min. The product harm: candidate experiences "ghosted by recruiter" — exactly the pattern Concierge was designed to prevent.
+
+**Alternative B — Remove the 30-minute SLA entirely.** Rejected because the SLA IS the load-bearing UX promise of Concierge. ULTRAPLAN A6's "Tier 1 always-on closing demo" framing rests on it. Removing it would let drafts slip indefinitely with no quality signal — the "no candidate ghosted" goal becomes unmeasurable.
+
+**Alternative C — Measure occurrence-time (Bullhorn state-change timestamp) rather than detection-time (webhook arrival or polling-cron tick).** Rejected because Bullhorn state-change timestamps are not always reliable (Bullhorn webhook gotcha; some state changes lack a clean timestamp). Detection-time is what Concierge actually observes; occurrence-time would require infrastructure Concierge doesn't own.
+
+**Alternative D (selected) — Hybrid: voice + addressee checks stay Gate A; 30-min SLA moves to Gate B at 90% threshold.** Detection-time-based; population-level promise captured; per-draft outliers don't block.
+
 ## Decision
+
+### Decision 1 — Move Concierge 30-minute SLA from Gate A hard-fail to Gate B leading metric (90% target)
 
 **Concierge Gate A is the subset of ULTRAPLAN A6 line 566 that is operationally enforceable per-draft:**
 
@@ -66,7 +78,7 @@ This is structurally identical to ADR-006's Tier 1 (per-section, hard-fail at th
 - 90% of drafts generated within 30 minutes of lifecycle-event DETECTION (not lifecycle-event occurrence)
 - Per-draft SLA miss fires `ESC_CONCIERGE_SLA_MISS` (warn, aggregated to Gate B)
 - Rolling 30-day per-tenant aggregate <90% fires `ESC_GATE_B_MISS` (per `escalation-codes.md` §2.10) — actionable signal
-- Concierge ALSO records the upstream-detection-latency separately in the audit payload (`payload.detection_delay_seconds`) so the metric attribution is clean (Concierge generation latency vs upstream polling latency)
+- v0.4 schema work: Concierge cycle.sh will record upstream-detection-latency separately in the audit payload (`payload.detection_delay_seconds`) once the field is declared and validated in a v0.4 supplement. v0.3 + v1.0 do NOT introduce this payload key — it would violate review-schema-change §3 (bounded values require CHECK or trigger). The metric attribution distinction (Concierge generation latency vs upstream polling latency) IS the right product behavior but the schema authority lands later.
 
 **ULTRAPLAN §8.1 A6 line 566 is amended in-band per the master brief §10.3 step 4 pattern** (analogue of the in-band amendment ADR-006 made at line 496):
 
@@ -97,16 +109,9 @@ Post-amendment:
 
 ## Implementation
 
-### In-band ULTRAPLAN amendment (per master brief §10.3 step 4)
+### In-band ULTRAPLAN amendment (applied with this ADR per master brief §10.3 step 4)
 
-Edit `docs/specs/ULTRAPLAN.md` §8.1 A6 line 566:
-
-```diff
-- **Gate A:** every lifecycle event has a draft generated within 30 minutes; voice classifier score ≥ 0.75; correct addressee resolution (no candidates emailed under another's name)
-+ **Gate A:** voice classifier score ≥ 0.75; correct addressee resolution (no candidates emailed under another's name) *(see `docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md` — 30-minute draft SLA is Gate B leading metric at 90%)*
-```
-
-Commit message: `amend(ULTRAPLAN A6 line 566): Gate A scope reduced; 30-min SLA → Gate B per ADR-007`
+ULTRAPLAN §8.1 A6 line 566 amended in the same commit as this ADR. Pre-amendment / post-amendment text is captured in this ADR's body. The amendment also updated line 567 Gate B target to include the new ≥90% 30-min SLA hit rate threshold (per ADR-007). See commit history for the diff.
 
 ### Concierge §10 amendment
 
@@ -114,9 +119,9 @@ Add to Accepted blockers (after R3 commit `f79c018` baseline):
 
 > - **ADR-007 (Concierge Gate A 30-min SLA hybrid) RATIFIED** — closes R3 Finding 3 structural deviation; ratifies the agent.md §5 Gate A scope vs ULTRAPLAN A6 line 566 pre-amendment language.
 
-### Audit payload extension (deferred)
+### Audit payload extension (deferred to v0.4 supplement)
 
-`decision_log.payload.detection_delay_seconds` field for Concierge action rows is not in v0.3 schema; queued for v0.4 supplement OR W10-13 build-slice schema addition (whichever ships first). Concierge `cycle.sh` v0.0 records the field; absent the constraint, it's free-form JSONB.
+`decision_log.payload.detection_delay_seconds` is NOT introduced by this ADR. Queued for v0.4 supplement OR W10-13 build-slice schema addition (whichever ships first), with declaration + type validation landing together (per review-schema-change §3 — bounded values require CHECK or trigger). Concierge cycle.sh v0.0 does NOT write this key. Distinguishing Concierge generation latency from upstream polling latency in operational alerts is the v0.4 work item; v1.0 metrics use the elapsed (event-detection → draft-render) as a single number.
 
 ## Open questions
 
@@ -134,3 +139,7 @@ Add to Accepted blockers (after R3 commit `f79c018` baseline):
 - `agents/_shared/escalation-codes.md` `ESC_CONCIERGE_SLA_MISS` (registered) + `ESC_GATE_B_MISS` (registered)
 - `docs/operations/w4-bilateral-pass-6-agent-md.md` Concierge Finding 3
 - Master brief §1 Rule 4 (Quality gates before features) + §10.5 (ADRs are ratifiable artefacts)
+
+---
+
+**Status:** Proposed; awaits Codex `review-architecture-decision` ratification (R19+) + founder Accept per master brief §10.3 step 5 if Codex still disagrees.
