@@ -1,6 +1,7 @@
 # Scribe — the data spine
 
-**Status:** Pre-Build-Round-4-Bilateral-Applied (Day-20; W4 bilateral pass applied). All 5 R3 residuals addressed: Findings 1+2+3+4 closed by post-R3 commit `db56336` + R4 polish edits today (Finding 1: §3 line 80 stale references removed; Finding 2: hh_decision_output added at Step 3 transcript fetch + Step 7 validation success/failure; Finding 3: Ringover explicitly v1.1+ in §2 webhook example + body text; Finding 4: §5 line 223 split into decision-doc citation + runtime YAML citation; Finding 5: §6 ESC_PROVIDER_FETCH_FAIL row annotated with v1.0 scope + catalogue §2.9 amendment queued for W6 build start). Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Fathom/Fireflies commercial signup + W6 build slice.
+**Status:** Proposed.
+**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R4 closed schema field-name corrections + Step 3+7 decision-log additions + Ringover v1.1+ scoping + autosend cite split + ESC_PROVIDER_FETCH_FAIL v1.0 scope annotation. R19 fixes (today): v0.3 supplement RATIFIED claim corrected (supplement is Proposed not RATIFIED per its own status banner), `scribe_gate_a_fail` renamed to existing `validate_gate_a_fail`, ESC_BULLHORN_OAUTH_REVOKED reference removed (not in catalogue), ESC_SCRIBE_SLA_MISS threshold aligned to catalogue. Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Fathom/Fireflies commercial signup + W6 build slice.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W6 per master brief §8.2 line 597 + ULTRAPLAN §8.1 A3 line 517 (ULTRAPLAN says week 6-7; master brief says week 6; master brief authoritative).
@@ -78,7 +79,7 @@ Minimum 3 fields extracted per call (Gate A). Canonical fields by entity (names 
 | Placement | `start_date`, `placement_status` (v0.3), `week_1_status_vault_path` (v0.3; vault pointer, not narrative), `satisfaction_signal` (v0.3) |
 | Opportunity | `headcount_growth_signal_text` (v0.3), `hiring_velocity_band` (v0.3), `decision_window_text` (v0.3) |
 
-Field names match canonical schema verbatim per `vertical-schema.yaml` + `vertical-schema.v0.3-supplement.yaml`. v0.3 supplement (RATIFIED commit `7b4f390`) landed all the v0.3-tagged fields above (e.g. `headcount_growth_signal_text`, `satisfaction_signal`, `placement_status`, `week_1_status_vault_path` — which replaced the earlier draft name `week_1_status_note`, and `must_haves`/`nice_to_haves`/`deal_breakers` on Brief). The W6 Day-1 verification pass audits all field names against the schema-as-of-W6 in case any further v0.4 supplement work renames anything.
+Field names match canonical schema verbatim per `vertical-schema.yaml` + `vertical-schema.v0.3-supplement.yaml`. v0.3 supplement (Proposed; Day-19 commit `7b4f390` originally claimed RATIFIED but the supplement YAML's own status banner is `Status: Proposed`; the v0.3.1 amendment at Day-20 added Janitor + blocked_recipients keys and queued the supplement for re-ratification) defines the v0.3-tagged fields above (e.g. `headcount_growth_signal_text`, `satisfaction_signal`, `placement_status`, `week_1_status_vault_path` — which replaced the earlier draft name `week_1_status_note`, and `must_haves`/`nice_to_haves`/`deal_breakers` on Brief). Scribe agent.md will re-verify field-name accuracy against the supplement-as-RATIFIED state at W6 Day-1.
 
 Each write emits one `decision_log` row: `agent_name='scribe'`, `phase='action'`, `action_type='bullhorn_scribe_field_write'`, `tier='yellow'`, payload includes confidence per field + transcript timestamp anchors.
 
@@ -188,9 +189,12 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
      per catalogue line 163 — vertical-schema field-constraint violation at write time)
    → on success: hh_decision_output("fields_validated", "<entity_type>:<bullhorn_id>",
      "<N> valid of <M> extracted; dropped:<N-invalid>")
-   → on Gate A failure (<3 valid): hh_decision_action("scribe_gate_a_fail",
+   → on Gate A failure (<3 valid): hh_decision_action("validate_gate_a_fail",
      "<entity_type>:<bullhorn_id>", payload_hash,
-     "ESC_SCHEMA_VIOLATION; valid:<N>") and exit 1
+     "ESC_SCHEMA_VIOLATION; agent_name:scribe; valid:<N>") and exit 1
+     (validate_gate_a_fail is the canonical green-tier action_type registered
+     in agents/_shared/autosend-policy.yaml line 113; agent:all; Scribe uses
+     the shared signature with agent_name in payload to distinguish.)
 
 8. Bullhorn write — structured fields (yellow tier)
    → PATCH /<EntityType>/<id> with field map
@@ -208,8 +212,16 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
 
 10. Session close + SLA metric
    → compute elapsed_seconds from webhook receipt
-   → if elapsed > 600 (10 min): warn ESC_SCRIBE_SLA_MISS (not blocking)
-   → if elapsed > 300 (5 min): info-level (counted against Gate B 90%)
+   → Master brief §8.2 line 597 Bullhorn SLA: "post-call note in Bullhorn within
+     10 min". Catalogue ESC_SCRIBE_SLA_MISS triggers (line 443): "summary-render
+     >30 min OR note-attach >1h after call end". The two thresholds are
+     different scopes — master brief 10-min is the product UX promise; catalogue
+     30-min/1h is the alerting threshold (less false alarms).
+   → if elapsed > 3600 (1h): fire ESC_SCRIBE_SLA_MISS with `sla_type=note_attach` (per catalogue)
+   → if elapsed > 1800 (30 min): fire ESC_SCRIBE_SLA_MISS with `sla_type=summary_render` (per catalogue)
+   → if elapsed > 600 (10 min) but ≤ 1800: NO ESC fire — recorded as Gate B
+     "10-min miss" in the day-30 report aggregation; counts against Gate B 90% target
+   → if elapsed > 300 (5 min) but ≤ 600: info-level (still under product promise)
    → hh_decision_action("scribe_run_complete", "call:<id>", elapsed_seconds)
    → exit code 0
 ```
@@ -270,7 +282,6 @@ Scribe uses these ESC codes from `agents/_shared/escalation-codes.md`:
 Scribe does NOT use:
 
 - `ESC_AUTOSEND_BLOCKED` — that's red-tier; Scribe writes are yellow
-- `ESC_BULLHORN_OAUTH_REVOKED` — escalated from `ESC_BULLHORN_AUTH` only after 6 consecutive auth failures (Concierge handles)
 
 ---
 
