@@ -1,6 +1,7 @@
 # Janitor — the wedge agent
 
-**Status:** Pre-Build-Round-12-Bilateral-Applied (Day-20; W4 bilateral pass closed all 4 R11 residuals: 3 closed by post-R11 commit `e5a2c74` (Gate A ESC routing per-condition split, recent_edit.resolution citation, v0.3 supplement §2a authority); Finding 4 closed today by adding `janitor_dedup_threshold` + `janitor_last_run` declarations to v0.3 supplement §4 tenant_adapters_config_additions + agent.md citations updated. v0.3 supplement edit is additive — re-ratification queued. Awaits Q1 LOI + Bullhorn Sub-decisions A+B Accepted + W5 build slice).
+**Status:** Proposed.
+**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R11 closed Gate A ESC routing + recent_edit citation + v0.3 supplement §2a authority. R12 added schema declaration for `janitor_dedup_threshold` + `janitor_last_run` in v0.3 supplement §4. R19 fixes (today): autosend-policy citation, contractor dedup scope alignment, Step 8 audit row, ESC_GATE_B_MISS catalogue alignment. Awaits Q1 LOI + Bullhorn Sub-decisions A+B Accepted + W5 build slice.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W5 per master brief §8.2 line 596 + ULTRAPLAN §8.1 A2 line 503 (ULTRAPLAN says week 5-6, master brief says week 5; master brief is authoritative).
@@ -13,7 +14,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Janitor produces TWO outputs per nightly cron run:** (1) a Markdown day-30 cleanup report at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md` documenting all data-hygiene actions taken in the prior 30 days, and (2) a stream of yellow-tier writes to the tenant's Bullhorn ATS that (a) merge high-confidence duplicate candidate records, (b) backfill missing field values via Companies House enrichment, and (c) attach tacit notes harvested from `decision_log` resolution events. Cron fires at 02:00 UTC daily; the day-30 report regenerates on the 1st of each month rolling. Gate A hard-fails any merge proposal with confidence <0.85 (per ULTRAPLAN A2 line 510). Gate B success threshold: the day-30 report shows ≥15% dedup rate improvement AND ≥10% field-completeness improvement vs the day-0 baseline established at first pilot LOI signing (per ULTRAPLAN A2 line 511). All Bullhorn writes are yellow-tier per `autosend-safety-policy.yaml` (sampled spot-checks; no synchronous approval; per-write audit row to `decision_log` with `agent_name='janitor'`).
+> **Janitor produces TWO outputs per nightly cron run:** (1) a Markdown day-30 cleanup report at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md` documenting all data-hygiene actions taken in the prior 30 days, and (2) a stream of yellow-tier writes to the tenant's Bullhorn ATS that (a) merge high-confidence duplicate candidate AND contractor records (separate entity types per vertical-schema.yaml §1; same fuzzy-matcher per §4 Steps 3-4), (b) backfill missing field values via Companies House enrichment, and (c) attach tacit notes harvested from `recent_edit.resolution='approved_after_edit'` rows (v0.3 supplement §2a grants Janitor R access). Cron fires at 02:00 UTC daily; the day-30 report regenerates on the 1st of each month rolling. Gate A hard-fails any merge proposal with confidence <0.85 (per ULTRAPLAN A2 line 510). Gate B success threshold: the day-30 report shows ≥15% dedup rate improvement AND ≥10% field-completeness improvement vs the day-0 baseline established at first pilot LOI signing (per ULTRAPLAN A2 line 511). All Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml` runtime (policy rationale at `docs/decisions/autosend-safety-policy.md`) — sampled spot-checks; no synchronous approval; per-write audit row to `decision_log` with `agent_name='janitor'`.
 
 ---
 
@@ -142,6 +143,10 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → group by target_entity_type (candidate / contractor / contact / brief / etc.)
    → for each group, generate narrative summary via voice-classified LLM
      (voice corpus + tone rules; ESC_VOICE_DRIFT if classifier <0.75)
+   → hh_decision_output("janitor_tacit_note_harvest", "tenant:<slug>",
+     "harvested:<N> rows; groups:<M> entity-types; narrative_drafts:<K>")
+   → on classifier fail after retries: hh_decision_action("validate_gate_a_fail",
+     "tenant:<slug>", payload_hash, "ESC_VOICE_DRIFT; classifier_score:<N>")
 
 9. Bullhorn write batch (yellow tier — spot-check sampling)
    → for each proposed merge / backfill / note: emit hh_decision_action with
@@ -168,7 +173,7 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 12. Session close
    → update tenant_adapters.config.janitor_last_run = now()
    → hh_decision_action("janitor_run_complete", "tenant:<slug>", payload_hash, payload_preview)
-   → exit code 0 (or 1 if Gate-B missed for 3 consecutive runs → ESC_GATE_B_MISS)
+   → exit code 0 (or 1 if BOTH Gate-B thresholds missed for 3 consecutive runs per §5 + catalogue → ESC_GATE_B_MISS)
 ```
 
 ---
@@ -177,7 +182,7 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 
 ### Gate A — validate.sh (hard-fail before action)
 
-Per master brief §8.1 Change 2 + autosend-safety-policy §4. Janitor's `validate.sh` enforces:
+Per master brief §8.1 Change 2 + `docs/decisions/autosend-safety-policy.md` §4 (policy rationale; runtime YAML is `agents/_shared/autosend-policy.yaml`). Janitor's `validate.sh` enforces:
 
 - Bullhorn auth refresh succeeded in Step 1 (no stale token writes)
 - Every proposed merge has confidence ≥ 0.85 per ULTRAPLAN A2 line 510
@@ -203,7 +208,7 @@ Two independent thresholds (both must pass): dedup improvement ≥15% AND field-
 
 Gate B doesn't block the agent. The day-30 dedup + field-completeness improvement is Janitor's local Gate B metric per ULTRAPLAN A2 line 511 verbatim. It contributes evidence (alongside other agents' Gate-B metrics) to kill-criterion §2 Trigger 8 (average Gate-B revenue uplift after 3 completed pilots per `v1.0-kill-criterion.md` lines 158-166) — but Janitor does NOT directly claim Trigger 8 status. DSO improvement is Cash Conductor's territory per ULTRAPLAN A4 line 540, not Janitor's.
 
-Failing either threshold for 3 consecutive runs → fire `ESC_GATE_B_MISS` → flag for operator review (heuristic tuning may be needed; not a kill).
+Per catalogue `escalation-codes.md` ESC_GATE_B_MISS trigger (Janitor example: "dedup confidence <15% AND field-completeness uplift <10%"): `ESC_GATE_B_MISS` fires only when BOTH thresholds miss for 3 consecutive runs (dedup-improvement <15% AND completeness-improvement <10%) → flag for operator review (heuristic tuning may be needed; not a kill). Single-threshold misses are tracked in the day-30 report (§3 Output 1 row 6) and inform tenant-level quality review but do NOT fire ESC. Sensitivity choice: strict AND-trigger reduces false alarms; tightening to OR-trigger requires a catalogue amendment + re-ratification.
 
 ---
 
@@ -220,7 +225,7 @@ All codes are registered in `agents/_shared/escalation-codes.md` (catalogue exte
 | `ESC_PII_LEAKAGE_RISK` | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
 | `ESC_DUPLICATE_DETECTED` | Per catalogue §2.5 trigger: dedup confidence ≥0.85 review-required cases (SUCCESS path; Telegram approval gate fires). NOT a Gate A failure code. | warn | operator_chat_id (via Telegram approval gate per catalogue routing) |
-| `ESC_GATE_B_MISS` | Per catalogue §2.10 trigger: per-agent local Gate B metric threshold missed for the per-agent window. For Janitor: dedup-improvement <15% OR field-completeness-improvement <10% (two independent thresholds; missing EITHER triggers; per §5 Gate B). Catalogue routing: operator_chat_id | warn | operator_chat_id |
+| `ESC_GATE_B_MISS` | Per catalogue trigger: per-agent local Gate B metric threshold missed. For Janitor: BOTH thresholds miss for 3 consecutive runs (dedup-improvement <15% AND field-completeness-improvement <10%) per catalogue `ESC_GATE_B_MISS` Janitor example. Single-threshold misses do NOT fire (per §5 Gate B). Catalogue routing: operator_chat_id | warn | operator_chat_id |
 | `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
 Janitor does NOT use:
