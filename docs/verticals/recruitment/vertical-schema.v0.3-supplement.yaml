@@ -8,7 +8,11 @@
 # Partially addresses Round-8 Cat-β findings (Janitor + Scribe + Cash Conductor +
 # Concierge schema gaps) per docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md
 # Phase 4 Cat-β section. Closes the v0.3-scoped subset (14 entity JSONB keys + 2
-# auxiliary tables + 3 tenant_adapters.config keys + v0.2 entity-access amendments).
+# auxiliary tables + 6 tenant_adapters.config keys + v0.2 entity-access amendments).
+# (v0.3-supplement-0.1 amendment Day-20: original 3 v0.3 keys + 2 Janitor keys
+# added closing Janitor R11 Finding 4 + blocked_recipients added closing
+# Sourcing Scout R8 Finding 1. blocked_recipients is pre-v0.3 origin
+# canonicalised here. Total: 6 declarations in §4.)
 # Residual Cat-β gaps require either (a) Scribe agent.md consistency-pass to align
 # its §3 narrative with canonical v0.1/v0.2/v0.3 field names (current_role vs
 # current_role_title; start_date_target vs brief.start_date; etc.) OR (b) a follow-on
@@ -735,7 +739,7 @@ auxiliary_table_access_matrix:
     concierge: none
 
 # ============================================================================
-# §4 — tenant_adapters.config new keys (3 keys)
+# §4 — tenant_adapters.config keys (6 declarations: 5 v0.3-new + 1 pre-v0.3 canonicalised)
 # ============================================================================
 #
 # tenant_adapters.config is JSONB; validation via
@@ -789,7 +793,7 @@ tenant_adapters_config_additions:
       orange-tier sends.
 
   janitor_dedup_threshold:
-    type: numeric
+    type: number
     required: false
     default: 0.85
     range: [0.75, 0.95]
@@ -798,10 +802,29 @@ tenant_adapters_config_additions:
     notes: |
       Per-tenant dedup confidence threshold for candidate merges. v1.0 default
       0.85 per ULTRAPLAN A2 line 510. Tenant-admin override range [0.75, 0.95]
-      via the wizard. The migration validator (v0.2-to-v0.3.sql §5 allowlist)
-      already accepts this key; this declaration is the canonical schema
-      authority added in W4 bilateral pass (Day-20) closing Janitor R11
-      Codex Finding 4.
+      via the wizard. The migration validator (v0.2-to-v0.3.sql §5 allowlist +
+      type-validation trigger extension added in R19) enforces both the
+      allowlist membership and the [0.75, 0.95] range. Schema declaration
+      added Day-20 W4 bilateral pass closing Janitor R11 Codex Finding 4.
+
+  blocked_recipients:
+    type: array
+    items:
+      type: string
+    required: false
+    default: []
+    set_by: [tenant-admin, janitor]
+    read_by: [concierge, sourcing-scout, cash-conductor, janitor]
+    notes: |
+      Per-tenant DNC (do not contact) list. v1.0 canonical source for outbound
+      send refusal (autosend-safety-policy §5 red-tier action_type
+      `send_to_blocked_recipient`) and pre-outbound sourcing filter (Sourcing
+      Scout §4 Step 8). Per ADR-002 vault/Postgres split — structured state in
+      Postgres, NOT vault markdown. Pre-v0.3 origin (the migration validator
+      `v0.2-to-v0.3.sql §5 allowlist` has accepted this key since v0.1); the
+      schema declaration in v0.3 supplement is added Day-20 W4 bilateral pass
+      closing Sourcing Scout R8 Codex Finding 1 (the key was load-bearing
+      across 4 agents but undeclared in any YAML).
 
   janitor_last_run:
     type: timestamp
@@ -981,7 +1004,8 @@ rationale: |
   Round-8 categorization (disagreement doc Phase 4 Cat-β) identified that
   4-of-5 remaining agent.md scaffolds (Janitor, Scribe, Cash Conductor,
   Concierge) cannot re-ratify until referenced schema fields exist. v0.3
-  adds 14 entity JSONB keys + 2 auxiliary tables + 3 config keys. The
+  adds 14 entity JSONB keys + 2 auxiliary tables + 6 config keys (3 v0.3-
+  new + 2 Janitor + 1 blocked_recipients pre-v0.3 canonicalised). The
   per_claim_confidence_distribution payload key originally planned for
   v0.3 is DEFERRED to the future W4-polish ADR (per ADR-006 Tier 2 +
   §5 of this supplement); v0.3 is silent on payload schema extensions.

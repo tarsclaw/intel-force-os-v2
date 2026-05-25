@@ -451,6 +451,33 @@ BEGIN
     END IF;
   END IF;
 
+  -- v0.3.1 (Day-20 bilateral pass) — declarations canonicalised in supplement §4
+  -- janitor_dedup_threshold: number in [0.75, 0.95] per supplement default 0.85
+  IF c ? 'janitor_dedup_threshold' THEN
+    IF jsonb_typeof(c->'janitor_dedup_threshold') != 'number' THEN
+      RAISE EXCEPTION 'janitor_dedup_threshold must be number';
+    END IF;
+    IF (c->>'janitor_dedup_threshold')::numeric < 0.75
+       OR (c->>'janitor_dedup_threshold')::numeric > 0.95 THEN
+      RAISE EXCEPTION 'janitor_dedup_threshold out of [0.75, 0.95] range: %', c->>'janitor_dedup_threshold';
+    END IF;
+  END IF;
+
+  -- janitor_last_run: ISO-8601 timestamp string or null
+  IF c ? 'janitor_last_run' THEN
+    IF jsonb_typeof(c->'janitor_last_run') NOT IN ('string', 'null') THEN
+      RAISE EXCEPTION 'janitor_last_run must be ISO-8601 timestamp string or null';
+    END IF;
+  END IF;
+
+  -- blocked_recipients: array of strings (pre-v0.3 origin; canonicalised here)
+  IF c ? 'blocked_recipients' THEN
+    IF jsonb_typeof(c->'blocked_recipients') != 'array' THEN
+      RAISE EXCEPTION 'blocked_recipients must be array';
+    END IF;
+    -- Element types validated by tenant-admin wizard; trigger checks shape only
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

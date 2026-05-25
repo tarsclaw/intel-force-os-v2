@@ -98,6 +98,12 @@ action_types:
     reason: "Status marker recorded AFTER an external send completes (the send itself was a different orange/yellow action_type with its own decision_log row); this row closes the workflow trace"
     irreversible: false
 
+  concierge_approval_routed:
+    tier: green
+    agent: concierge
+    reason: "Internal audit row recorded by Concierge cycle.sh Step 11 when an approval is routed via the autosend-bridge (per Founder Decision D1 path A/B/C). Payload carries d1_path + bridge_target (approval_id or vault path). Not an external send; the actual send is a downstream orange-tier action_type with its own row."
+    irreversible: false
+
   cash_conductor_run_complete:
     tier: green
     agent: cash-conductor
