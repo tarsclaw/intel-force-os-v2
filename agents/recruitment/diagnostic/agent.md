@@ -1,6 +1,6 @@
 # Diagnostic — the sales tool
 
-**Status:** Pre-Build-Round-16-Reviewed (Day-19; full bundle built — agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures all present. 16 Codex review-agent-bundle rounds attempted; ADR-006 closed Cat-1/Cat-ζ Gate A architectural finding (R10); subsequent rounds reduced from 5→5→4→5→5→4→5 mechanical findings with steady-state ~5 findings/round at the cross-reference-sync layer. Per master brief §10.3 step 5: founder-arbitrated Accepted on next bilateral pass OR per documented disagreement. Status flips Proposed → Accepted when ALL: (a) bilateral founder review of remaining mechanical findings, AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds, AND (d) Gate B baseline measurement begins.)
+**Status:** Pre-Build-Round-17-Bilateral-Applied (Day-20; W4 bilateral pass applied). Full bundle built — agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures all present. R17 closes 4 of 5 R16 residuals via direct edits (§6 ESC table v0-vs-W4 status column added; §3 validate.sh citation aligned + validate.sh comment updated W3→W4; §9 Q3 cross-linked to §8 dependencies). R16 Finding 3 (Gate A failure signature missing ESC_VOICE_DRIFT) was already addressed at R15 commit `23f8c14` — Codex misread the multi-line statement at lines 117-121; ESC_VOICE_DRIFT IS listed at lines 119-120. Disagreement filed at `docs/decisions/codex-disagreement-2026-05-25-diagnostic-r17.md`. **Next:** founder authorizes Codex R18 ratification (`bash scripts/run-codex-ratification.sh agent-bundle agents/recruitment/diagnostic/agent.md`); if RATIFIED, Status flips Pre-Build → Accepted when ALL: (a) bilateral founder review confirmed, AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds, AND (d) Gate B baseline measurement begins.
 **Date:** 2026-05-22.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W3-4 per master brief §8.2 line 595 (row 1; anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`. **Drift flag:** Ultraplan §8.1 A1 (line 489) calls Diagnostic build wave 4-5; master brief line 595 calls it W3-4. Master brief is authoritative per CLAUDE.md (master brief wins on every conflict); W3-4 is the build wave for IFOS.
@@ -42,7 +42,7 @@ Resolved by cortextOS daemon → spawns Diagnostic in Tier-2 batch mode (no pers
 
 ## §3 — The 12 required sections
 
-Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-generator`) emits them in the order listed below. Gate A at v0 enforces (a) ≥12 `##` headings present in the rendered draft AND (b) per-section citation coverage. v0 validate.sh §1.3 counts `##` headings without enforcing exact section titles or order; exact-heading-title-and-order matching is W4 polish per the comment in `validate.sh` near the section-count check.
+Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-generator`) emits them in the order listed below. Gate A at v0 enforces (a) ≥12 `##` headings present in the rendered draft AND (b) per-section citation coverage. v0 `validate.sh` V1 counts `##` headings without enforcing exact section titles or order — see `validate.sh` lines 89-91 comment ("Section labels documented for reference; not currently regex-matched individually... At W4 polish: tighten to enforce exact-heading match per EXPECTED_SECTIONS"). The comment was authored as "At W3 build" but W3 closed without the tightening; it is now W4 polish. Both the agent.md and `validate.sh` comment are updated to "W4 polish" in this round.
 
 **v0 source-coverage state:** Companies House data (§1, §10) is live via `@ifos/companies-house` MCP connector. Web-scraped pages (§2 footprint URLs, §8 careers-page pain signals) are live via `@ifos/web-scraper`. **LinkedIn deep-data sections (§3 job posts, §5 placement timeline, §7 employee skills, §9 competitor employee scan, §11 decision-maker profiles) currently use `@ifos/diagnostic-generator` stub-with-Companies-House-fallback citations** — Proxycurl integration deferred to W4 polish per ADR-005. Each LinkedIn-dependent section still emits ≥1 evidence link (per-section Gate A satisfied) by falling back to Companies House URLs, but the data depth is degraded vs the full-coverage W4 target.
 
@@ -168,13 +168,13 @@ Gate B is a local leading metric for Diagnostic quality; it does NOT feed any v1
 
 Diagnostic uses these ESC codes from `agents/_shared/escalation-codes.md`:
 
-| Code | Trigger | Severity | Routing |
-|---|---|---|---|
-| `ESC_VOICE_DRIFT` | Section 12 voice classifier < 0.75 after 3 retries | warn | operator_chat_id |
-| `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary | **blocking** | operator + ifos_oncall |
-| `ESC_RATE_LIMIT_HIT` | Companies House or LinkedIn 429 | warn | operator_chat_id |
-| `ESC_INPUT_VALIDATION_FAIL` | Malformed firm name input (Step 1 validation) | warn | operator_chat_id |
-| `ESC_AGENT_OUTPUT_SHAPE` | Section count != 12 OR Gate-A per-section citation missing OR generator produced empty stdout (Step 8 fallback) | warn | operator_chat_id |
+| Code | Trigger | Severity | Routing | v0 implementation status |
+|---|---|---|---|---|
+| `ESC_VOICE_DRIFT` | Section 12 voice classifier < 0.75 | warn | operator_chat_id | **v0: single-pass via `validate.sh` V3 (no in-generator retries); W4-planned: 3-retry classifier loop in `@ifos/diagnostic-generator` §12 LLM step.** Aggregate-tenant `ESC_VOICE_DRIFT_TENANT` is per `_shared/escalation-codes.md` (nightly cron). |
+| `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary | **blocking** | operator + ifos_oncall | v0: emails-only regex; warn + exit 0 when firm-domain whitelist absent. W4-planned: phone-number PII detection + hard-fail when whitelist absent. |
+| `ESC_RATE_LIMIT_HIT` | Companies House or LinkedIn upstream 429 | warn | operator_chat_id | **v0: NOT implemented in `cycle.sh` (generator throws-and-exits on upstream errors; validate.sh catches downstream as `ESC_AGENT_OUTPUT_SHAPE`). W4-planned: 429 catch + retry-with-backoff in `cycle.sh` + explicit `ESC_RATE_LIMIT_HIT` emission.** |
+| `ESC_INPUT_VALIDATION_FAIL` | Malformed firm name input (Step 1 validation) | warn | operator_chat_id | v0: implemented as specified. |
+| `ESC_AGENT_OUTPUT_SHAPE` | Section count != 12 OR Gate-A per-section citation missing OR generator produced empty stdout (Step 8 fallback) | warn | operator_chat_id | v0: implemented as specified. |
 
 Diagnostic does NOT use:
 
@@ -237,7 +237,7 @@ Full bundle (all 6 files + 3 fixtures) is built as of Day 19. Production readine
 |---|---|---|
 | Q1 | Is "12 sections" the right number? Ultraplan §8.1 A1 says "12 required sections" but doesn't enumerate. This document proposes a 12-section list (§3); founder may want to revise. | Founder reviews §3 table; can split/merge sections. Lands as Edit in next commit. |
 | Q2 | Should §11 (decision-maker map) be a separate section OR rolled into §3 + §4 + §5 + §7 as a sub-row? Currently named as a separate section. | Founder review at agent.md ratification. |
-| Q3 | Proxycurl vs alternative LinkedIn API surface? Cost + ToS implications. | v0 (Day 13 ship) skipped Proxycurl: LinkedIn deep-data sections (§3, §5, §7, §9, §11) use Companies House fallback citations per §3 table. W4 polish slice will commercially sign up for Proxycurl OR alternative (PhantomBuster, Bright Data, scraper.api) and wire it in. Cost: ~$39/mo at low volume per Proxycurl pricing. |
+| Q3 | Proxycurl vs alternative LinkedIn API surface? Cost + ToS implications. | v0 (Day 13 ship) skipped Proxycurl: LinkedIn deep-data sections (§3, §5, §7, §9, §11) use Companies House fallback citations per §3 table (status confirmed in §8 dependencies row "LinkedIn read-only via web-scraper" — Proxycurl deferred to W4). W4 polish decision path: founder evaluates commercial Proxycurl signup ($39/mo Proxycurl pricing low-volume) vs alternative (PhantomBuster, Bright Data, scraper.api) vs continued Companies House fallback. Resolution due before first pilot tenant onboarding (Risk #3 LOI close). |
 | Q4 | Gate B (30% discovery-call-to-report ratio) measured how? Manual tagging by consultant OR auto-detection via Bullhorn calendar links? | v1.0 manual tagging via Telegram resolution; v1.1 auto-detection. |
 | Q5 | What's the "firm-slug" canonical form for the output filename? Companies House registration number? URL-slugified firm name? | Recommend Companies House number for stability; canonical-slug fallback for non-UK firms (v1.1+). |
 | Q6 | Should §10 (recent activity) include Glassdoor reviews? ToS implications. | Per gotcha §6 below: caution; default OFF for v1.0; explicit founder enable for v1.1+. |

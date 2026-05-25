@@ -88,7 +88,8 @@ _warn() {
 
 # Section labels documented for reference; not currently regex-matched
 # individually because count + per-section citation check covers V1+V2.
-# At W3 build: tighten to enforce exact-heading match per EXPECTED_SECTIONS.
+# At W4 polish: tighten to enforce exact-heading match per EXPECTED_SECTIONS
+# (originally scheduled "At W3 build"; W3 closed without the tightening).
 SECTION_COUNT=$(grep -cE '^##[[:space:]]' "${DRAFT}" || echo 0)
 if (( SECTION_COUNT == 12 )); then
   _pass "V1: 12 sections present"
