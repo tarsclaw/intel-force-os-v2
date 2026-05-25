@@ -1,6 +1,6 @@
 # Janitor — the wedge agent
 
-**Status:** Proposed (Day-16 pre-W5-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B Accepted + W5 build slice).
+**Status:** Pre-Build-Round-12-Bilateral-Applied (Day-20; W4 bilateral pass closed all 4 R11 residuals: 3 closed by post-R11 commit `e5a2c74` (Gate A ESC routing per-condition split, recent_edit.resolution citation, v0.3 supplement §2a authority); Finding 4 closed today by adding `janitor_dedup_threshold` + `janitor_last_run` declarations to v0.3 supplement §4 tenant_adapters_config_additions + agent.md citations updated. v0.3 supplement edit is additive — re-ratification queued. Awaits Q1 LOI + Bullhorn Sub-decisions A+B Accepted + W5 build slice).
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W5 per master brief §8.2 line 596 + ULTRAPLAN §8.1 A2 line 503 (ULTRAPLAN says week 5-6, master brief says week 5; master brief is authoritative).
@@ -39,7 +39,7 @@ ifosctl janitor --tenant <slug> [--dry-run] [--report-only]
 ### v1.1+ surfaces (deferred)
 
 - Brain UI "Run Janitor now" button → triggers via internal API
-- Tenant-admin override for dedup confidence threshold (default 0.85; per-tenant via `tenant_adapters.config.janitor_dedup_threshold` — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist)
+- Tenant-admin override for dedup confidence threshold (default 0.85; per-tenant via `tenant_adapters.config.janitor_dedup_threshold` — declared in `vertical-schema.v0.3-supplement.yaml §4 tenant_adapters_config_additions.janitor_dedup_threshold`; enforced by `migrations/v0.2-to-v0.3.sql §5` validator allowlist)
 
 ---
 
@@ -92,7 +92,9 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 2. Bullhorn entity scan (read-only)
    → enumerate candidates + contractors + clients + contacts + placements +
      opportunities created/modified since last Janitor run (last_run_at in
-     tenant_adapters.config.janitor_last_run — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist)
+     tenant_adapters.config.janitor_last_run — declared in vertical-schema
+     v0.3 supplement §4 tenant_adapters_config_additions.janitor_last_run;
+     enforced by migrations/v0.2-to-v0.3.sql §5 validator allowlist)
    → hh_decision_output("janitor_scan", "tenant:<slug>", "<N> entities scanned")
    → ESC_RATE_LIMIT_HIT if Bullhorn 429 (60s backoff per ESC_RATE_LIMIT_HIT catalogue §2.5 standard handling)
 

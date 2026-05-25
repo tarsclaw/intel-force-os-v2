@@ -788,6 +788,33 @@ tenant_adapters_config_additions:
       Per-tenant outbound sending hours. Concierge respects when scheduling
       orange-tier sends.
 
+  janitor_dedup_threshold:
+    type: numeric
+    required: false
+    default: 0.85
+    range: [0.75, 0.95]
+    set_by: [tenant-admin]
+    read_by: [janitor]
+    notes: |
+      Per-tenant dedup confidence threshold for candidate merges. v1.0 default
+      0.85 per ULTRAPLAN A2 line 510. Tenant-admin override range [0.75, 0.95]
+      via the wizard. The migration validator (v0.2-to-v0.3.sql §5 allowlist)
+      already accepts this key; this declaration is the canonical schema
+      authority added in W4 bilateral pass (Day-20) closing Janitor R11
+      Codex Finding 4.
+
+  janitor_last_run:
+    type: timestamp
+    required: false
+    set_by: janitor
+    read_by: [janitor]
+    notes: |
+      Janitor nightly cron updates at session-close (Step 12). Next run queries
+      Bullhorn for entities created/modified since this timestamp. The migration
+      validator (v0.2-to-v0.3.sql §5 allowlist) already accepts this key; this
+      declaration is the canonical schema authority added in W4 bilateral pass
+      (Day-20) closing Janitor R11 Codex Finding 4.
+
   # diagnostic_per_claim_sample_rate DEFERRED to future W4-polish ADR
   # (per ADR-006 Tier 2 + §5 deferred_to_future_adr). v0.3 does not
   # declare this config key; the W4 ADR will introduce both the field
