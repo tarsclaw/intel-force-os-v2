@@ -1,9 +1,35 @@
 # Current priorities
 
-**Week:** Week 3 — **CLOSED** (Day 19/22 — 2026-05-24)
-**Today's task:** **Week 3 goal `docs/operations/goal-week-3-polish-and-scaffold.md` executed end-to-end. 100+ Codex rounds across 8 artefacts. v0.3 schema supplement RATIFIED ✅ (first ratified artefact). ADR-006 Diagnostic Gate A Accepted (founder-arbitrated). All 6 agent.md scaffolds at Pre-Build-Round-N-Reviewed.**
-**Active plan:** Week-3 goal complete — bilateral disposition framework executed; post-v0.3 re-ratification rounds run for Janitor + Scribe + Concierge.
-**Most recent close:** Day 19 (2026-05-24) — 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
+**Week:** Week 4 — **Day 20 / open**
+**Today's task:** **W4 Day-20 bilateral pass + ADR-007 + v0.3 wrapper script complete. All 6 agent.md scaffolds at Pre-Build-Round-N-Bilateral-Applied/Confirmed. 24 residual Codex findings from Day-19 latest rounds dispositioned across 7 atomic commits. v0.3 supplement amended (additive); ADR-007 (Concierge Gate A 30-min SLA hybrid) drafted; v0.3 migration wrapper script drafted with --dry-run; founder-action runbook authored. Founder Codex re-ratification + v0.3 migration application are the remaining gates.**
+**Active plan:** W4 founder-action queue items #1 (v0.3 migration) + #2 (bilateral pass) + #3 (Concierge ADR) executed inline. Awaits founder authorization for Codex re-ratification round + v0.3 migration application.
+**Most recent close:** Day 20 (2026-05-25) — 7 atomic commits applied bilateral pass; ADR-007 drafted; v0.3 wrapper + Day-20 runbook + bilateral working doc shipped.
+**Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
+
+## W4 Day-20 shipped
+
+**7 atomic commits (all pushed pending git push):**
+
+1. `22cd672 ops(w4-day-20)` — v0.3 migration wrapper (`scripts/run-v0.3-migration.sh`; --dry-run; closes W4 backlog item #1 gap) + Day-20 founder runbook + bilateral-pass working doc
+2. `7df4e60 fix(diagnostic-r17)` — 4 of 5 R16 residuals closed via §6 status column + §3+validate.sh alignment + Q3 cross-link; Finding 3 REJECT-CODEX (multi-line parse error in Codex's read); disagreement doc filed
+3. `bd3c145 fix(janitor-r12 + v0.3-supplement.0.1)` — Finding 4 closed via v0.3 supplement §4 amendment adding `janitor_dedup_threshold` + `janitor_last_run` declarations; agent.md citations updated. Findings 1+2+3 already in post-R11 commit `e5a2c74`. **v0.3 supplement amended — needs re-ratification**.
+4. `0e0d741 fix(sourcing-scout-r9)` — 3 R8 residuals already in `d1f4c53`; R9 polish: §10 three-state lifecycle (Proposed → Ratified-as-Scaffold → Accepted → In Force) + §1 Schema-key block rewrite + §4 Step 8 blocked_recipients cite corrected
+5. `da017df fix(cash-conductor-r18-bilateral)` — all 3 R17 residuals confirmed closed by post-R17 commit `9ae6874`; banner-only flip
+6. `40f94c4 fix(scribe-r4)` — all 5 R3 residuals closed; missing `hh_decision_*` calls added at §4 Steps 3+7; Ringover explicitly v1.1+; autosend cite split (decision-doc vs runtime YAML); ESC_PROVIDER_FETCH_FAIL catalogue extension queued
+7. `26551c8 feat(ADR-007 + concierge-r4)` — ADR-007 (Concierge Gate A 30-min SLA hybrid) drafted; analogue of ADR-006; closes Concierge R3 Finding 3 structurally. Step 11 `hh_decision_action` added. **Closes W4 founder-action queue item #3** (drafted; ratification gates Concierge Accepted).
+
+**6 agent.md scaffolds — current state:**
+
+| Agent | Status | Pre-bilateral residuals | Post-bilateral residuals | Next gate |
+|---|---|---|---|---|
+| Diagnostic | Pre-Build-Round-17-Bilateral-Applied | 5 | 0 (4 fixed + 1 REJECT-CODEX) | Codex R18 re-ratification |
+| Cash Conductor | Pre-Build-Round-18-Bilateral-Confirmed | 3 | 0 (all in `9ae6874`) | Codex R19 re-ratification |
+| Sourcing Scout | Pre-Build-Round-9-Bilateral-Applied | 3 | 0 (all in `d1f4c53` + R9 polish) | Codex R10 re-ratification |
+| Janitor | Pre-Build-Round-12-Bilateral-Applied | 4 | 0 (3 in `e5a2c74` + 1 via supplement) | Codex R13 re-ratification |
+| Scribe | Pre-Build-Round-4-Bilateral-Applied | 5 | 0 (4 in `db56336` + 1 polish) | Codex R5 re-ratification |
+| Concierge | Pre-Build-Round-4-Bilateral-Applied | 4 | 0 (3 in `f79c018` + 1 via ADR-007) | Codex R5 re-ratification + ADR-007 ratified |
+
+## Day 19 context (Week 3 close)
 
 ## Week 3 Shipped (Day 19 full session)
 
@@ -32,20 +58,23 @@
 - [ ] **Diagnostic validate.sh + cycle.sh polish (W3-W4)** — emit specific ESC codes per §6; write validate_check_skipped row; add operator_notify_telegram hh_decision_action call.
 - [ ] **Per-agent build slices (W5-W13)** — each agent's full bundle delivery + ratification cycle at its build wave.
 
-## W4 founder-action queue (NEW priorities)
+## W4 founder-action queue (Day-20 update)
 
-1. **Apply v0.3 migration to migration-test tenant** — Path A founder action: `bash scripts/run-live-migration.sh` (or wrapper for v0.2→v0.3 specifically); `ifos_app` password from 1Password. Run `bash scripts/run-tenancy-audit.sh` after; expect 12/12 invariants pass across 11 tables.
-2. **Bilateral pass on 6 agent.md scaffolds** (60-90 min with founder) — review residual ~3 findings/agent; close all 6 to RATIFIED in single coordinated pass.
-3. **Future ADR — Concierge Gate A 30-min SLA hybrid** (analogous to ADR-006 for Diagnostic; closes Concierge's documented deviation from ULTRAPLAN A6 line 566). ~1 hour.
-4. **D1 founder decision (autosend orange-tier path A/B/C)** — blocks Concierge build slice.
+1. **Apply v0.3 migration to migration-test tenant** — **PARTIALLY UNBLOCKED.** Wrapper script `scripts/run-v0.3-migration.sh` drafted today; founder runs A.1 (codex-ratify wrapper) → A.2 (`--dry-run`) → A.3 (live; password from 1Password) → A.4 (`bash scripts/run-tenancy-audit.sh`). Expected: 12/12 invariants across 11 tables. See `docs/operations/w4-day-20-founder-runbook.md`.
+2. **Bilateral pass on 6 agent.md scaffolds** — **DONE.** 24 residuals dispositioned across 7 atomic commits today. All 6 at Pre-Build-Round-N-Bilateral-Applied/Confirmed. Founder authorizes Codex re-ratification (6 agent.md + v0.3 supplement amendment + ADR-007 = 8 ratification runs) to close to RATIFIED.
+3. **Future ADR — Concierge Gate A 30-min SLA hybrid** — **DRAFTED.** `docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md`. Analogue of ADR-006. Awaits Codex `review-architecture-decision` skill ratification + founder Accept.
+4. **D1 founder decision (autosend orange-tier path A/B/C)** — still pending. Blocks Concierge build slice.
 5. **Companies House API key + Anthropic API key** — original Step 2 + Step 4 founder gates (still pending).
 6. **First pilot tenant onboarding** — unblocks Status flips Pre-Build → Accepted for all 6 agents (founder approves §3 12-section lists + first production render conditions).
+7. **NEW: Codex re-ratification round** — 8 artefacts: 6 agent.md + v0.3 supplement amendment + ADR-007. Founder authorizes; can run as one batch via `bash scripts/run-codex-ratification.sh`.
 
 ## Trigger 2 runway
 
 - DIAGNOSTIC-NO-RENDER-W3 fires 2026-06-14 if no clean Diagnostic render by then
-- Today: 2026-05-24; 21 days runway
-- Bundle code complete; Codex RATIFIED still pending; closely tied to bilateral founder pass
+- Today: 2026-05-25 (Day 20); **20 days runway**
+- Bundle code complete; Codex R17 closures applied; R18 re-ratification is the remaining gate. **Diagnostic is the closest agent to RATIFIED status.**
+
+## Day 19 close (W3) — historical
 
 ## ---
 ## Older state (pre Day-19) — Week 0 era follows
