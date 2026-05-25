@@ -1,6 +1,7 @@
 # Sourcing Scout — request-response passive sourcing
 
-**Status:** Pre-Build-Round-9-Bilateral-Applied (Day-20; W4 bilateral pass applied). All 3 R8 residuals confirmed closed by post-R8 commit `d1f4c53` (canonical schema-key block + webhook deferred to v1.1+ + Accepted criteria expanded). R9 adds: §10 three-state lifecycle clarification (Proposed → Ratified-as-Scaffold → Accepted → In Force; ratification ≠ acceptance per agent-bundle skill); §4 Step 8 + Schema-key block rewrite for `blocked_recipients` (correctly cites the migration allowlist as canonical; v0.4-pending applies only to `auto_source_on_brief_create`). Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice.
+**Status:** Proposed.
+**Build state:** Day-20 W4 bilateral pass + R19 substantive fix applied. R9 added §10 three-state lifecycle clarification (Proposed → Ratified-as-Scaffold → Accepted → In Force; ratification ≠ acceptance per agent-bundle skill) + §4 Step 8 + Schema-key block rewrite for `blocked_recipients`. R19 (today): adds `blocked_recipients` declaration to v0.3 supplement §4 tenant_adapters_config_additions per Codex Finding 1. Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice.
 
 **Schema-key references:**
 - `tenant_adapters.config.blocked_recipients` — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist (line 397); canonical Postgres-backed v1.0 DNC source per ADR-002. YAML schema declaration deferred to future schema-doc audit (covers all pre-v0.3 allowlist keys not yet declared in YAML).
