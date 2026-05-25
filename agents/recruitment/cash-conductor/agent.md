@@ -1,6 +1,6 @@
 # Cash Conductor — the FD's evenings back
 
-**Status:** Proposed (Day-18 pre-W7-8-build scaffold; awaits Q1 LOI + accounting + Open Banking commercial signups + W7 build slice).
+**Status:** Pre-Build-Round-18-Bilateral-Confirmed (Day-20; W4 bilateral pass confirmed all 3 R17 residuals already closed by post-R17 commit `9ae6874` — §8 sibling files + D1/bridge prereqs + §3 audit-row signatures correctly split into 4-row sequence per chase lifecycle). No new edits required from this round. Awaits Q1 LOI + accounting + Open Banking commercial signups + Founder Decision D1 resolved + autosend bridge built (Concierge W10) + W7 build slice. (Note: D1 + bridge are W4 founder-action queue items #4 + downstream; per §8 fallback row, Cash Conductor v1.0 can downgrade to drafts-only if D1+bridge slip past W7-8.)
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W7-8 per master brief §8.2 line 598 + ULTRAPLAN §8.1 A4 line 531 (both say W7-8; consistent).
