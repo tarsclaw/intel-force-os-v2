@@ -1,9 +1,9 @@
 # Sourcing Scout — request-response passive sourcing
 
-**Status:** Proposed (2026-05-24 pre-W9-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice).
+**Status:** Pre-Build-Round-9-Bilateral-Applied (Day-20; W4 bilateral pass applied). All 3 R8 residuals confirmed closed by post-R8 commit `d1f4c53` (canonical schema-key block + webhook deferred to v1.1+ + Accepted criteria expanded). R9 adds: §10 three-state lifecycle clarification (Proposed → Ratified-as-Scaffold → Accepted → In Force; ratification ≠ acceptance per agent-bundle skill); §4 Step 8 + Schema-key block rewrite for `blocked_recipients` (correctly cites the migration allowlist as canonical; v0.4-pending applies only to `auto_source_on_brief_create`). Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice.
 
 **Schema-key references:**
-- `tenant_adapters.config.blocked_recipients` — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist; canonical Postgres-backed v1.0 DNC source per ADR-002.
+- `tenant_adapters.config.blocked_recipients` — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist (line 397); canonical Postgres-backed v1.0 DNC source per ADR-002. YAML schema declaration deferred to future schema-doc audit (covers all pre-v0.3 allowlist keys not yet declared in YAML).
 - `tenant_adapters.config.auto_source_on_brief_create` — v0.4-supplement-pending (not yet in any allowlist); the Bullhorn-webhook auto-source trigger code path is blocked until v0.4 lands.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
@@ -195,12 +195,13 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
    → load tenant DNC list from `tenant_adapters.config.blocked_recipients`
      (concept referenced by autosend-policy.yaml red-tier
      `send_to_blocked_recipient` action_type + ESC_DNC_FILTER_HIT catalogue
-     §2.10; the actual config-key SCHEMA registration is v0.4-supplement-
-     pending — v0.3 supplement §4 only registers cash_conductor_last_run +
-     concierge_last_poll + concierge_send_window. Production-readiness
-     gate: v0.4 supplement must land before Sourcing Scout's DNC filter
-     path runs against real pilot data. Postgres-backed per ADR-002
-     vault/Postgres split — NOT vault markdown.)
+     §2.10; the config key IS registered in the canonical authority
+     `migrations/v0.2-to-v0.3.sql §5` validator allowlist (line 397).
+     v0.4-pending status applies ONLY to `auto_source_on_brief_create`
+     (the webhook auto-source trigger config), NOT to `blocked_recipients`.
+     Postgres-backed per ADR-002 vault/Postgres split — NOT vault markdown.
+     Future schema-doc audit will land `blocked_recipients` declaration
+     in the YAML schema files alongside other pre-v0.3 allowlist keys.)
    → remove any candidate matching any DNC identifier from the sourcing list
    → log dropped candidates to exception list in §3 output
    → NOTE: ESC_DNC_FILTER_HIT is catalogue §2.10 reserved for OUTBOUND SEND
@@ -376,23 +377,24 @@ Sourcing Scout build cannot start until ALL of the following are confirmed:
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill (built 2026-05-24, commit `825ebd4`): this agent.md ratifies when Codex review-agent-bundle returns RATIFIED verdict.
+Per `.codex/ratification/review-agent-bundle.md` skill (built 2026-05-24, commit `825ebd4`): this agent.md ratifies when Codex review-agent-bundle returns RATIFIED verdict on the SCAFFOLD shape (output contract + workflow + gates + escalation + dependencies). **Ratification of the scaffold does NOT make it Accepted.** Per the agent-bundle skill, Accepted means production-ready — which requires all sibling bundle files + fixtures + first production run.
 
-Status flips Proposed → Accepted when ALL:
-- Codex review-agent-bundle ratifies this agent.md
-- Founder approves §9 Q1 (3 sources vs 2) + Q3 (DNC source) + Q5 (Gate B UX)
-- Q2 cost model approved with per-tenant budget cap
-- Q6: source-abstraction-layer ADR drafted + ratified (new ADR — not the same as ADR-006 which is Diagnostic Gate A; number assigned at authoring time)
-- W9 build slice produces all sibling bundle files (`tools.yaml`, `context.sh`, `validate.sh`, `cycle.sh`, `cleanup.sh`) + 3 fixtures with golden outputs
-- First production brief processed end-to-end against migration-test tenant
-- Gate B feedback loop operational (Telegram /scout-feedback path)
+**Three-state lifecycle:**
 
-Status flips Accepted → In Force when:
-- W9 build slice produces all 5 sibling bundle files + 3 fixtures
-- First production brief processed end-to-end against migration-test tenant
-- Gate B feedback loop operational (Telegram OR Brain UI)
-- Codex re-ratifies post-build via `review-agent-bundle.md` skill
+1. **Proposed → Ratified-as-Scaffold** when Codex review-agent-bundle returns RATIFIED on this agent.md alone. Pre-build scaffold confirmed shape-correct; the document is a binding contract for the W9 build slice.
 
-Until then: this document is a forward-looking scaffold.
+2. **Ratified-as-Scaffold → Accepted** when ALL:
+   - W9 build slice produces all 5 sibling bundle files (`tools.yaml`, `context.sh`, `validate.sh`, `cycle.sh`, `cleanup.sh`) + 3 fixtures with golden outputs
+   - Codex re-ratifies the full bundle (agent.md + siblings + fixtures) post-build
+   - Founder approves §9 Q1 (3 sources vs 2) + Q3 (DNC source) + Q5 (Gate B UX)
+   - Q2 cost model approved with per-tenant budget cap
+   - Q6: source-abstraction-layer ADR drafted + ratified (new ADR — not the same as ADR-006 which is Diagnostic Gate A; number assigned at authoring time)
+
+3. **Accepted → In Force** when:
+   - First production brief processed end-to-end against migration-test tenant
+   - Gate B feedback loop operational (Telegram /scout-feedback path; Brain UI in v1.1)
+   - First production render against a pilot tenant succeeds (per ADR-003 §4 + ADR-004 Decision 7 audit row)
+
+Until W9 build: this document is a forward-looking scaffold.
 
 *End of Sourcing Scout agent.md draft.*
