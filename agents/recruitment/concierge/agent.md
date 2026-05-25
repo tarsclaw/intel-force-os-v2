@@ -1,6 +1,6 @@
 # Concierge — no candidate ghosted
 
-**Status:** Proposed (Day-19 pre-W10-build scaffold; awaits Q1 LOI + Bullhorn Sub-decisions A+B + Microsoft Graph / Gmail per-tenant signup + Founder Decision D1 autosend orange-tier path + W10 build slice).
+**Status:** Pre-Build-Round-4-Bilateral-Applied (Day-20; W4 bilateral pass applied + ADR-007 drafted). All 4 R3 residuals addressed: Findings 1 + 2 + 4 closed by post-R3 commit `f79c018` (yellow draft tier + Step 7 decision-log + ULTRAPLAN line citations removed where stale); R4 polish today adds Step 11 `hh_decision_action("concierge_approval_routed"...)` for the autosend-bridge routing (closes the remaining Step-11 gap in Finding 1); Finding 3 (structural — Gate-A 30-min SLA deviation) closed by drafting `docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md` + adding ADR-007 to §10 Accepted blockers. Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Microsoft Graph / Gmail per-tenant signup + Founder Decision D1 autosend orange-tier path + ADR-007 RATIFIED + W10 build slice.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W10-13 per master brief §8.2 line 600 + ULTRAPLAN §8.1 A6 line 559 (master brief says W10-13 = 4 weeks; ULTRAPLAN says W9-10 = 2 weeks; master brief authoritative — the XL complexity flag in ULTRAPLAN A6 line 568 corroborates the 4-week duration).
@@ -228,6 +228,9 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
       D1-C (no autosend in v1.0): draft to vault for manual consultant pickup
     → per autosend-policy.yaml: orange-tier; consultant approves
     → ESC_APPROVAL_BRIDGE_TIMEOUT if no approval within 24h (D1-A/B)
+    → hh_decision_action("concierge_approval_routed",
+      "candidate:<bullhorn_id>:<event_type>", payload_hash,
+      "d1_path:<A|B|C>; bridge_target:<approval_id_or_vault_path>")
 
 12. (After operator approval) Send execution — orange-tier
     → microsoft-graph.send_email() OR gmail.send_email() per tenant config
@@ -418,6 +421,7 @@ Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `82
 
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies
+- **ADR-007 (Concierge Gate A 30-min SLA hybrid) RATIFIED** — closes the documented deviation from ULTRAPLAN A6 line 566 wording. ADR drafted at `docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md` (Day 20 W4 bilateral pass); ratifies via `.codex/ratification/review-architecture-decision.md` skill. Until RATIFIED, agent.md's Gate B framing of the 30-min SLA is documented disposition only.
 - **Founder Decision D1 RESOLVED** (Q1 above) — without this, Concierge build cannot start
 - Founder approves §9 Q2 (lifecycle taxonomy) + Q3 (send window) + Q4 (rejection routing) + Q5 (template authoring UX) + Q6 (Gate B UX)
 - Q7-Q9 documented decisions captured
