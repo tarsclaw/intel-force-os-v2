@@ -45,6 +45,17 @@ There is a safety wrapper `ifosctl-install` that always passes `--instance ifos-
 
 Full statement of each rule is in `docs/build-brief/00-MASTER-BRIEF.md` §1.
 
+## Coding-agent discipline — per edit
+
+The five rules govern *what* we build and in what order. These four govern *how* you write code each turn. They operate beneath the five rules and never override them or the four boundaries.
+
+1. **Think before coding** — State your assumptions. If a request is ambiguous, ask — don't guess (this is the same "Ask the founder. Do not guess." from the stuck protocol, applied to every edit).
+2. **Simplicity first** — Minimum code that solves the stated problem. Nothing speculative — no unrequested abstractions, no "flexibility" for futures not in master brief §6 or §8.
+3. **Surgical changes** — Touch only what the task requires. Don't refactor, reformat, or "improve" unrelated code, and never touch anything across the four boundaries below.
+4. **Goal-driven execution** — Turn vague asks into verifiable success criteria before starting. Verify by running (tests, smoke, the audit harness) — not by asserting it works.
+
+Derived from Andrej Karpathy's public observations on LLM coding failure modes; phrasing adapted from F. Chang's `andrej-karpathy-skills` CLAUDE.md. Not authored by Karpathy.
+
 ## The four boundaries
 
 1. **Submodule boundary** — never edit `packages/harness/cortextos/*` except the four `bus/kb-*.sh` files we shadow via `packages/brain/bus-overrides/`. The submodule is a reference pin, not the runtime.
