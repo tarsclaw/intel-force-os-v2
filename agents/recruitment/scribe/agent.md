@@ -108,7 +108,9 @@ One Markdown note per call, attached to the same Bullhorn entity as Output 1 via
 - <Open question 2>
 ```
 
-Length cap: 800 words. Voice-classified (≥0.75); falls back to "needs consultant review" placeholder if classifier persistently fails (ESC_VOICE_DRIFT).
+Length cap: 800 words. Voice-classified (≥0.75). Persistent classifier failure (after 3 retries) is a **hard Gate A failure** — fires `ESC_VOICE_DRIFT` + `validate_gate_a_fail`; the note is NOT attached to Bullhorn (Step 9 is skipped) and is held as a `/tmp`/vault draft flagged "needs consultant review" for manual handling. The placeholder is explicitly a non-success state, never a passing output.
+
+Each tacit-note write emits its own `decision_log` rows: on vault render, `agent_name='scribe'`, `phase='output'`, `output_type='tacit_note_rendered'` carrying `{vault_path, body_sha256, voice_score}` (body NOT in payload per ADR-002 vault/Postgres split); on Bullhorn attach, `phase='action'`, `action_type='bullhorn_note_append_summary'`, `tier='yellow'`, payload carrying `note_payload_hash` + `payload_preview` + the resolved `<entity_type>:<bullhorn_id>` (per §4 Steps 6 + 9).
 
 Tacit-note taxonomy (v0.1 — 8 categories per ULTRAPLAN A3 line 527 starting small):
 1. Relationship signal (client warmth, candidate enthusiasm, prior friction)
@@ -193,7 +195,7 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
      "<entity_type>:<bullhorn_id>", payload_hash,
      "ESC_SCHEMA_VIOLATION; agent_name:scribe; valid:<N>") and exit 1
      (validate_gate_a_fail is the canonical green-tier action_type registered
-     in agents/_shared/autosend-policy.yaml line 113; agent:all; Scribe uses
+     in agents/_shared/autosend-policy.yaml line 119; agent:all; Scribe uses
      the shared signature with agent_name in payload to distinguish.)
 
 8. Bullhorn write — structured fields (yellow tier)
@@ -256,7 +258,7 @@ Two metrics:
 
 Gate B doesn't block individual runs. Tracked monthly via day-30 metrics roll-up (similar to Janitor's day-30 report; Scribe metrics merge into the tenant's monthly executive summary).
 
-Both metrics below target for 30 consecutive days → `ESC_GATE_B_MISS` → operator + ifos_oncall (likely indicates LLM prompt drift or taxonomy mismatch).
+Both metrics below target for 30 consecutive days → `ESC_GATE_B_MISS` → operator_chat_id (per catalogue routing; likely indicates LLM prompt drift or taxonomy mismatch).
 
 ---
 
@@ -276,6 +278,7 @@ Scribe uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_AGENT_OUTPUT_SHAPE` | No resolvable target entity (Step 4) — Scribe run cannot produce its declared output shape | warn | operator_chat_id |
 | `ESC_SCHEMA_VIOLATION` | Vertical-schema field-constraint violation at write time (Step 7) per catalogue line 163 | warn | operator_chat_id |
 | `ESC_SCRIBE_SLA_MISS` | Per catalogue §2.10: summary-render >30 min OR note-attach >1h after call end | warn | operator_chat_id (per catalogue routing); aggregated to Gate B metric |
+| `ESC_GATE_B_MISS` | Both Gate B metrics (≥90% within-5-min SLA AND ≤20% structured-field edit-rate) below target for 30 consecutive days | warn | operator_chat_id (per catalogue routing) |
 | `ESC_RATE_LIMIT_HIT` | Bullhorn or provider 429 | warn | operator_chat_id |
 | `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
