@@ -1,7 +1,7 @@
 # Diagnostic — the sales tool
 
 **Status:** Proposed.
-**Build state:** Full bundle built (agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures). 18 Codex review-agent-bundle rounds run as of Day-20 W4 bilateral pass; ADR-006 closed Cat-1/Cat-ζ Gate A finding (R10); subsequent rounds reduce mechanical findings to steady-state ~4-5/round at the cross-reference-sync layer per master brief §10.3 step 5. R19 in progress today (this artefact). Status flips Proposed → Accepted when ALL: (a) Codex RATIFIED verdict (R19 or escalated founder-arbitrated per §10.3 step 5), AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds, AND (d) Gate B baseline measurement begins.
+**Build state:** Full bundle built (agent.md + cycle.sh + validate.sh + context.sh + tools.yaml + cleanup.sh + 3 fixtures). Codex review-agent-bundle rounds run through R19 (latest applied 2026-05-25 bilateral pass); ADR-006 closed the Cat-1/Cat-ζ Gate A finding at R10; subsequent rounds sit at steady-state ~4 mechanical cross-reference findings/round per master brief §10.3 step 5. Status flips Proposed → Accepted when ALL: (a) Codex RATIFIED verdict (R19 or escalated founder-arbitrated per §10.3 step 5), AND (b) founder approves §3's 12-section list as canonical, AND (c) first production render against the first pilot tenant succeeds, AND (d) Gate B baseline measurement begins.
 **Date:** 2026-05-22.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W3-4 per master brief §8.2 line 595 (row 1; anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`. **Drift flag:** Ultraplan §8.1 A1 (line 489) calls Diagnostic build wave 4-5; master brief line 595 calls it W3-4. Master brief is authoritative per CLAUDE.md (master brief wins on every conflict); W3-4 is the build wave for IFOS.
@@ -43,7 +43,7 @@ Resolved by cortextOS daemon → spawns Diagnostic in Tier-2 batch mode (no pers
 
 ## §3 — The 12 required sections
 
-Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-generator`) emits them in the order listed below. Gate A at v0 enforces (a) ≥12 `##` headings present in the rendered draft AND (b) per-section citation coverage. v0 `validate.sh` V1 counts `##` headings without enforcing exact section titles or order — see `validate.sh` lines 89-91 comment ("Section labels documented for reference; not currently regex-matched individually... At W4 polish: tighten to enforce exact-heading match per EXPECTED_SECTIONS"). The comment was authored as "At W3 build" but W3 closed without the tightening; it is now W4 polish. Both the agent.md and `validate.sh` comment are updated to "W4 polish" in this round.
+Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-generator`) emits them in the order listed below. Gate A at v0 enforces (a) exactly 12 `##` headings present in the rendered draft — `validate.sh` lines 93-98 hard-fail when the section count != 12 — AND (b) per-section citation coverage. v0 `validate.sh` V1 counts `##` headings without enforcing exact section titles or order — see `validate.sh` lines 89-91 comment ("Section labels documented for reference; not currently regex-matched individually... At W4 polish: tighten to enforce exact-heading match per EXPECTED_SECTIONS"). The comment was authored as "At W3 build" but W3 closed without the tightening; it is now W4 polish. Both the agent.md and `validate.sh` comment are updated to "W4 polish" in this round.
 
 **v0 source-coverage state:** Companies House data (§1, §10) is live via `@ifos/companies-house` MCP connector. Web-scraped pages (§2 footprint URLs, §8 careers-page pain signals) are live via `@ifos/web-scraper`. **LinkedIn deep-data sections (§3 job posts, §5 placement timeline, §7 employee skills, §9 competitor employee scan, §11 decision-maker profiles) currently use `@ifos/diagnostic-generator` stub-with-Companies-House-fallback citations** — Proxycurl integration deferred to W4 polish per ADR-005. Each LinkedIn-dependent section still emits ≥1 evidence link (per-section Gate A satisfied) by falling back to Companies House URLs, but the data depth is degraded vs the full-coverage W4 target.
 
@@ -64,7 +64,7 @@ Every report MUST contain these 12 sections. The generator (`@ifos/diagnostic-ge
 
 **Gate A hard-fails (v0 — unconditional hard-fail; what `validate.sh` actually enforces today):**
 
-- Fewer than 12 sections present
+- Section count != 12 (validate.sh hard-fails unless exactly 12 sections are present)
 - Any section with zero citation links (per-section citation subcheck; ADR-006-canonical)
 - Output exceeds 2000 words OR is under 400 words (length-discipline boundary)
 - Banned phrases per `tone_rule` table
@@ -80,6 +80,7 @@ The two-tier framing (hard-fails / complement) honestly reflects v0 behavior: th
 - Step 10 report assembly → `hh_decision_output("diagnostic_report", "<vault_path>", "12-section report on <firm>")`
 - Step 11 (optional) operator notify → `hh_decision_action("operator_notify_telegram", "operator:<chat_id>", payload_hash, payload_preview)` — green tier per autosend-policy.yaml
 - Step 12 session close → `hh_decision_action("diagnostic_report_render", "firm:<slug>", payload_hash, payload_preview)` — green tier
+- Cleanup (cycle.sh Step 14, via cleanup.sh) → `hh_decision_action("linkedin_cache_purge_fail", ...)` on cache-purge failure AND `hh_decision_action("diagnostic_cleanup", ...)` on normal completion — both green tier per `autosend-policy.yaml` lines 137-147
 
 ---
 
@@ -126,7 +127,10 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
      section count / citation / length failures; ESC_VOICE_DRIFT for V3
      voice-classifier-score-low failures; ESC_PII_LEAKAGE_RISK for PII
      boundary breaches) and exit 1
-   → cycle.sh deletes draft on Gate A fail
+   → cycle.sh RETAINS the draft at /tmp on Gate A fail for postmortem
+     (cycle.sh lines 174-181; fixture 99-voice-drift-canary.yaml asserts
+     draft_file_at_tmp: true). The draft is dropped by cleanup.sh on the
+     next normal-completion run, not on Gate A fail.
 
 13. Atomic vault write + report-render audit row (cycle.sh Step 13)
    → atomic mv -f /tmp/<draft> → /vault/<tenant>/diagnostic-reports/<firm-slug>-<ISO-date>.md
@@ -141,6 +145,9 @@ Per master brief §8.1 Change 2, every workflow step that produces output OR tak
      → tier: green (operator-only Telegram; no customer-facing comms)
    → if no flag: silent completion (consultant checks vault); no decision-log row
    → cleanup.sh runs (drops transient LinkedIn cache per ToS gotcha §6.1)
+     → on cache-purge failure: hh_decision_action("linkedin_cache_purge_fail", ...) — green tier
+     → on normal completion: hh_decision_action("diagnostic_cleanup", ...) — green tier
+       (records cache-purge status + workspace cleanup; no external comms)
    → exit 0
 ```
 
@@ -187,7 +194,7 @@ Diagnostic does NOT use:
 
 - `ESC_RENDERER_FAILED` — that code is owned by the `_renderer` sentinel (agent_name='_renderer') per catalogue §2.4; Diagnostic never fires it
 - `ESC_BULLHORN_AUTH` — Diagnostic never touches Bullhorn (per sequencing-target.md §2.1)
-- `ESC_AUTOSEND_*` — Diagnostic's actions are `diagnostic_report_render` + `operator_notify_telegram` + `consultant_feedback` (all green tier per autosend-policy.yaml)
+- `ESC_AUTOSEND_*` — Diagnostic's actions are `diagnostic_report_render` + `operator_notify_telegram` + `consultant_feedback` + `linkedin_cache_purge_fail` + `diagnostic_cleanup` (all green tier per autosend-policy.yaml lines 137-147)
 - `ESC_VAULT_*` — Diagnostic writes to one file per invocation; no concurrent-write contention
 
 ---
@@ -226,7 +233,7 @@ Full bundle (all 6 files + 3 fixtures) is built as of Day 19. Production readine
 | `context.sh` hydration | `agents/recruitment/diagnostic/context.sh` | ✅ Built |
 | 3 fixtures with golden outputs | `agents/recruitment/diagnostic/fixtures/` | ✅ Built (01-primary + 02-edge-case + 99-voice-drift-canary) |
 | Other bundle files (cycle.sh, tools.yaml, cleanup.sh) | `agents/recruitment/diagnostic/` | ✅ All built |
-| Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ⚠ 10 rounds attempted; ADR-006 (Accepted) closed Cat-1 Gate A finding; residual mechanical findings tracked in disagreement doc Phase 4-5 |
+| Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ⚠ Rounds run through R19; ADR-006 (Accepted) closed the Cat-1 Gate A finding; residual ~4 mechanical findings/round tracked in disagreement doc Phase 4-5 |
 
 **Production-readiness gates:** all ⏸ items above must resolve to ✅ before first production render against a pilot tenant. Bundle code itself is complete.
 
@@ -236,7 +243,7 @@ Full bundle (all 6 files + 3 fixtures) is built as of Day 19. Production readine
 
 **Status:** Proposed. Awaits Q1 LOI + first pilot tenant onboarded + Codex RATIFIED verdict + first production render.
 
-**Build state:** full bundle (cycle.sh, validate.sh, context.sh, tools.yaml, cleanup.sh, 3 fixtures) shipped Day 13-19. Codex review-agent-bundle ratification in progress (10+ rounds; ADR-006 closed the Cat-1/Cat-ζ Gate A finding; iterating on smaller mechanical findings).
+**Build state:** full bundle (cycle.sh, validate.sh, context.sh, tools.yaml, cleanup.sh, 3 fixtures) shipped Day 13-19. Codex review-agent-bundle ratification in progress (through R19; ADR-006 closed the Cat-1/Cat-ζ Gate A finding; iterating on ~4 mechanical findings/round).
 
 ### Open questions for founder review
 
