@@ -1,7 +1,7 @@
 # Current priorities
 
 **Week:** Week 4 — **Day 21 / open (2026-05-27)**
-**Today's task:** **W4 Day-21 ratification remediation. (1) Fixed the `run-codex-ratification.sh` verdict-count parser bug — it counted numbered lines across the whole transcript (echoed prompt + agentic exec traces + the verdict printed twice), reporting 41/52/55 PHANTOM issues; real counts are 2-5/artefact. (2) Extracted the TRUE findings from the 2026-05-25 agent-bundle Codex run: 29 real issues across 8 artefacts (6 agent.md + ADR-007 + v0.3 supplement). (3) Applied all 29 — mostly mechanical cross-reference/citation/date fixes + 4 founder-confirmable design calls (see Day-21 section). All 6 agent.md remain Status: Proposed (honest; nothing RATIFIED yet). Remaining gate: founder runs the Codex re-ratification batch with the now-trustworthy counts.**
+**Today's task:** **W4 Day-21 ratification remediation. (1) Fixed the `run-codex-ratification.sh` verdict-count parser bug — it counted numbered lines across the whole transcript (echoed prompt + agentic exec traces + the verdict printed twice), reporting 41/52/55 PHANTOM issues; real counts are 2-5/artefact. (2) Extracted the TRUE findings from the 2026-05-25 agent-bundle Codex run: 29 real issues across 8 artefacts (6 agent.md + ADR-007 + v0.3 supplement). (3) Applied all 29 — mostly mechanical cross-reference/citation/date fixes + 4 founder-confirmable design calls (see Day-21 section). All 6 agent.md remain Status: Proposed (honest; nothing RATIFIED yet). (4) Founder hit Codex usage limits, so ran the full LOCAL quality gate instead — 65 vitest + 2 bash suites + 4 builds all green; shellcheck clean (1 pre-existing SC2181 style warning in stable hook-helpers.sh); adapter boundary holds (0 Composio/AgentMail); ULTRAPLAN/master-brief citations all in-range; 0 hardcoded secrets. **Codex independent ratification (`--cluster E`) DEFERRED to usage reset — NOT a substitute; nothing flipped to RATIFIED.** Remaining gate: founder runs `bash scripts/run-codex-ratification.sh --cluster E` when Codex usage resets.**
 **Active plan:** Recovery remedy Steps 0-2 executed inline (parser fix + findings extraction + 29-fix application + verification). Awaits founder authorization for the Codex re-ratification run + confirmation of the 4 design decisions.
 **Most recent close:** Day 21 (2026-05-27) — harness parser fixed; 29 real Codex findings closed across 8 artefacts; verified (v0.3 YAML parses, shellcheck clean, all cited line numbers confirmed).
 **Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
@@ -33,7 +33,24 @@
 
 **Verified:** v0.3 supplement YAML parses; migration FOR/LOOP balanced + `elem` declared; shellcheck clean on the harness; all cited line numbers (autosend-policy 188/263/235-239, escalation-codes 120-125/348-353/431-439, validate_gate_a_fail 119) confirmed against source.
 
-**Remaining gates:** (a) founder runs the Codex re-ratification batch over the 8 artefacts — now with trustworthy counts; expect RATIFIED or ≤2 residual/artefact; (b) founder confirms/flips the 4 decisions above; (c) v0.3 migration application (unchanged from Day-20 queue item #1).
+**Remaining gates:** (a) founder runs the Codex re-ratification batch over the 9 artefacts (`--cluster E`) — now with trustworthy counts; expect RATIFIED or ≤2 residual/artefact; (b) founder confirms/flips the 4 decisions above; (c) v0.3 migration application (unchanged from Day-20 queue item #1).
+
+### Day-21 local quality gate (Codex-independent) — PASSED 2026-05-27
+
+Run because the founder hit Codex usage limits. This is the strongest assurance available without the independent second model; it is NOT a replacement for Codex ratification (master brief §10.5), which stays a deferred gate.
+
+| Check | Result |
+|---|---|
+| TS builds (web-scraper, companies-house, diagnostic-generator, agent-renderer) | 4/4 ✓ |
+| vitest | 65 passed (12 + 13 + 10 + 30) ✓ |
+| bash suites (hook-helpers, voice-loader) | 2/2 ✓ |
+| shellcheck (agents/ + scripts/) | clean — 1 pre-existing SC2181 *style* warning in `hook-helpers.sh:136` (behaviour correct; stable substrate; left untouched) |
+| Adapter boundary (Composio/AgentMail in agent.md/tools.yaml/fixtures) | 0 hits ✓ |
+| Citation ranges (ULTRAPLAN 34 + master-brief 8 line-refs) | all in-range ✓ |
+| Hardcoded secrets in package source | 0 ✓ |
+| Diagnostic §3 conformance | 6 live section renderers + `stubs.ts` for the 6 documented-stub sections ✓ |
+
+**What this does and does NOT prove:** proves the code that exists builds + passes its tests, the boundaries hold, and citations point at real lines. Does NOT substitute for Codex's independent adversarial read (content-level citation accuracy + spec-deviation catches). When Codex usage resets, run `--cluster E` and treat its verdicts as the canonical gate.
 
 ## W4 Day-20 shipped
 
