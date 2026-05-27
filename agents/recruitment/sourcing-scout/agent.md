@@ -4,7 +4,7 @@
 **Build state:** Day-20 W4 bilateral pass + R19 substantive fix applied. R9 added §10 three-state lifecycle clarification (Proposed → Ratified-as-Scaffold → Accepted → In Force; ratification ≠ acceptance per agent-bundle skill) + §4 Step 8 + Schema-key block rewrite for `blocked_recipients`. R19 (today): adds `blocked_recipients` declaration to v0.3 supplement §4 tenant_adapters_config_additions per Codex Finding 1. Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Proxycurl + Reed + CV-Library commercial signups + W9 build slice.
 
 **Schema-key references:**
-- `tenant_adapters.config.blocked_recipients` — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist (line 397); canonical Postgres-backed v1.0 DNC source per ADR-002. YAML schema declaration deferred to future schema-doc audit (covers all pre-v0.3 allowlist keys not yet declared in YAML).
+- `tenant_adapters.config.blocked_recipients` — registered in `migrations/v0.2-to-v0.3.sql §5` validator allowlist (line 397); canonical Postgres-backed v1.0 DNC source per ADR-002. Declared in `vertical-schema.v0.3-supplement.yaml` lines 810-827 (R19 added this declaration; no longer deferred).
 - `tenant_adapters.config.auto_source_on_brief_create` — v0.4-supplement-pending (not yet in any allowlist); the Bullhorn-webhook auto-source trigger code path is blocked until v0.4 lands.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
@@ -201,8 +201,8 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
      v0.4-pending status applies ONLY to `auto_source_on_brief_create`
      (the webhook auto-source trigger config), NOT to `blocked_recipients`.
      Postgres-backed per ADR-002 vault/Postgres split — NOT vault markdown.
-     Future schema-doc audit will land `blocked_recipients` declaration
-     in the YAML schema files alongside other pre-v0.3 allowlist keys.)
+     `blocked_recipients` is now declared in `vertical-schema.v0.3-supplement.yaml`
+     lines 810-827.)
    → remove any candidate matching any DNC identifier from the sourcing list
    → log dropped candidates to exception list in §3 output
    → NOTE: ESC_DNC_FILTER_HIT is catalogue §2.10 reserved for OUTBOUND SEND
@@ -228,10 +228,14 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
     → ensure each has working contact method (email validated via simple
       regex + domain MX check; phone validated via E.164 format)
     → ensure each rationale ≥50 words
-    → if any condition fails: ESC_AGENT_OUTPUT_SHAPE (output-shape violation
-      per catalogue line 184 — distinct from ESC_SCHEMA_VIOLATION which is
-      reserved for vertical-schema field-constraint violations at write time);
-      partial draft to /tmp; abort
+    → if any condition fails: write partial draft to /tmp, then emit the
+      mandatory audit row hh_decision_action("validate_gate_a_fail",
+      "brief:<id>", payload_hash, "ESC_AGENT_OUTPUT_SHAPE; <failed_condition>")
+      — output-shape violation per catalogue line 184 (distinct from
+      ESC_SCHEMA_VIOLATION, reserved for vertical-schema field-constraint
+      violations at write time; audit row mandatory per master brief §8.1
+      Change 2 + autosend-policy.yaml lines 119-123) — then abort (exit 1)
+      BEFORE the scout_report row below
     → write Markdown report to vault path per §3
     → hh_decision_output("scout_report", report_path, "N candidates from M sources")
 
@@ -262,7 +266,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Sourcing Scout's `
 Gate A failure routing by class:
 - PII leakage → `ESC_PII_LEAKAGE_RISK` (blocking; operator + ifos_oncall)
 - Output-shape failures (count not in 5-15, contact-method missing, rationale <50 words, voice classifier miss, all-source-failure-without-degradation) → `ESC_AGENT_OUTPUT_SHAPE` (warn; operator_chat_id)
-Draft to `/tmp`; operator review.
+On any Gate A failure, `validate.sh` writes the partial draft to `/tmp` and emits the mandatory `hh_decision_action("validate_gate_a_fail", ...)` audit row carrying the ESC code (per master brief §8.1 Change 2 + autosend-policy.yaml lines 119-123) BEFORE aborting; operator review.
 
 **Honesty note (per bilateral-disposition Cat-5):** Sourcing Scout `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W9 build slice. The W9 build delivers `agents/recruitment/sourcing-scout/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
 
@@ -315,7 +319,7 @@ Step 9 (per-candidate rationale generation) is voice-classified. The agent integ
   - No claims about candidate intent ("looking to leave their role") without evidence in source data
   - No mention of competing agency placements except in risk-flag context
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "candidate sourcing rationale" task context.
-- **`hh_load_recent_edits` last 30 days for `sourcing_scout` agent**: detects consultant edit patterns on rationales. Per-run `ESC_VOICE_DRIFT` fires when a per-candidate rationale voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Sourcing Scout does NOT fire `_TENANT` directly. Edit-distance metrics are tracked for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Sourcing Scout.
+- **Voice-drift detection (classifier-only):** per `vertical-schema.v0.3-supplement.yaml` lines 584-593 + 715-724, Sourcing Scout has `recent_edit` access of **W** (writes its rationale drafts) but **not R**, so it does NOT read consultant edit history via `hh_load_recent_edits`. Per-run `ESC_VOICE_DRIFT` fires when a per-candidate rationale voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Sourcing Scout does NOT fire `_TENANT` directly. The cron — not Sourcing Scout — reads edit history for analytics + canary threshold tuning.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
