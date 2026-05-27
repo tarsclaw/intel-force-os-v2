@@ -325,7 +325,19 @@ EOF
     return 0
   elif [[ "${first_token}" == "REJECTED" ]]; then
     local issue_count
-    issue_count=$(grep -cE '^[[:space:]]*[0-9]+\.' "${output_file}" || echo 0)
+    # Count numbered issues ONLY inside the final verdict block — the same block
+    # the detection awk above isolates (last standalone RATIFIED/REJECTED marker
+    # preceding "tokens used"). Grepping the whole file inflates the count: it
+    # picks up the echoed prompt's numbered rules, the agentic exec traces, and
+    # the verdict the CLI prints twice. Forensics 2026-05-27: this reported 41
+    # for diagnostic when the real verdict listed 4 issues.
+    issue_count=$(awk '
+      /^tokens used/ { stop=1 }
+      !stop && /^(RATIFIED|REJECTED)([[:space:]]|$|:)/ { inblock=1; count=0; next }
+      !stop && inblock && /^[[:space:]]*[0-9]+\./ { count++ }
+      END { print count+0 }
+    ' "${output_file}")
+    [[ -z "${issue_count}" ]] && issue_count=0
     printf 'REJECTED:%d\n' "${issue_count}" > "${verdict_file}"
     _fail "Verdict: REJECTED (${issue_count} numbered issues)" "Read ${output_file}"
     _write_audit_row "${artefact_path}" "${skill_type}" "REJECTED" "${issue_count}" "${round_trip}" "${output_file}"
