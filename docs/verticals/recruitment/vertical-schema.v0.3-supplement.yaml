@@ -79,23 +79,26 @@ entity_field_additions:
           Aggregated skill tags from CV + transcripts. Free-text strings;
           W4 polish may add controlled-vocabulary clustering. Max 20 items
           per candidate enforced by validate_entities_data_v0_3.
-        source: IFOS-derived (Scribe from CV/transcripts; Sourcing Scout from CV-Library + Reed search results)
+        source: IFOS-derived (Scribe writes from CV/transcripts; Sourcing Scout surfaces CV-Library + Reed search-result skills in its shortlist artefact only, NOT into the Bullhorn-backed candidate entity)
         v1_0_agent_access:
           - Scribe: W
-          - Sourcing Scout: R+W
+          - Sourcing Scout: R   # R-only per bullhorn-integration-path §4.1 A5 + sourcing-scout/agent.md §6; proposed-match skills live in the shortlist artefact, never written to the candidate entity
 
       linkedin_url:
         type: string
         pattern: '^https://([a-z]{2,3}\.)?linkedin\.com/in/[a-zA-Z0-9-]+/?$'
         required: false
         notes: |
-          LinkedIn profile URL. Pattern enforced by trigger. Set by Sourcing
-          Scout from match; Janitor uses for dedup (stronger match signal
-          than name+email); Concierge reads for outreach context (NOT for
-          outbound — outreach via candidate.email or candidate.phone only).
-        source: IFOS-derived (Sourcing Scout from match; Janitor for dedup verification)
+          LinkedIn profile URL. Pattern enforced by trigger. Surfaced by
+          Sourcing Scout in its shortlist artefact (R-only on the candidate
+          entity); written to the Bullhorn-backed candidate entity by
+          Janitor/Scribe (which hold W) if a sourced candidate is promoted;
+          Janitor uses for dedup (stronger match signal than name+email);
+          Concierge reads for outreach context (NOT for outbound — outreach
+          via candidate.email or candidate.phone only).
+        source: IFOS-derived (Scribe/Janitor write to the candidate entity; Sourcing Scout surfaces match URLs in its shortlist artefact only; Janitor uses for dedup verification)
         v1_0_agent_access:
-          - Sourcing Scout: R+W
+          - Sourcing Scout: R   # R-only per bullhorn-integration-path §4.1 A5 + sourcing-scout/agent.md §6; proposed-match URLs live in the shortlist artefact
           - Janitor: R   # W only via dedup-merge action
           - Concierge: R
 
@@ -541,23 +544,26 @@ v0_1_entity_access_amendments:
       - Diagnostic (R)     # v0.3 NEW — reads for outreach context (§11 decision-maker map)
       - Janitor (R+W)      # v0.1 unchanged
       - Scribe (R+W)       # v0.1 unchanged
-      - Sourcing Scout (R+W) # v0.3 UPGRADED — writes proposed-candidate rows
+      - Sourcing Scout (R)   # R-only — proposed matches live in the shortlist artefact, NOT the Bullhorn-backed candidate entity (per bullhorn-integration-path §4.1 A5 + sourcing-scout/agent.md §6)
       - Concierge (R+W)    # v0.3 UPGRADED — writes lifecycle-state-derived fields
     rationale: |
-      v0.3 upgrades Sourcing Scout (writes proposed-candidate rows from
-      multi-source aggregation) + Concierge (writes lifecycle-state and
-      activity-log links per §4 Steps 13-14). Diagnostic gains R for context.
+      v0.3 upgrades Concierge only (writes lifecycle-state and activity-log
+      links per §4 Steps 13-14). Sourcing Scout stays R-only on candidate: its
+      multi-source aggregation output is the shortlist artefact, not a Bullhorn
+      candidate write (R+W would contradict bullhorn-integration-path §4.1 A5,
+      which makes Sourcing Scout read-only on Bullhorn). Diagnostic gains R for
+      context.
 
   contractor:
     v0_1_v1_0_agent_access: [Janitor (R+W), Scribe (R+W), Sourcing Scout (R), Concierge (R)]
     v0_3_v1_0_agent_access:
       - Janitor (R+W)      # v0.1 unchanged
       - Scribe (R+W)       # v0.1 unchanged
-      - Sourcing Scout (R+W) # v0.3 UPGRADED — same pattern as candidate
+      - Sourcing Scout (R)   # R-only — same as candidate; proposed matches live in the shortlist artefact, not the Bullhorn-backed contractor entity
       - Concierge (R+W)    # v0.3 UPGRADED — lifecycle states for contractor placements
     rationale: |
-      Parallel upgrades to candidate; contractor entities follow the same
-      v0.3 write patterns where applicable.
+      Parallel to candidate: Concierge upgraded for lifecycle states; Sourcing
+      Scout stays R-only (shortlist artefact, not a Bullhorn write).
 
 v0_2_entity_access_amendments:
 
@@ -659,7 +665,7 @@ auxiliary_tables:
       amount_paid: {type: number, required: true, default: 0, source: Accounting provider + IFOS-derived (Cash Conductor reconciliation updates)}
       currency: {type: string, required: true, default: GBP, source: Accounting provider}
       status: {type: string, required: true, enum: [open, partial, paid, overdue, cancelled, voided], default: open, source: Accounting provider}
-      client_contact_id: {type: string, required: false, source: IFOS-derived (Cash Conductor links to Bullhorn placement.client_contact_id)}
+      client_contact_id: {type: string, required: false, source: IFOS-derived (Cash Conductor resolves the billing contact from cached Bullhorn client_contact rows via the placement→client→contact entity_links relationship; NOT from a denormalized placement.client_contact_id field, which the base schema does not declare)}
       client_billing_email: {type: string, required: false, source: Accounting provider, pii: true}
       last_chase_position: {type: integer, required: true, default: 0, source: IFOS-derived (Cash Conductor escalation ladder), notes: 0-4 per Cash Conductor §3.2}
       last_chase_sent_at: {type: timestamp, required: false, source: IFOS-derived}

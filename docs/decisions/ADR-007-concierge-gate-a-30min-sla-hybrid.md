@@ -1,6 +1,6 @@
 # ADR-007 — Concierge Gate A 30-minute draft SLA hybrid (Gate B leading metric, not per-draft hard-fail)
 
-**Status:** Proposed (2026-05-25, Day 20; W4 bilateral pass on Concierge agent.md surfaced this as Codex R3 Finding 3 — current scaffold reframes ULTRAPLAN A6 line 566 Gate A "every lifecycle event has a draft generated within 30 minutes" as a Gate B leading metric without an authoritative ADR backing the deviation. Awaits Codex `review-architecture-decision` ratification + founder Accept.)
+**Status:** Proposed (2026-05-25, Day 20; W4 bilateral pass on Concierge agent.md surfaced this as Codex R3 Finding 3 — current scaffold reframes ULTRAPLAN A6 line 566 Gate A "every lifecycle event has a draft generated within 30 minutes" as a Gate B leading metric without an authoritative ADR backing the deviation. Awaits Codex `review-architecture-decision` ratification + founder Accept.) **The ULTRAPLAN line 566 + 567 amendments below are applied PROVISIONALLY in-band (ADR-006 precedent); if this ADR is rejected at founder Accept, those amendments revert.**
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A6 line 566 — Gate A 30-minute draft SLA clause
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
@@ -80,7 +80,7 @@ This is structurally identical to ADR-006's Tier 1 (per-section, hard-fail at th
 - Rolling 30-day per-tenant aggregate <90% fires `ESC_GATE_B_MISS` (per `escalation-codes.md` §2.10) — actionable signal
 - v0.4 schema work: Concierge cycle.sh will record upstream-detection-latency separately in the audit payload (`payload.detection_delay_seconds`) once the field is declared and validated in a v0.4 supplement. v0.3 + v1.0 do NOT introduce this payload key — it would violate review-schema-change §3 (bounded values require CHECK or trigger). The metric attribution distinction (Concierge generation latency vs upstream polling latency) IS the right product behavior but the schema authority lands later.
 
-**ULTRAPLAN §8.1 A6 line 566 is amended in-band per the master brief §10.3 step 4 pattern** (analogue of the in-band amendment ADR-006 made at line 496):
+**ULTRAPLAN §8.1 A6 line 566 is amended in-band, applied provisionally with this ADR pending founder Accept** (following the ADR-006 precedent, which made the same kind of in-band amendment at line 496). There is no separate master-brief clause authorizing in-band spec amendments — master brief §10.3 step 4 only covers incorporating Codex feedback or writing a disagreement doc; the authority for the amendment is this ADR itself once Accepted, and the amendment reverts if the ADR is rejected:
 
 Pre-amendment:
 > - **Gate A:** every lifecycle event has a draft generated within 30 minutes; voice classifier score ≥ 0.75; correct addressee resolution (no candidates emailed under another's name)
@@ -100,7 +100,7 @@ Post-amendment:
 **Negative:**
 
 1. A per-tenant 30-minute SLA promise is harder to enforce contractually — pilot agreements must reflect that the SLA is at the population level not per-event
-2. Tenants with high webhook coverage will see better than 90%; tenants with webhook-coverage gaps see worse — the metric reads as Concierge quality but is partly an upstream condition. Operator must look at `payload.detection_delay_seconds` distribution to disambiguate.
+2. Tenants with high webhook coverage will see better than 90%; tenants with webhook-coverage gaps see worse — the metric reads as Concierge quality but is partly an upstream condition. v1.0 cannot fully disambiguate this: `payload.detection_delay_seconds` is NOT introduced until a v0.4 supplement declares + validates it (see Implementation below). Until then operators use the single elapsed (detection → render) metric and treat a sustained sub-90% rate as a prompt to check the polling interval + Bullhorn webhook coverage.
 3. The Concierge agent.md §10 Accepted criteria must include ratification of this ADR as a blocker (closing Codex R3 Finding 3 properly)
 
 **Neutral:**
@@ -109,7 +109,7 @@ Post-amendment:
 
 ## Implementation
 
-### In-band ULTRAPLAN amendment (applied with this ADR per master brief §10.3 step 4)
+### In-band ULTRAPLAN amendment (applied provisionally with this ADR; ADR-006 precedent — reverts if this ADR is rejected at founder Accept)
 
 ULTRAPLAN §8.1 A6 line 566 amended in the same commit as this ADR. Pre-amendment / post-amendment text is captured in this ADR's body. The amendment also updated line 567 Gate B target to include the new ≥90% 30-min SLA hit rate threshold (per ADR-007). See commit history for the diff.
 
@@ -128,7 +128,7 @@ Add to Accepted blockers (after R3 commit `f79c018` baseline):
 | # | Question | Resolution path |
 |---|---|---|
 | ADR-007-Q1 | Should the 90% threshold be per-tenant configurable, or is 90% a v1.0 fixed bar? | Recommend fixed at v1.0; v1.1 add per-tenant override via `tenant_adapters.config.concierge_sla_threshold` (new key, v0.4-pending). |
-| ADR-007-Q2 | Should `ESC_CONCIERGE_SLA_MISS` be a separate code, or should it reuse `ESC_GATE_B_MISS` with payload.metric='concierge_30min_sla'? | Recommend separate code for clean Telegram routing; `_GATE_B_MISS` is generic aggregate. Catalogue addition queued at W10-13 build start. |
+| ADR-007-Q2 | Should `ESC_CONCIERGE_SLA_MISS` be a separate code, or should it reuse `ESC_GATE_B_MISS` with payload.metric='concierge_30min_sla'? | Resolved: separate code, for clean Telegram routing (`_GATE_B_MISS` is the generic aggregate). `ESC_CONCIERGE_SLA_MISS` is already registered in `escalation-codes.md` lines 431-439 — no longer queued. |
 | ADR-007-Q3 | What's the polling-fallback interval default? | Per-tenant; recommend 5 min as v1.0 default; 1 min for tenants with stable webhook coverage. Documented in tools.yaml at W10-13 build. |
 
 ## References

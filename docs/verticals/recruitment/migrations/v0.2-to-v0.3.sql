@@ -392,6 +392,7 @@ RETURNS TRIGGER AS $$
 DECLARE
   c JSONB := NEW.config;
   k TEXT;
+  elem JSONB;
   allowed_keys TEXT[] := ARRAY[
     -- v0.1 + v0.2 keys (forwarded; do not remove)
     'tier_overrides', 'blocked_recipients', 'janitor_dedup_threshold',
@@ -470,12 +471,19 @@ BEGIN
     END IF;
   END IF;
 
-  -- blocked_recipients: array of strings (pre-v0.3 origin; canonicalised here)
+  -- blocked_recipients: array of strings (pre-v0.3 origin; canonicalised here).
+  -- Safety-critical outbound DNC blocklist — the trigger hard-fails on non-string
+  -- elements rather than deferring to the tenant-admin wizard, matching the YAML
+  -- schema (items.type=string) and the key_skills/must_haves element checks above.
   IF c ? 'blocked_recipients' THEN
     IF jsonb_typeof(c->'blocked_recipients') != 'array' THEN
       RAISE EXCEPTION 'blocked_recipients must be array';
     END IF;
-    -- Element types validated by tenant-admin wizard; trigger checks shape only
+    FOR elem IN SELECT * FROM jsonb_array_elements(c->'blocked_recipients') LOOP
+      IF jsonb_typeof(elem) != 'string' THEN
+        RAISE EXCEPTION 'blocked_recipients items must be strings; got %', jsonb_typeof(elem);
+      END IF;
+    END LOOP;
   END IF;
 
   RETURN NEW;
