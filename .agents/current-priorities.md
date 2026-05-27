@@ -1,10 +1,39 @@
 # Current priorities
 
-**Week:** Week 4 — **Day 20 / open**
-**Today's task:** **W4 Day-20 bilateral pass + ADR-007 + v0.3 wrapper script complete. All 6 agent.md scaffolds at Pre-Build-Round-N-Bilateral-Applied/Confirmed. 24 residual Codex findings from Day-19 latest rounds dispositioned across 7 atomic commits. v0.3 supplement amended (additive); ADR-007 (Concierge Gate A 30-min SLA hybrid) drafted; v0.3 migration wrapper script drafted with --dry-run; founder-action runbook authored. Founder Codex re-ratification + v0.3 migration application are the remaining gates.**
-**Active plan:** W4 founder-action queue items #1 (v0.3 migration) + #2 (bilateral pass) + #3 (Concierge ADR) executed inline. Awaits founder authorization for Codex re-ratification round + v0.3 migration application.
-**Most recent close:** Day 20 (2026-05-25) — 7 atomic commits applied bilateral pass; ADR-007 drafted; v0.3 wrapper + Day-20 runbook + bilateral working doc shipped.
+**Week:** Week 4 — **Day 21 / open (2026-05-27)**
+**Today's task:** **W4 Day-21 ratification remediation. (1) Fixed the `run-codex-ratification.sh` verdict-count parser bug — it counted numbered lines across the whole transcript (echoed prompt + agentic exec traces + the verdict printed twice), reporting 41/52/55 PHANTOM issues; real counts are 2-5/artefact. (2) Extracted the TRUE findings from the 2026-05-25 agent-bundle Codex run: 29 real issues across 8 artefacts (6 agent.md + ADR-007 + v0.3 supplement). (3) Applied all 29 — mostly mechanical cross-reference/citation/date fixes + 4 founder-confirmable design calls (see Day-21 section). All 6 agent.md remain Status: Proposed (honest; nothing RATIFIED yet). Remaining gate: founder runs the Codex re-ratification batch with the now-trustworthy counts.**
+**Active plan:** Recovery remedy Steps 0-2 executed inline (parser fix + findings extraction + 29-fix application + verification). Awaits founder authorization for the Codex re-ratification run + confirmation of the 4 design decisions.
+**Most recent close:** Day 21 (2026-05-27) — harness parser fixed; 29 real Codex findings closed across 8 artefacts; verified (v0.3 YAML parses, shellcheck clean, all cited line numbers confirmed).
+**Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
 **Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
+
+## W4 Day-21 (2026-05-27) — ratification remediation + harness fix
+
+**Root cause of the "stuck" state (three compounding issues):** (a) commit `75ccc5f` (2026-05-24) flipped statuses to RATIFIED prematurely; the R19 bilateral pass reverted them to Proposed, but THIS file was committed before R19 (`ff4155f`) and never updated — so it told an optimistic, stale story. (b) The `run-codex-ratification.sh` verdict-count parser counted numbered lines across the entire transcript, reporting 41/52/55 issues when the real counts were 2-5. (c) Those phantom counts made the 8 artefacts look catastrophically broken when they were ~4 mechanical fixes each.
+
+**Fixed this session:**
+
+1. **Parser bug** — `scripts/run-codex-ratification.sh` now counts numbered issues only inside the final verdict block (matching the detection awk). Re-derived against the 8 existing reviews: **4/3/4/4/3/2/4/5** (was 41/21/41/52/49/51/55/55). shellcheck clean.
+2. **29 real findings closed** across 8 artefacts (extracted from the 2026-05-25 agent-bundle run `*.output.md` files):
+   - **Diagnostic (4):** Gate A section-count !=12; Step-12 draft retention (align to cycle.sh); cleanup actions in §3/§4/§6; status round-count normalize
+   - **Janitor (4):** relative date→2026-05-25; §2.1→§2.2 cite; contractor dedup in §3; dedup approval model **[DECISION]**
+   - **Sourcing Scout (3):** blocked_recipients now-declared cite; recent_edit read removed (W-only); Gate A decision-log write
+   - **Cash Conductor (2):** autosend line cites (182→188, 257→263); missing vault-write step
+   - **Scribe (4):** Output-2 decision_log signature; validate_gate_a_fail 113→119; classifier-fail→hard Gate A **[DECISION]**; ESC_GATE_B_MISS in §6
+   - **Concierge (5):** ULTRAPLAN 566 citation realign; SLA-miss audit row; 24h→PT4H timeout; ESC_VOICE_DRIFT severity→warn; third Gate B threshold
+   - **ADR-007 (4):** provisional-amendment honesty; fabricated §10.3 citation removed; detection_delay_seconds→v0.4; ESC_CONCIERGE_SLA_MISS already-registered
+   - **v0.3 supplement (3):** Sourcing Scout candidate/contractor R+W→R **[DECISION]**; client_contact_id derivation via entity_links; blocked_recipients element-string validation in migration
+
+**4 founder-confirmable design decisions** (applied toward master-plan consistency; flip any if you disagree):
+
+1. **Janitor dedup approval model** — ≥0.85 + no-recent-activity auto-merges (yellow, spot-check); 0.70–0.85 band (or ≥0.85 with recent activity) → Telegram approval-gated via `ESC_DUPLICATE_DETECTED`; <0.70 dropped. Aligns to the ratified catalogue (defines `ESC_DUPLICATE_DETECTED` as "needs human approval").
+2. **Sourcing Scout candidate/contractor access reverted R+W → R** — proposed matches live in the shortlist artefact, not Bullhorn writes. Aligns to ratified `bullhorn-integration-path §4.1 A5` + `sourcing-scout/agent.md §6` ("Bullhorn read-only"). Removes a v0.3-supplement drift, not a relitigation.
+3. **Scribe tacit-note classifier failure → hard Gate A fail** (no Bullhorn attach), not a silent placeholder that "passes."
+4. **ADR-007 ULTRAPLAN amendment marked provisional** pending founder Accept (kept Status: Proposed; did NOT self-Accept — founder arbitrates per ADR-006 precedent).
+
+**Verified:** v0.3 supplement YAML parses; migration FOR/LOOP balanced + `elem` declared; shellcheck clean on the harness; all cited line numbers (autosend-policy 188/263/235-239, escalation-codes 120-125/348-353/431-439, validate_gate_a_fail 119) confirmed against source.
+
+**Remaining gates:** (a) founder runs the Codex re-ratification batch over the 8 artefacts — now with trustworthy counts; expect RATIFIED or ≤2 residual/artefact; (b) founder confirms/flips the 4 decisions above; (c) v0.3 migration application (unchanged from Day-20 queue item #1).
 
 ## W4 Day-20 shipped
 
