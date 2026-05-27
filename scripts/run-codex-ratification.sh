@@ -79,6 +79,21 @@ CLUSTERS[D]="docs/runbooks/day-4-provisioning.md|postgres-migration
 docs/verticals/recruitment/migrations/v0.1-to-v0.2.sql|postgres-migration
 docs/verticals/recruitment/migrations/v0.2-to-v0.1.sql|postgres-migration"
 
+# Cluster E — Week-3 v1.0 agent contracts + v0.3 artefacts (re-ratification
+# after the 2026-05-27 Day-21 remediation; 29 findings closed). The 6 agent.md
+# use the agent-bundle skill; ADR-007 the architecture-decision skill; the v0.3
+# supplement the schema-change skill; the v0.3 migration the postgres-migration
+# skill (migration was touched in R20 — blocked_recipients element validation).
+CLUSTERS[E]="agents/recruitment/diagnostic/agent.md|agent-bundle
+agents/recruitment/janitor/agent.md|agent-bundle
+agents/recruitment/scribe/agent.md|agent-bundle
+agents/recruitment/cash-conductor/agent.md|agent-bundle
+agents/recruitment/sourcing-scout/agent.md|agent-bundle
+agents/recruitment/concierge/agent.md|agent-bundle
+docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md|architecture-decision
+docs/verticals/recruitment/vertical-schema.v0.3-supplement.yaml|schema-change
+docs/verticals/recruitment/migrations/v0.2-to-v0.3.sql|postgres-migration"
+
 PASS_COUNT=0
 FAIL_COUNT=0
 declare -a FAILED_ARTEFACTS=()
@@ -98,16 +113,19 @@ Skill types:
   architecture-decision
   schema-change
   postgres-migration
+  agent-bundle
 
 Examples:
   $0 architecture-decision docs/decisions/ADR-001-bus-dispatcher-poll-not-chokidar.md
+  $0 agent-bundle agents/recruitment/diagnostic/agent.md
   $0 --cluster A
+  $0 --cluster E      # Week-3 v1.0 agent contracts + v0.3 artefacts
 EOF
   exit 2
 fi
 
 if [[ "$1" == "--list-clusters" ]]; then
-  for cluster in A B C D; do
+  for cluster in A B C D E; do
     printf '\n\033[1mCluster %s:\033[0m\n' "${cluster}"
     printf '%s\n' "${CLUSTERS[${cluster}]}" | awk -F'|' '{ printf "  %s  [%s]\n", $1, $2 }'
   done
@@ -361,7 +379,7 @@ EOF
 _run_cluster() {
   local cluster="$1"
   if [[ -z "${CLUSTERS[${cluster}]:-}" ]]; then
-    _fail "Unknown cluster: ${cluster}" "Valid: A B C D"
+    _fail "Unknown cluster: ${cluster}" "Valid: A B C D E"
     exit 2
   fi
 
