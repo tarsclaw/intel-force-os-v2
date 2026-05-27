@@ -232,7 +232,7 @@ Janitor does NOT use:
 
 - `ESC_VOICE_DRIFT_TENANT` — fired by nightly voice-drift cron (per `escalation-codes.md` line 170-175 trigger: ≥N `ESC_VOICE_DRIFT` rows from same tenant in rolling 7d window). Janitor only fires the per-run `ESC_VOICE_DRIFT`; aggregate `_TENANT` rollup is handled by the canary not Janitor.
 - `ESC_AUTOSEND_BLOCKED` — that's for red-tier blocks (`escalation-codes.md` line 41); Janitor writes are yellow tier only
-- `ESC_BULLHORN_OAUTH_REVOKED` — escalated handling; Concierge owns the cross-agent escalation
+- **OAuth-token revocation** — there is no separate `ESC_BULLHORN_OAUTH_REVOKED` catalogue code; revocation is folded into `ESC_BULLHORN_AUTH` via `payload.failure_type='revoked_401'` (per concierge §6 + catalogue). Janitor fires `ESC_BULLHORN_AUTH` (listed above) on any refresh/revocation failure
 - `ESC_SCHEMA_VIOLATION` (line 163) — that's for vertical-schema field-constraint violations at write-time; Janitor's Gate A failures map to `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint) instead, per the catalogue's intended-use distinction
 
 ---

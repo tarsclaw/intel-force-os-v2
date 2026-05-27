@@ -44,9 +44,11 @@ Run because the founder hit Codex usage limits. This is the strongest assurance 
 | TS builds (web-scraper, companies-house, diagnostic-generator, agent-renderer) | 4/4 ✓ |
 | vitest | 65 passed (12 + 13 + 10 + 30) ✓ |
 | bash suites (hook-helpers, voice-loader) | 2/2 ✓ |
-| shellcheck (agents/ + scripts/) | clean — 1 pre-existing SC2181 *style* warning in `hook-helpers.sh:136` (behaviour correct; stable substrate; left untouched) |
+| shellcheck (agents/ + scripts/) | fully CLEAN ✓ (SC2181 in `hook-helpers.sh:136` fixed — behaviour-preserving `if cmd; then` refactor; hook-helpers suite still green) |
 | Adapter boundary (Composio/AgentMail in agent.md/tools.yaml/fixtures) | 0 hits ✓ |
 | Citation ranges (ULTRAPLAN 34 + master-brief 8 line-refs) | all in-range ✓ |
+| ESC codes referenced ∈ escalation-codes.md | ✓ (3 are sanctioned W4-backlog proposals / changelog notes; janitor's `ESC_BULLHORN_OAUTH_REVOKED` disclaimer corrected → folded into `ESC_BULLHORN_AUTH` payload) |
+| action_types referenced ∈ autosend-policy.yaml | ✓ 0 missing |
 | Hardcoded secrets in package source | 0 ✓ |
 | Diagnostic §3 conformance | 6 live section renderers + `stubs.ts` for the 6 documented-stub sections ✓ |
 

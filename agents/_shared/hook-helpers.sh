@@ -132,8 +132,7 @@ COMMIT;
 EOF
 )
     local psql_err
-    psql_err=$(printf '%s\n' "${sql}" | psql -v ON_ERROR_STOP=1 -q "${IFOS_DB_URL}" 2>&1)
-    if [[ $? -eq 0 ]]; then
+    if psql_err=$(printf '%s\n' "${sql}" | psql -v ON_ERROR_STOP=1 -q "${IFOS_DB_URL}" 2>&1); then
       return 0
     fi
     # psql failed — fall through to fallback append + emit warning to stderr
