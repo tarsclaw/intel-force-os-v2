@@ -36,12 +36,14 @@
 
 set -euo pipefail
 
-readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly REPO_ROOT
 readonly VPS_HOST="178.105.87.24"
 readonly VPS_USER="maddox"
 readonly SSH_KEY="${HOME}/.ssh/ifos_hetzner_ed25519"
 readonly MIGRATION_LOCAL="${REPO_ROOT}/docs/verticals/recruitment/migrations/v0.2-to-v0.3.sql"
-readonly SESSION_TAG="$(date -u +"%Y%m%dT%H%M%SZ")-$$"
+SESSION_TAG="$(date -u +"%Y%m%dT%H%M%SZ")-$$"
+readonly SESSION_TAG
 readonly MIGRATION_REMOTE="/tmp/v0.3-migration-${SESSION_TAG}.sql"
 
 DRY_RUN=0
@@ -124,11 +126,11 @@ SELECT 'trigger_tenant_adapters:' || count(*) FROM pg_trigger WHERE tgname='vali
 echo "${VERIFY_OUT}" | grep -E "^(cct_table|cci_table|cct_owner|cci_owner|trigger_)" | while IFS=: read -r key val; do
   case "${key}" in
     cct_table|cci_table|trigger_entities_v0_3|trigger_tenant_adapters)
-      [[ "${val}" == "1" ]] && _ok "${key} = 1" || _warn "${key} = ${val} (expected 1)" ;;
+      if [[ "${val}" == "1" ]]; then _ok "${key} = 1"; else _warn "${key} = ${val} (expected 1)"; fi ;;
     trigger_voice_scores_gone)
-      [[ "${val}" == "0" ]] && _ok "${key} = 0 (replaced)" || _warn "${key} = ${val} (expected 0)" ;;
+      if [[ "${val}" == "0" ]]; then _ok "${key} = 0 (replaced)"; else _warn "${key} = ${val} (expected 0)"; fi ;;
     cct_owner|cci_owner)
-      [[ "${val}" == "postgres" ]] && _ok "${key} = postgres (per Day-12 lesson)" || _warn "${key} = ${val} (expected postgres)" ;;
+      if [[ "${val}" == "postgres" ]]; then _ok "${key} = postgres (per Day-12 lesson)"; else _warn "${key} = ${val} (expected postgres)"; fi ;;
   esac
 done
 
