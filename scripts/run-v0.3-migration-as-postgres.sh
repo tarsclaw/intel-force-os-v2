@@ -104,7 +104,7 @@ _ok "Migration applied successfully (streamed ${MIGRATION_LOCAL} via stdin; no V
 
 _step "Step 2 — Verify new objects present (read-only; runs as postgres on VPS)"
 
-VERIFY_OUT=$(ssh -i "${SSH_KEY}" -t "${VPS_USER}@${VPS_HOST}" "sudo -u postgres psql -d ifos_v2 -tA -c \"
+VERIFY_OUT=$(ssh -i "${SSH_KEY}" "${VPS_USER}@${VPS_HOST}" "sudo -u postgres psql -d ifos_v2 -tA -c \"
 SELECT 'cct_table:' || count(*) FROM information_schema.tables WHERE table_name='cash_conductor_transactions';
 SELECT 'cci_table:' || count(*) FROM information_schema.tables WHERE table_name='cash_conductor_invoices';
 SELECT 'cct_owner:' || tableowner FROM pg_tables WHERE tablename='cash_conductor_transactions';
@@ -115,6 +115,7 @@ SELECT 'trigger_tenant_adapters:' || count(*) FROM pg_trigger WHERE tgname='vali
 \"" 2>/dev/null)
 
 echo "${VERIFY_OUT}" | grep -E "^(cct_table|cci_table|cct_owner|cci_owner|trigger_)" | while IFS=: read -r key val; do
+  val="${val//$'\r'/}"   # strip any stray CR from ssh/psql line-ending mismatch
   case "${key}" in
     cct_table|cci_table|trigger_entities_v0_3|trigger_tenant_adapters)
       if [[ "${val}" == "1" ]]; then _ok "${key} = 1"; else _warn "${key} = ${val} (expected 1)"; fi ;;
