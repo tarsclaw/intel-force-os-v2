@@ -42,6 +42,13 @@ END $$;
 DROP TABLE IF EXISTS cash_conductor_transactions CASCADE;
 DROP TABLE IF EXISTS cash_conductor_invoices CASCADE;
 
+-- set_updated_at() was created by the forward migration §3.5 as a shared
+-- BEFORE-UPDATE helper for the two cash tables. The CASCADE drops above
+-- remove the per-table triggers (set_updated_at_cct, set_updated_at_cci),
+-- but the function itself persists; drop it explicitly so rollback is
+-- exhaustive and re-applying the forward migration starts from a clean slate.
+DROP FUNCTION IF EXISTS set_updated_at();
+
 -- ----------------------------------------------------------------------------
 -- §3 — Restore v0.2 validation trigger for entities.data
 -- ----------------------------------------------------------------------------
@@ -59,6 +66,9 @@ BEGIN
   END IF;
 END $$;
 
+-- Idempotent: if rollback was previously partially applied, the trigger may
+-- already exist (CREATE TRIGGER has no IF NOT EXISTS in Postgres).
+DROP TRIGGER IF EXISTS validate_voice_scores ON entities;
 CREATE TRIGGER validate_voice_scores
   BEFORE INSERT OR UPDATE ON entities
   FOR EACH ROW
