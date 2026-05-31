@@ -1,11 +1,33 @@
 # Current priorities
 
-**Week:** Week 4 — **Day 21 / open (2026-05-27)**
-**Today's task:** **W4 Day-21 ratification remediation. (1) Fixed the `run-codex-ratification.sh` verdict-count parser bug — it counted numbered lines across the whole transcript (echoed prompt + agentic exec traces + the verdict printed twice), reporting 41/52/55 PHANTOM issues; real counts are 2-5/artefact. (2) Extracted the TRUE findings from the 2026-05-25 agent-bundle Codex run: 29 real issues across 8 artefacts (6 agent.md + ADR-007 + v0.3 supplement). (3) Applied all 29 — mostly mechanical cross-reference/citation/date fixes + 4 founder-confirmable design calls (see Day-21 section). All 6 agent.md remain Status: Proposed (honest; nothing RATIFIED yet). (4) Founder hit Codex usage limits, so ran the full LOCAL quality gate instead — 65 vitest + 2 bash suites + 4 builds all green; shellcheck clean (1 pre-existing SC2181 style warning in stable hook-helpers.sh); adapter boundary holds (0 Composio/AgentMail); ULTRAPLAN/master-brief citations all in-range; 0 hardcoded secrets. **Codex independent ratification (`--cluster E`) DEFERRED to usage reset — NOT a substitute; nothing flipped to RATIFIED.** Remaining gate: founder runs `bash scripts/run-codex-ratification.sh --cluster E` when Codex usage resets.**
-**Active plan:** Recovery remedy Steps 0-2 executed inline (parser fix + findings extraction + 29-fix application + verification). Awaits founder authorization for the Codex re-ratification run + confirmation of the 4 design decisions.
-**Most recent close:** Day 21 (2026-05-27) — harness parser fixed; 29 real Codex findings closed across 8 artefacts; verified (v0.3 YAML parses, shellcheck clean, all cited line numbers confirmed).
+**Week:** Week 4 — **Day 25 / open (2026-05-31)**
+**Today's task:** **Codex Round 1 (agent-bundle skill) ran 2026-05-31 — verdict 4 RATIFIED / 5 REJECTED of 9. All 5 rejects were mechanical (citation drift + 1 internal contradiction + migration idempotency/grant/trigger/auditability gaps); none collided with the 4 founder decisions. Closed all 5 + the 2 real advisories in 6 atomic commits. Verified: v0.3 YAML parses; migration BEGIN/COMMIT + DROP/CREATE POLICY + DROP/CREATE TRIGGER balanced; 2 sequences fixed; updated_at + trigger added; WHEN clause on entities trigger; shellcheck clean; 65 vitest + 2 bash suites pass; adapter boundary 0; no remaining Sourcing Scout R+W. Ready for Codex Round 2 (re-run `--cluster E`) — expect RATIFIED 9/9 or ≤1 residual.**
+**Active plan:** Codex Round-1 findings closed. Awaits Codex Round 2 confirmation (founder re-runs the prompt / wrapper). 4 design decisions still pending founder confirm (Janitor dedup approval-gating · Sourcing Scout R-only — now reinforced by Codex · Scribe hard-Gate-A · ADR-007 provisional).
+**Most recent close:** Day 25 (2026-05-31) — Codex Round 1 verdict triaged + all 5 rejects + 2 advisories closed across 6 commits; tree clean.
+**Day 21 (2026-05-27):** harness parser fixed; 29 R20 findings closed across 8 artefacts (verified locally; Codex deferred to usage reset).
 **Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
 **Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
+
+## W4 Day-25 (2026-05-31) — Codex Round 1 (agent-bundle) verdict closed
+
+Codex finally ran (`--cluster E`) and returned **RATIFIED: 4/9, REJECTED: 5/9**. Full Codex report: `logs/codex-ratification/manual-cluster-e/REPORT.md`.
+
+**RATIFIED (4):** diagnostic, janitor, scribe, concierge — each with minor advisories (2 closed; 1 was a false-positive about scribe ESC-catalogue line drift, verified at lines 324 + 441 are still accurate).
+
+**REJECTED (5) — all mechanical, all closed:**
+
+| Artefact | Findings | Closed in commit |
+|---|---|---|
+| migration v0.2-to-v0.3.sql | 4 (DROP POLICY guards, GRANT USAGE+SELECT, trigger WHEN, updated_at + trigger) | `b585735` |
+| v0.3 supplement | 1 (Sourcing Scout R+W contradiction at lines 421-428 — extended R-only reconciliation to a 3rd stale site at 297-299) | `f6641c3` |
+| ADR-007 | 2 (historical-vs-live framing on §10 status; stale Concierge line refs 269-280 → 280-293) | `9b2e10a` |
+| cash-conductor agent.md | 2 (recent_edit cite 723→729; §1 drafts-only readiness caveat per §8 fallback) | `4bc080c` |
+| sourcing-scout agent.md | 2 (migration line 397→398; Q6 "New ADR-006" collision → "new ADR, number assigned at authoring time") | `c9fe293` |
+| (advisories) | 2 (janitor §3 stale "new entries" wording; concierge §1 "deferred deferred" duplicate) | `316af0c` |
+
+**Verified after closure:** v0.3 YAML parses; migration structurally balanced (BEGIN/COMMIT, DROP/CREATE policy + trigger, GRANT USAGE,SELECT × 2, updated_at × 2, WHEN clause × 1); shellcheck clean; 65 vitest + hook-helpers + voice-loader all pass; adapter boundary 0 hits; no remaining Sourcing Scout R+W on candidate/contractor anywhere in the supplement.
+
+**Round 2 ready:** re-run `bash scripts/run-codex-ratification.sh --cluster E` (or re-paste the same Codex prompt). Expect RATIFIED 9/9 — none of these fixes touched ratified artefacts in a way that could regress them, and the rejected-class issues were all surgically closed at the exact lines Codex cited.
 
 ## W4 Day-21 (2026-05-27) — ratification remediation + harness fix
 
