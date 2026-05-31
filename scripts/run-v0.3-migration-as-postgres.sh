@@ -42,9 +42,6 @@ readonly VPS_HOST="178.105.87.24"
 readonly VPS_USER="maddox"
 readonly SSH_KEY="${HOME}/.ssh/ifos_hetzner_ed25519"
 readonly MIGRATION_LOCAL="${REPO_ROOT}/docs/verticals/recruitment/migrations/v0.2-to-v0.3.sql"
-SESSION_TAG="$(date -u +"%Y%m%dT%H%M%SZ")-$$"
-readonly SESSION_TAG
-readonly MIGRATION_REMOTE="/tmp/v0.3-migration-${SESSION_TAG}.sql"
 
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
@@ -82,36 +79,30 @@ fi
 if [[ $DRY_RUN -eq 1 ]]; then
   _step "DRY-RUN OK — connectivity verified"
   _ok "Re-run without --dry-run to apply"
-  _ok "Migration will be: scp ${MIGRATION_LOCAL} -> ${VPS_HOST}:${MIGRATION_REMOTE}"
-  _ok "Then: ssh ${VPS_USER}@${VPS_HOST} 'sudo -u postgres psql ifos_v2 -f ${MIGRATION_REMOTE}'"
+  _ok "Migration will stream via stdin: ssh ${VPS_USER}@${VPS_HOST} 'sudo -u postgres psql -d ifos_v2 -v ON_ERROR_STOP=1' < ${MIGRATION_LOCAL}"
+  _ok "No temp file written on VPS (avoids 0600-permission issue when postgres user reads maddox files)"
   exit 0
 fi
 
-_step "Step 1 — Copy migration SQL to VPS (mode 0600)"
+_step "Step 1 — Apply migration as postgres via SSH + stdin pipe"
 
-scp -i "${SSH_KEY}" -q "${MIGRATION_LOCAL}" "${VPS_USER}@${VPS_HOST}:${MIGRATION_REMOTE}"
-ssh -i "${SSH_KEY}" "${VPS_USER}@${VPS_HOST}" "chmod 600 ${MIGRATION_REMOTE}"
-_ok "Copied to ${VPS_HOST}:${MIGRATION_REMOTE}"
-
-_step "Step 2 — Apply as postgres via sudo (you may be prompted for your VPS sudo password)"
-
-# -t allocates a tty so sudo can prompt for password
-# ON_ERROR_STOP=1 + the migration's own BEGIN/COMMIT wrap = atomic rollback on any error
+# Pipe migration SQL via stdin to remote psql — no temp file on the VPS, so we
+# avoid the permission-denied that happens when sudo -u postgres tries to read
+# a 0600 file owned by maddox in /tmp. NOPASSWD peer auth was confirmed in
+# Step 0, so we don't need -t (which would interfere with stdin redirection).
+# ON_ERROR_STOP=1 + the migration's BEGIN/COMMIT wrap = atomic rollback on any error.
 APPLY_RC=0
-ssh -i "${SSH_KEY}" -t "${VPS_USER}@${VPS_HOST}" \
-  "sudo -u postgres psql -d ifos_v2 -v ON_ERROR_STOP=1 -f ${MIGRATION_REMOTE}" \
+ssh -i "${SSH_KEY}" "${VPS_USER}@${VPS_HOST}" \
+  "sudo -u postgres psql -d ifos_v2 -v ON_ERROR_STOP=1" \
+  < "${MIGRATION_LOCAL}" \
   || APPLY_RC=$?
-
-# Cleanup the temp file on VPS regardless of outcome
-ssh -i "${SSH_KEY}" "${VPS_USER}@${VPS_HOST}" "rm -f ${MIGRATION_REMOTE}" || true
-_ok "Cleaned up ${MIGRATION_REMOTE} on VPS"
 
 if [[ ${APPLY_RC} -ne 0 ]]; then
   _fail "Migration apply failed (rc=${APPLY_RC})" "BEGIN/COMMIT wrapping the SQL means changes rolled back atomically; safe to retry after fix"
 fi
-_ok "Migration applied successfully"
+_ok "Migration applied successfully (streamed ${MIGRATION_LOCAL} via stdin; no VPS temp file written)"
 
-_step "Step 3 — Verify new objects present (read-only; runs as postgres on VPS)"
+_step "Step 2 — Verify new objects present (read-only; runs as postgres on VPS)"
 
 VERIFY_OUT=$(ssh -i "${SSH_KEY}" -t "${VPS_USER}@${VPS_HOST}" "sudo -u postgres psql -d ifos_v2 -tA -c \"
 SELECT 'cct_table:' || count(*) FROM information_schema.tables WHERE table_name='cash_conductor_transactions';
