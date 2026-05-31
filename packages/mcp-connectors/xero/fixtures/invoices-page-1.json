@@ -1,0 +1,36 @@
+{
+  "Id": "fixture-invoices-page-1",
+  "Status": "OK",
+  "Invoices": [
+    {
+      "InvoiceID": "0000aaaa-1111-2222-3333-444455556666",
+      "InvoiceNumber": "INV-0001",
+      "Type": "ACCREC",
+      "Status": "AUTHORISED",
+      "Date": "2026-05-15",
+      "DueDate": "2026-06-14",
+      "CurrencyCode": "GBP",
+      "Total": 1200.00,
+      "AmountDue": 1200.00,
+      "AmountPaid": 0.00,
+      "Contact": { "ContactID": "c000-aaaa", "Name": "Acme Recruitment Ltd" },
+      "Reference": "PO-12345",
+      "UpdatedDateUTC": "/Date(1747401234567+0000)/"
+    },
+    {
+      "InvoiceID": "0000bbbb-1111-2222-3333-444455556666",
+      "InvoiceNumber": "INV-0002",
+      "Type": "ACCREC",
+      "Status": "AUTHORISED",
+      "Date": "2026-05-10",
+      "DueDate": "2026-06-09",
+      "CurrencyCode": "GBP",
+      "Total": 3500.00,
+      "AmountDue": 1500.00,
+      "AmountPaid": 2000.00,
+      "Contact": { "ContactID": "c000-bbbb", "Name": "Beta Search Partners" },
+      "Reference": null,
+      "UpdatedDateUTC": "/Date(1746900012345+0000)/"
+    }
+  ]
+}

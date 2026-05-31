@@ -1,0 +1,18 @@
+{
+  "Id": "fixture-payments-recent",
+  "Status": "OK",
+  "Payments": [
+    {
+      "PaymentID": "p000-aaaa-1111",
+      "Invoice": { "InvoiceID": "0000bbbb-1111-2222-3333-444455556666", "InvoiceNumber": "INV-0002" },
+      "Account": { "AccountID": "acct-bank-current", "Code": "090" },
+      "Date": "2026-05-20",
+      "Amount": 2000.00,
+      "Reference": "BACS-2026-05-20-001",
+      "CurrencyRate": 1.0,
+      "PaymentType": "ACCRECPAYMENT",
+      "Status": "AUTHORISED",
+      "UpdatedDateUTC": "/Date(1747700012345+0000)/"
+    }
+  ]
+}

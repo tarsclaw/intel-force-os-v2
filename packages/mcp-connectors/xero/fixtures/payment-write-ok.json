@@ -1,0 +1,18 @@
+{
+  "Id": "fixture-payment-write-ok",
+  "Status": "OK",
+  "Payments": [
+    {
+      "PaymentID": "p000-cccc-2222",
+      "Invoice": { "InvoiceID": "0000aaaa-1111-2222-3333-444455556666", "InvoiceNumber": "INV-0001" },
+      "Account": { "AccountID": "acct-bank-current", "Code": "090" },
+      "Date": "2026-05-22",
+      "Amount": 1200.00,
+      "Reference": "BACS-2026-05-22-002",
+      "CurrencyRate": 1.0,
+      "PaymentType": "ACCRECPAYMENT",
+      "Status": "AUTHORISED",
+      "UpdatedDateUTC": "/Date(1747900000000+0000)/"
+    }
+  ]
+}

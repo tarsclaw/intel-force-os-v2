@@ -1,0 +1,7 @@
+{
+  "access_token": "fake-new-access-token-abcdef123456",
+  "refresh_token": "fake-new-refresh-token-zyxwvu987654",
+  "expires_in": 1800,
+  "scope": "accounting.transactions accounting.contacts.read offline_access",
+  "token_type": "Bearer"
+}
