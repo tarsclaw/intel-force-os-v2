@@ -294,9 +294,11 @@ entity_field_additions:
 #   - Cash Conductor placement: none → R (reads for client linkage on invoice)
 #   - Cash Conductor timesheet: none → R (reads to verify billable hours
 #     match invoiced amounts)
-#   - Sourcing Scout candidate: R → R+W (writes proposed-candidate rows
-#     from multi-source aggregation — v0.3 amendment)
-#   - Sourcing Scout contractor: R → R+W (same; contractor-mode briefs)
+#   - Sourcing Scout candidate: stays R (the original v0.3 draft proposed R+W
+#     for proposed-candidate writes; REVERTED at R20 — proposed matches live
+#     in the Sourcing Scout shortlist artefact, not Bullhorn-backed entities,
+#     per bullhorn-integration-path §4.1 A5 + sourcing-scout/agent.md §6)
+#   - Sourcing Scout contractor: stays R (same revert as candidate)
 #   - Sourcing Scout opportunity: none → R (reads opportunity context for ICP)
 #   - Concierge candidate: R → R+W (writes lifecycle-state-derived fields +
 #     activity-log links per concierge §4 Step 13-14 — v0.3 amendment)
@@ -419,13 +421,16 @@ agent_access_matrix:
     # (auxiliary-table access is documented in auxiliary_table_access_matrix below)
 
   sourcing_scout:
-    # v0.3 EXPLICIT OVERRIDES (per Round-6 finding #2): v0.1 base says
-    #   sourcing_scout.candidate: R; sourcing_scout.opportunity: none
-    # v0.3 amends to R+W and R respectively because the Sourcing Scout agent
-    # writes its proposed-candidate rows + reads opportunity context. These
-    # are entity-level access overrides codified here.
-    candidate: R+W         # OVERRIDE v0.1 R → v0.3 R+W (writes proposed-candidate rows)
-    contractor: R+W        # OVERRIDE v0.1 R → v0.3 R+W (same; contractor-mode briefs)
+    # v0.3 EXPLICIT OVERRIDES — R20 reconciliation (2026-05-27): the original
+    # v0.3 draft upgraded candidate/contractor to R+W to allow writing
+    # proposed-candidate rows. That was REVERTED — Sourcing Scout stays R-only
+    # on Bullhorn-backed entities per bullhorn-integration-path §4.1 A5 +
+    # sourcing-scout/agent.md §6 ("Bullhorn read-only"). Proposed matches live
+    # in the Sourcing Scout shortlist artefact (vault markdown + decision_log
+    # rows), NOT in the Bullhorn candidate/contractor entities. Only the
+    # opportunity override (R) stands — that's an IFOS-cached read, not a write.
+    candidate: R           # v0.1 unchanged; proposed matches → shortlist artefact, NOT candidate entity
+    contractor: R          # v0.1 unchanged; same as candidate (contractor-mode briefs)
     client: R
     contact: R
     brief: R               # reads to filter candidates
