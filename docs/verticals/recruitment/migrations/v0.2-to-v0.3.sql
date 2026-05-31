@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS cash_conductor_transactions (
   match_confidence   NUMERIC(3, 2),
   match_dimensions   TEXT[],
   ingested_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   raw_payload        JSONB,
 
   CONSTRAINT cct_match_status_valid CHECK (
@@ -99,12 +100,15 @@ CREATE INDEX IF NOT EXISTS idx_cct_tenant_unmatched
 ALTER TABLE cash_conductor_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cash_conductor_transactions FORCE ROW LEVEL SECURITY;
 
+-- Idempotent: drop the policy if a prior partial/successful apply created it,
+-- then re-create. CREATE POLICY has no IF NOT EXISTS clause in Postgres.
+DROP POLICY IF EXISTS cct_tenant_isolation ON cash_conductor_transactions;
 CREATE POLICY cct_tenant_isolation ON cash_conductor_transactions
   FOR ALL TO ifos_app
   USING (tenant_slug = current_setting('app.current_tenant', true));
 
 GRANT SELECT, INSERT, UPDATE ON cash_conductor_transactions TO ifos_app;
-GRANT USAGE ON SEQUENCE cash_conductor_transactions_id_seq TO ifos_app;
+GRANT USAGE, SELECT ON SEQUENCE cash_conductor_transactions_id_seq TO ifos_app;
 
 -- ----------------------------------------------------------------------------
 -- §3 — Create cash_conductor_invoices table (RLS-isolated)
@@ -127,6 +131,7 @@ CREATE TABLE IF NOT EXISTS cash_conductor_invoices (
   last_chase_position      INT NOT NULL DEFAULT 0,
   last_chase_sent_at       TIMESTAMPTZ,
   ingested_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
   raw_payload              JSONB,
 
   CONSTRAINT cci_status_valid CHECK (
@@ -158,12 +163,42 @@ CREATE INDEX IF NOT EXISTS idx_cci_tenant_chase
 ALTER TABLE cash_conductor_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cash_conductor_invoices FORCE ROW LEVEL SECURITY;
 
+-- Idempotent (see cct_tenant_isolation note above).
+DROP POLICY IF EXISTS cci_tenant_isolation ON cash_conductor_invoices;
 CREATE POLICY cci_tenant_isolation ON cash_conductor_invoices
   FOR ALL TO ifos_app
   USING (tenant_slug = current_setting('app.current_tenant', true));
 
 GRANT SELECT, INSERT, UPDATE ON cash_conductor_invoices TO ifos_app;
-GRANT USAGE ON SEQUENCE cash_conductor_invoices_id_seq TO ifos_app;
+GRANT USAGE, SELECT ON SEQUENCE cash_conductor_invoices_id_seq TO ifos_app;
+
+-- ----------------------------------------------------------------------------
+-- §3.5 — updated_at maintenance for the two Cash Conductor tables
+-- ----------------------------------------------------------------------------
+--
+-- ifos_app has UPDATE on both tables; updated_at lets the audit/diagnostic
+-- queries (Cash Conductor §10 weekly report; tenancy audit T-class checks)
+-- distinguish row mutations from ingestion. Idempotent.
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_updated_at_cct ON cash_conductor_transactions;
+CREATE TRIGGER set_updated_at_cct
+  BEFORE UPDATE ON cash_conductor_transactions
+  FOR EACH ROW
+  EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS set_updated_at_cci ON cash_conductor_invoices;
+CREATE TRIGGER set_updated_at_cci
+  BEFORE UPDATE ON cash_conductor_invoices
+  FOR EACH ROW
+  EXECUTE FUNCTION set_updated_at();
 
 -- ----------------------------------------------------------------------------
 -- §4 — Replace JSONB validation function for entities.data (adds v0.3 keys)
@@ -377,6 +412,7 @@ DROP TRIGGER IF EXISTS validate_entities_data_v0_3 ON entities;
 CREATE TRIGGER validate_entities_data_v0_3
   BEFORE INSERT OR UPDATE ON entities
   FOR EACH ROW
+  WHEN (NEW.entity_type IN ('candidate', 'contact', 'brief', 'placement', 'opportunity'))
   EXECUTE FUNCTION validate_entities_data_v0_3();
 
 -- ----------------------------------------------------------------------------
