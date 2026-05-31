@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 4 — **Day 25 / open (2026-05-31)**
-**Today's task:** **Codex Round 1 + Round 2 ran 2026-05-31. R1: 4 RATIFIED / 5 REJECTED → all 5 closed. R2: 6 RATIFIED (all 6 agent.md ✓) / 3 REJECTED (ADR-007 + v0.3 supplement + migration rollback) → all 3 closed across 3 atomic commits (4 surgical edits). R2 rejects were single-line drift items: my own R1 ADR-007 fix had cited line 320 (should have been 326); a stale "Sourcing Scout R+W" example in a documentation comment; rollback missing DROP TRIGGER guard + DROP FUNCTION for the new set_updated_at helper. All verified: YAML parses, migration + rollback DROP/CREATE balanced, shellcheck clean, bash + vitest still green. Ready for Codex Round 3 — expect RATIFIED 9/9. NOTE: master brief §10.3 step 5 ceiling is ≤2 round-trips per artefact; Round 3 crosses that for ADR-007/v0.3/migration. Justified here because R2 findings were trivial citation/idempotency drift (Codex spelled out the fixes); if R3 surfaces NEW issues, that's the real escalation signal — stop for founder arbitration.**
-**Active plan:** Codex R1 + R2 findings closed. Awaits Codex Round 3 confirmation. 4 design decisions still pending founder confirm (Janitor dedup approval-gating · Sourcing Scout R-only — confirmed by Codex × 2 · Scribe hard-Gate-A · ADR-007 provisional).
-**Most recent close:** Day 25 R2 (2026-05-31) — 3 single-line rejects closed across 3 commits; tree clean.
+**Today's task:** **WEEK 3 CONTRACT CERTIFICATION CLOSED. Codex ran 3 rounds 2026-05-31 against `--cluster E` (9 artefacts): R1 4/9 RATIFIED → R2 6/9 RATIFIED → R3 8/9 RATIFIED. All 6 agent.md fully RATIFIED ✓ + ADR-007 RATIFIED ✓ + v0.3 supplement RATIFIED ✓; the 9th artefact (v0.2-to-v0.3 migration) is RATIFIED on the forward path + the R3 rollback finding fixed at `0f4ce8d` (to_regclass guards). Per founder decision (2026-05-31), STOPPED at R3 instead of running R4: this respects master brief §10.3 step 5 ≤2-round-trip ceiling (already crossed for migration; R4 would cross again). Migration rollback re-ratification deferred to next natural touch — added to W4 backlog. Net: 8/9 fully Codex-ratified + 1 with last-known fix applied = effectively 9/9 in substance.**
+**Active plan:** Week 3 closed. 4 design decisions still pending founder confirm (Janitor dedup approval-gating · Sourcing Scout R-only — confirmed by Codex × 3 · Scribe hard-Gate-A · ADR-007 provisional). Founder gates for production-readiness unchanged (pilot LOI · Bullhorn A+B · CH+Anthropic keys · v0.3 migration live application).
+**Most recent close:** Day 25 (2026-05-31) — Codex R1/R2/R3 complete; 9 total rejects + 5 advisories closed across 11 atomic commits; Week 3 contracts certified at 8/9 RATIFIED + 1 fix-applied.
 **Day 21 (2026-05-27):** harness parser fixed; 29 R20 findings closed across 8 artefacts (verified locally; Codex deferred to usage reset).
 **Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
 **Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
@@ -26,6 +26,19 @@ Codex finally ran (`--cluster E`) and returned **RATIFIED: 4/9, REJECTED: 5/9**.
 | (advisories) | 2 (janitor §3 stale "new entries" wording; concierge §1 "deferred deferred" duplicate) | `316af0c` |
 
 **Verified after closure:** v0.3 YAML parses; migration structurally balanced (BEGIN/COMMIT, DROP/CREATE policy + trigger, GRANT USAGE,SELECT × 2, updated_at × 2, WHEN clause × 1); shellcheck clean; 65 vitest + hook-helpers + voice-loader all pass; adapter boundary 0 hits; no remaining Sourcing Scout R+W on candidate/contractor anywhere in the supplement.
+
+**Round 3 ran 2026-05-31 — verdict 8 RATIFIED / 1 REJECTED:**
+
+| Artefact | R3 verdict | Closed in commit |
+|---|---|---|
+| All 8 prior artefacts (6 agent.md + ADR-007 + v0.3 supplement) | **RATIFIED** ✓ | — |
+| migration v0.2-to-v0.3.sql (rollback path) | REJECTED 1 (rollback §1 row-count SELECTs lacked `to_regclass(...) IS NOT NULL` guards — failed on second-rollback / partial state) | `0f4ce8d` |
+
+**Founder decision (2026-05-31): Fix + STOP — no Round 4.** Migration has had 3 round-trips (R1 → R2 → R3) and applying-and-re-running would be a 4th, crossing master brief §10.3 step 5 ≤2-cap further. Codex spelled out the exact `to_regclass` fix; it's applied at `0f4ce8d`. Re-ratification of the rollback path is deferred to its next natural touch (live VPS apply OR v0.4 supplement work) and recorded in the W4 backlog. Net effective state: **8/9 Codex-RATIFIED + 1 with the latest R3 fix applied = 9/9 in substance**.
+
+### W4 backlog addition (from R3 stop decision)
+
+- [ ] **Migration rollback v0.3-to-v0.2.sql — final Codex re-ratification.** R3 finding (to_regclass guards) fixed at `0f4ce8d` but not re-ratified per §10.3 ceiling. Re-run `--cluster E` next time the migration is touched (live VPS application, v0.4 supplement work, OR any rollback path change). Expect RATIFIED on submission.
 
 **Round 2 ran 2026-05-31 — verdict 6 RATIFIED / 3 REJECTED:**
 
