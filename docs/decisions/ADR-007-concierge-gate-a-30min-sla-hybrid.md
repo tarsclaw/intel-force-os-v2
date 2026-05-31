@@ -21,7 +21,7 @@ Concierge `agent.md` (Day-19 R3 scaffold) reframes (a) — the 30-minute draft S
 - `agent.md` §1 line 17 (30-min framing as Gate B target)
 - `agent.md` §4 Step 9, lines 212-222 (`ESC_CONCIERGE_SLA_MISS` warn, aggregated to Gate B; not per-draft block; emits the mandatory `hh_decision_output("concierge_sla_miss", …)` audit row)
 - `agent.md` §5 lines 280-293 (Gate A scope; the 30-min SLA exclusion is stated at line 291)
-- `agent.md` §6 ESC table line 320 (`ESC_CONCIERGE_SLA_MISS` registered as warn, not blocking)
+- `agent.md` §6 ESC table line 326 (`ESC_CONCIERGE_SLA_MISS` registered as warn, not blocking)
 
 This creates a documented gap between the upstream spec and the v0 scaffold. Codex R3 Finding 3 (Day-19 log `logs/codex-ratification/20260524T174513Z-13185/`):
 
