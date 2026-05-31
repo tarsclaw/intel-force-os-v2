@@ -3,10 +3,48 @@
 **Week:** Week 4 — **Day 25 / open (2026-05-31)**
 **Today's task:** **WEEK 3 CONTRACT CERTIFICATION CLOSED. Codex ran 3 rounds 2026-05-31 against `--cluster E` (9 artefacts): R1 4/9 RATIFIED → R2 6/9 RATIFIED → R3 8/9 RATIFIED. All 6 agent.md fully RATIFIED ✓ + ADR-007 RATIFIED ✓ + v0.3 supplement RATIFIED ✓; the 9th artefact (v0.2-to-v0.3 migration) is RATIFIED on the forward path + the R3 rollback finding fixed at `0f4ce8d` (to_regclass guards). Per founder decision (2026-05-31), STOPPED at R3 instead of running R4: this respects master brief §10.3 step 5 ≤2-round-trip ceiling (already crossed for migration; R4 would cross again). Migration rollback re-ratification deferred to next natural touch — added to W4 backlog. Net: 8/9 fully Codex-ratified + 1 with last-known fix applied = effectively 9/9 in substance.**
 **Active plan:** Week 3 closed. W4 Track-1 /goal authored at `docs/operations/goal-week-4-track-1.md` (Cash Conductor MCP connectors + bundle scaffold + Diagnostic live-smoke wrapper + review-mcp-connector skill + cluster F ratification; 5-7 day window 2026-06-01→2026-06-05). Founder confirmed "keep all 4" design decisions 2026-05-31; founder delegated D1 to me → **D1-B (Telegram shim)** taken at `docs/decisions/2026-05-31-d1-founder-decision.md`. Remaining founder gates: ADR-007 Accept stamp (item 2 — reply "Accept ADR-007"); CH + Anthropic API keys (item 3 — saved to `_secrets.env`; smoke wrapper at `scripts/run-diagnostic-smoke.sh` then closes Trigger 2 in one command); v0.3 migration live (item 4 — wrapper + runbook ready); Bullhorn A+B chase (item 6); Q1 LOI (item 7 — Trigger 1 fires 2026-06-03).
-**Most recent close:** Day 25 (2026-05-31) — Week 3 contracts certified at 8/9 + fix-applied; 4 design decisions confirmed; D1-B arbitrated; W4 Track-1 /goal authored + smoke wrapper shipped.
+**Most recent close:** Day 25 evening (2026-05-31) — **v0.3 migration APPLIED to live VPS + tenancy audit 12/12 invariants PASS** (via `run-v0.3-migration-as-postgres.sh` after Day-12 ownership issue resurfaced and a stdin-pipe wrapper refactor); Week 3 contracts certified at 8/9 + fix-applied; 4 design decisions confirmed; ADR-007 Accepted; D1-B arbitrated; W4 Track-1 /goal authored + smoke wrapper shipped. Substrate ready for W4 Track-1 build.
 **Day 21 (2026-05-27):** harness parser fixed; 29 R20 findings closed across 8 artefacts (verified locally; Codex deferred to usage reset).
 **Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
 **Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
+
+## W4 Day-25 evening (2026-05-31) — v0.3 migration APPLIED to live VPS ✓
+
+Founder executed Items 1 + 2 + 4 from the founder-action playbook. Substrate now live.
+
+### v0.3 migration applied
+
+- **First attempt** (`run-v0.3-migration.sh` as `ifos_app`): failed at line 409 — `must be owner of relation entities`. Day-12 ALTER OWNER TO postgres on entities means `ifos_app` has TRIGGER privilege (CREATE) but not ownership (DROP). Migration's `BEGIN`/`COMMIT` wrap meant atomic rollback; no partial state.
+- **Wrapper fix** (`run-v0.3-migration-as-postgres.sh`, commits `1d54459` + `d247dc0` + `e419b70` + `33f233f`): applies the same migration as `postgres` via SSH + `sudo -u postgres` peer auth + stdin pipe (no temp file → no permission issue). VPS sudoers NOPASSWD is set, so passwordless.
+- **Second attempt**: failed at SCP step — postgres user couldn't read maddox's 0600 /tmp file. Refactored to pipe SQL via stdin (`e419b70`); no temp file written on VPS.
+- **Third attempt: SUCCESS.** Migration applied cleanly (BEGIN…41 DDL…in-migration smoke "v0.3 migration smoke passed"…COMMIT). Post-flight verification confirmed: both Cash Conductor tables present and `postgres`-owned (Day-12 compliant); `validate_voice_scores` trigger replaced by `validate_entities_data_v0_3`; `validate_tenant_adapters_config_v0_3` present.
+- **Tenancy audit (`run-tenancy-audit.sh`): PASS 24 / FAIL 0** — all 12 invariants T1-T12 verified clean across the now-11 tenant-data tables. Foundation declared correct.
+
+### Two non-blocking follow-ups (queued, not gating)
+
+1. **T12 heuristic false positives** — flagged 4 lines in `hook-helpers.sh` / `autosend-policy.yaml` / `common-target-patch.json` as "candidate hard-coded slug refs"; all four are comments or example data, not real hardcoded slugs. Worth tightening the T12 grep heuristic in `scripts/run-tenancy-audit.sh` next time we touch tenancy audit; not blocking.
+2. **Audit-row write fallback** — the tenancy audit's `decision_log` audit-row write to `tenant_slug='ifos-meta'` failed; fell back to JSONL at `logs/tenancy-audit/20260531T212059Z-49105/`. Likely the audit harness doesn't `SET LOCAL app.current_tenant='ifos-meta'` before the INSERT (RLS blocks the cross-tenant write). Worth fixing in the audit script for future runs; not blocking — the audit itself ran fully and the fallback captured the result.
+
+### What this unblocks
+
+- **W4 backlog item #1 CLOSED** (Day-20 queue's first item).
+- **Cash Conductor `cash_conductor_transactions` + `cash_conductor_invoices` tables exist on live VPS** — the W4 Track-1 /goal can wire MCP connectors against real schema (not just fixtures).
+- **The `set_updated_at()` helper is live** — updates to either table auto-bump `updated_at` (Codex R1 finding 4 closure).
+- **The new entities trigger validates v0.3 keys** (`employment_type`, `key_skills`, etc.) — Scribe field extraction at W6 will run against the live validator.
+- **The tenant_adapters config validator** enforces the allowlist including `blocked_recipients`, `janitor_dedup_threshold`, `concierge_send_window` — Sourcing Scout / Janitor / Concierge build slices land on a verified config surface.
+
+### Founder action board (refreshed end-of-day 2026-05-31)
+
+| # | Action | Status |
+|---|---|---|
+| 1 | Confirm 4 design decisions | ✅ Confirmed (keep all 4) |
+| 2 | Accept ADR-007 | ✅ Accepted (founder-arbitrated; commit `c862c77`) |
+| 3 | CH + Anthropic keys + smoke run | ⏸ NEXT — register keys → `bash scripts/run-diagnostic-smoke.sh --firm "Hays plc"` |
+| 4 | Apply v0.3 migration to live VPS | ✅ **APPLIED + tenancy audit 12/12** (Day-25 evening 2026-05-31) |
+| 5 | Founder Decision D1 | ✅ D1-B taken (commit `8d9acc2`) |
+| 6 | Bullhorn chase | ⏸ chase email template in `docs/operations/founder-manual-playbook-2026-05-31.md` §"Priority 4" |
+| 7 | Q1 LOI (Jack) | ⏸ Trigger 1 fires **2026-06-03 (3 days)** |
+| 8/9/10 | Commercial signups (Xero, Fathom, Proxycurl, Reed, CV-Library) | Deferrable |
 
 ## W4 Day-25 (2026-05-31) — founder decisions captured + W4 Track-1 /goal authored
 
