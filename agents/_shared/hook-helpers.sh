@@ -28,8 +28,35 @@ set -uo pipefail
 # ────────────────────────────────────────────────────────────────────────
 
 _HH_HELPERS_VERSION="0.1.0"
-_HH_POLICY_FILE="${HH_POLICY_FILE:-${CTX_AGENT_DIR:-.}/.claude/hooks/_shared/autosend-policy.yaml}"
-_HH_ESC_CATALOGUE="${HH_ESC_CATALOGUE:-${CTX_AGENT_DIR:-.}/.claude/hooks/_shared/escalation-codes.md}"
+
+# Resolve the autosend-policy + escalation-codes paths through a fallback
+# chain (rendered → repo source-tree → computed relatives). Mirrors the
+# pattern used in agents/*/context.sh + validate.sh. Without this, direct
+# source-tree execution (Day-13 + Day-25 Hays smoke) prints "policy file
+# not found" warnings even though Gate A passes via deterministic fallback.
+_hh_resolve_shared_path() {
+  local filename="$1" override_val="$2" candidate
+  if [[ -n "${override_val}" ]]; then
+    printf '%s' "${override_val}"
+    return 0
+  fi
+  for candidate in \
+    "${CTX_AGENT_DIR:-.}/.claude/hooks/_shared/${filename}" \
+    "${IFOS_REPO_ROOT:-}/agents/_shared/${filename}" \
+    "${CTX_AGENT_DIR:-.}/../../_shared/${filename}" \
+    "${CTX_AGENT_DIR:-.}/../_shared/${filename}" ; do
+    if [[ -n "${candidate}" && -f "${candidate}" ]]; then
+      printf '%s' "${candidate}"
+      return 0
+    fi
+  done
+  # Nothing resolved — fall back to legacy default so downstream consumers
+  # fail loudly at use-time with a clear path in the error message.
+  printf '%s' "${CTX_AGENT_DIR:-.}/.claude/hooks/_shared/${filename}"
+}
+
+_HH_POLICY_FILE="$(_hh_resolve_shared_path "autosend-policy.yaml" "${HH_POLICY_FILE:-}")"
+_HH_ESC_CATALOGUE="$(_hh_resolve_shared_path "escalation-codes.md" "${HH_ESC_CATALOGUE:-}")"
 
 # Fallback file used when IFOS_DB_URL is unset OR psql is unavailable.
 # Resolved at first call to _hh_emit_row().

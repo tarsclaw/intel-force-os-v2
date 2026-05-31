@@ -61,8 +61,31 @@ if [[ -z "${CTX_AGENT_DIR:-}" ]]; then
   printf 'validate.sh: CTX_AGENT_DIR unset\n' >&2
   exit 2
 fi
+
+# Resolve _shared/ helpers: rendered agent has them at
+# ${CTX_AGENT_DIR}/.claude/hooks/_shared/ (symlink per ADR-003). For
+# direct source-tree execution (Day-13 smoke tests + Day-25 evening
+# Hays plc smoke), fall back to repo root via IFOS_REPO_ROOT or computed
+# relative path. Mirrors context.sh's resolution exactly.
+_SHARED_DIR=""
+for _candidate in \
+  "${CTX_AGENT_DIR}/.claude/hooks/_shared" \
+  "${IFOS_REPO_ROOT:-}/agents/_shared" \
+  "${CTX_AGENT_DIR}/../../_shared" \
+  "${CTX_AGENT_DIR}/../_shared" ; do
+  if [[ -n "${_candidate}" && -d "${_candidate}" && -f "${_candidate}/hook-helpers.sh" ]]; then
+    _SHARED_DIR="${_candidate}"
+    break
+  fi
+done
+
+if [[ -z "${_SHARED_DIR}" ]]; then
+  printf 'validate.sh: cannot locate _shared/ helpers; set IFOS_REPO_ROOT or render the agent first\n' >&2
+  exit 2
+fi
+
 # shellcheck source=/dev/null
-source "${CTX_AGENT_DIR}/.claude/hooks/_shared/hook-helpers.sh"
+source "${_SHARED_DIR}/hook-helpers.sh"
 
 # Track failures across all checks; collect all before exit (richer audit)
 declare -a FAILURES=()
