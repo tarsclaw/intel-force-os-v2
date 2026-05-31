@@ -1,6 +1,6 @@
 # ADR-007 — Concierge Gate A 30-minute draft SLA hybrid (Gate B leading metric, not per-draft hard-fail)
 
-**Status:** Proposed (2026-05-25, Day 20; W4 bilateral pass on Concierge agent.md surfaced this as Codex R3 Finding 3 — current scaffold reframes ULTRAPLAN A6 line 566 Gate A "every lifecycle event has a draft generated within 30 minutes" as a Gate B leading metric without an authoritative ADR backing the deviation. Awaits Codex `review-architecture-decision` ratification + founder Accept.) **The ULTRAPLAN line 566 + 567 amendments below are applied PROVISIONALLY in-band (ADR-006 precedent); if this ADR is rejected at founder Accept, those amendments revert.**
+**Status:** **Accepted (founder-arbitrated 2026-05-31).** Codex `review-architecture-decision` skill RATIFIED this ADR at Round 3 of the cluster-E run (2026-05-31) after R1+R2 mechanical fixes (commits `ca66431` + `9b2e10a`). The ULTRAPLAN §8.1 A6 line 566 + line 567 amendments are now **permanent** (no longer provisional). The original Codex R3 Finding 3 (Concierge agent.md reframes 30-min SLA as Gate B without an authoritative ADR) is structurally closed by this Accept.
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A6 line 566 — Gate A 30-minute draft SLA clause
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
@@ -80,7 +80,7 @@ This is structurally identical to ADR-006's Tier 1 (per-section, hard-fail at th
 - Rolling 30-day per-tenant aggregate <90% fires `ESC_GATE_B_MISS` (per `escalation-codes.md` §2.10) — actionable signal
 - v0.4 schema work: Concierge cycle.sh will record upstream-detection-latency separately in the audit payload (`payload.detection_delay_seconds`) once the field is declared and validated in a v0.4 supplement. v0.3 + v1.0 do NOT introduce this payload key — it would violate review-schema-change §3 (bounded values require CHECK or trigger). The metric attribution distinction (Concierge generation latency vs upstream polling latency) IS the right product behavior but the schema authority lands later.
 
-**ULTRAPLAN §8.1 A6 line 566 is amended in-band, applied provisionally with this ADR pending founder Accept** (following the ADR-006 precedent, which made the same kind of in-band amendment at line 496). There is no separate master-brief clause authorizing in-band spec amendments — master brief §10.3 step 4 only covers incorporating Codex feedback or writing a disagreement doc; the authority for the amendment is this ADR itself once Accepted, and the amendment reverts if the ADR is rejected:
+**ULTRAPLAN §8.1 A6 line 566 is amended in-band (Accepted by founder 2026-05-31)** following the ADR-006 precedent, which made the same kind of in-band amendment at line 496. There is no separate master-brief clause authorizing in-band spec amendments — master brief §10.3 step 4 only covers incorporating Codex feedback or writing a disagreement doc; the authority for the amendment is this ADR itself, now Accepted:
 
 Pre-amendment:
 > - **Gate A:** every lifecycle event has a draft generated within 30 minutes; voice classifier score ≥ 0.75; correct addressee resolution (no candidates emailed under another's name)
@@ -109,7 +109,7 @@ Post-amendment:
 
 ## Implementation
 
-### In-band ULTRAPLAN amendment (applied provisionally with this ADR; ADR-006 precedent — reverts if this ADR is rejected at founder Accept)
+### In-band ULTRAPLAN amendment (Accepted with this ADR 2026-05-31; ADR-006 precedent)
 
 ULTRAPLAN §8.1 A6 line 566 amended in the same commit as this ADR. Pre-amendment / post-amendment text is captured in this ADR's body. The amendment also updated line 567 Gate B target to include the new ≥90% 30-min SLA hit rate threshold (per ADR-007). See commit history for the diff.
 
@@ -142,4 +142,4 @@ Add to Accepted blockers (after R3 commit `f79c018` baseline):
 
 ---
 
-**Status:** Proposed; awaits Codex `review-architecture-decision` ratification (R19+) + founder Accept per master brief §10.3 step 5 if Codex still disagrees.
+**Status:** **Accepted (founder-arbitrated 2026-05-31).** Codex RATIFIED at Round 3 of the cluster-E 2026-05-31 session; founder Accept stamp completes the §10.5 cycle. ULTRAPLAN amendments permanent.
