@@ -352,8 +352,10 @@ agent_access_matrix:
   #   candidate.employment_type grants Scribe: W (Scribe writes employment_type
   #   without reading it). Another example: Diagnostic.candidate: R at entity
   #   level; candidate.linkedin_url has no Diagnostic field entry; Diagnostic
-  #   gets R on linkedin_url (entity-level default), not the broader Sourcing
-  #   Scout R+W. Implementation: cycle.sh + hh_decision_action records which
+  #   gets R on linkedin_url (entity-level default), not the broader Janitor
+  #   R+W on candidate.linkedin_url (Janitor.candidate is R+W at entity level
+  #   per the v0_3_v1_0_agent_access matrix below). Implementation:
+  #   cycle.sh + hh_decision_action records which
   #   agent + which fields were touched in decision_log payload; reviewers
   #   audit via that trail. v0.3 does NOT enforce this rule at the database
   #   layer (column-level RLS would be required; v1.1+ work per the
