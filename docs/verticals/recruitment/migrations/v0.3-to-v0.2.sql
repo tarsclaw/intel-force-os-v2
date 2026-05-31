@@ -23,11 +23,20 @@ BEGIN;
 
 DO $$
 DECLARE
-  cct_rows INT;
-  cci_rows INT;
+  cct_rows INT := 0;
+  cci_rows INT := 0;
 BEGIN
-  SELECT count(*) INTO cct_rows FROM cash_conductor_transactions;
-  SELECT count(*) INTO cci_rows FROM cash_conductor_invoices;
+  -- Guard the row-count SELECTs against a second rollback OR a partial state
+  -- where either table has already been dropped: to_regclass returns NULL
+  -- when the relation is missing, so we only SELECT when the table exists.
+  -- Without these guards the SELECTs throw before reaching the safe
+  -- DROP TABLE IF EXISTS lines below (Codex R3 finding 2026-05-31).
+  IF to_regclass('public.cash_conductor_transactions') IS NOT NULL THEN
+    SELECT count(*) INTO cct_rows FROM cash_conductor_transactions;
+  END IF;
+  IF to_regclass('public.cash_conductor_invoices') IS NOT NULL THEN
+    SELECT count(*) INTO cci_rows FROM cash_conductor_invoices;
+  END IF;
   IF cct_rows > 0 OR cci_rows > 0 THEN
     RAISE NOTICE 'cash_conductor_transactions has % rows; cash_conductor_invoices has %', cct_rows, cci_rows;
     RAISE NOTICE 'EXPORT TO JSON BEFORE PROCEEDING (per migration §1 warning)';
