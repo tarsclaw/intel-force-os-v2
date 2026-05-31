@@ -4,7 +4,7 @@
 **Author:** Founder (Maddox) + Claude Code
 **Amends:** `docs/specs/ULTRAPLAN.md` §8.1 A6 line 566 — Gate A 30-minute draft SLA clause
 **Ratifies via:** `.codex/ratification/review-architecture-decision.md` Codex skill
-**Driven by:** `docs/operations/w4-bilateral-pass-6-agent-md.md` Concierge Finding 3 — Codex flags Concierge `agent.md` §5 line 278 reframes the 30-min SLA as Gate B without an ADR; §10 Accepted criteria omits any ADR-ratification blocker for this deviation. Analogue of ADR-006 (Diagnostic Gate A hybrid).
+**Driven by:** `docs/operations/w4-bilateral-pass-6-agent-md.md` Concierge Finding 3 — at the time of Codex R3, the Concierge `agent.md` reframed the 30-min SLA as Gate B without an ADR and §10 omitted an ADR-ratification blocker. Both have since been closed: Concierge `agent.md` §10 line 435 now lists "**ADR-007 RATIFIED**" as a Proposed → Accepted blocker, and this ADR exists. Analogue of ADR-006 (Diagnostic Gate A hybrid).
 
 ---
 
@@ -18,10 +18,10 @@ The clause implies three Gate A hard-fail conditions: (a) draft generated within
 
 Concierge `agent.md` (Day-19 R3 scaffold) reframes (a) — the 30-minute draft SLA — from per-draft Gate A hard-fail to a Gate B leading metric (90% of drafts within 30 min, not per-draft hard fail). The other two clauses (voice classifier + addressee resolution) remain Gate A hard-fails. The reframe is documented in:
 
-- `agent.md` §1 output-contract (30-min framing as Gate B target)
-- `agent.md` §4 Step 9 (`ESC_CONCIERGE_SLA_MISS` warn, aggregated to Gate B; not per-draft block)
-- `agent.md` §5 lines 269-280 (Gate A excludes the 30-min SLA explicitly)
-- `agent.md` §6 ESC table (`ESC_CONCIERGE_SLA_MISS` registered as warn, not blocking)
+- `agent.md` §1 line 17 (30-min framing as Gate B target)
+- `agent.md` §4 Step 9, lines 212-222 (`ESC_CONCIERGE_SLA_MISS` warn, aggregated to Gate B; not per-draft block; emits the mandatory `hh_decision_output("concierge_sla_miss", …)` audit row)
+- `agent.md` §5 lines 280-293 (Gate A scope; the 30-min SLA exclusion is stated at line 291)
+- `agent.md` §6 ESC table line 320 (`ESC_CONCIERGE_SLA_MISS` registered as warn, not blocking)
 
 This creates a documented gap between the upstream spec and the v0 scaffold. Codex R3 Finding 3 (Day-19 log `logs/codex-ratification/20260524T174513Z-13185/`):
 
