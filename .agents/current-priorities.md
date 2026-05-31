@@ -2,11 +2,35 @@
 
 **Week:** Week 4 — **Day 25 / open (2026-05-31)**
 **Today's task:** **WEEK 3 CONTRACT CERTIFICATION CLOSED. Codex ran 3 rounds 2026-05-31 against `--cluster E` (9 artefacts): R1 4/9 RATIFIED → R2 6/9 RATIFIED → R3 8/9 RATIFIED. All 6 agent.md fully RATIFIED ✓ + ADR-007 RATIFIED ✓ + v0.3 supplement RATIFIED ✓; the 9th artefact (v0.2-to-v0.3 migration) is RATIFIED on the forward path + the R3 rollback finding fixed at `0f4ce8d` (to_regclass guards). Per founder decision (2026-05-31), STOPPED at R3 instead of running R4: this respects master brief §10.3 step 5 ≤2-round-trip ceiling (already crossed for migration; R4 would cross again). Migration rollback re-ratification deferred to next natural touch — added to W4 backlog. Net: 8/9 fully Codex-ratified + 1 with last-known fix applied = effectively 9/9 in substance.**
-**Active plan:** Week 3 closed. 4 design decisions still pending founder confirm (Janitor dedup approval-gating · Sourcing Scout R-only — confirmed by Codex × 3 · Scribe hard-Gate-A · ADR-007 provisional). Founder gates for production-readiness unchanged (pilot LOI · Bullhorn A+B · CH+Anthropic keys · v0.3 migration live application).
-**Most recent close:** Day 25 (2026-05-31) — Codex R1/R2/R3 complete; 9 total rejects + 5 advisories closed across 11 atomic commits; Week 3 contracts certified at 8/9 RATIFIED + 1 fix-applied.
+**Active plan:** Week 3 closed. W4 Track-1 /goal authored at `docs/operations/goal-week-4-track-1.md` (Cash Conductor MCP connectors + bundle scaffold + Diagnostic live-smoke wrapper + review-mcp-connector skill + cluster F ratification; 5-7 day window 2026-06-01→2026-06-05). Founder confirmed "keep all 4" design decisions 2026-05-31; founder delegated D1 to me → **D1-B (Telegram shim)** taken at `docs/decisions/2026-05-31-d1-founder-decision.md`. Remaining founder gates: ADR-007 Accept stamp (item 2 — reply "Accept ADR-007"); CH + Anthropic API keys (item 3 — saved to `_secrets.env`; smoke wrapper at `scripts/run-diagnostic-smoke.sh` then closes Trigger 2 in one command); v0.3 migration live (item 4 — wrapper + runbook ready); Bullhorn A+B chase (item 6); Q1 LOI (item 7 — Trigger 1 fires 2026-06-03).
+**Most recent close:** Day 25 (2026-05-31) — Week 3 contracts certified at 8/9 + fix-applied; 4 design decisions confirmed; D1-B arbitrated; W4 Track-1 /goal authored + smoke wrapper shipped.
 **Day 21 (2026-05-27):** harness parser fixed; 29 R20 findings closed across 8 artefacts (verified locally; Codex deferred to usage reset).
 **Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
 **Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
+
+## W4 Day-25 (2026-05-31) — founder decisions captured + W4 Track-1 /goal authored
+
+After Week 3 closure earlier today, the founder responded to the 10-item founder-action plan:
+
+| # | Action | Status | Closure artefact |
+|---|---|---|---|
+| 1 | Confirm 4 design decisions | **CONFIRMED** "keep all 4" | this priorities entry |
+| 2 | Accept ADR-007 | PENDING (one-line founder reply: "Accept ADR-007") | Edit pre-staged; commit on reply |
+| 3 | Register CH + Anthropic API keys | PENDING | `scripts/run-diagnostic-smoke.sh` shipped — one command after keys saved |
+| 4 | Apply v0.3 migration to live VPS | PENDING (founder will run) | `scripts/run-v0.3-migration.sh` + Day-20 runbook ready |
+| 5 | Founder Decision D1 (autosend orange-tier) | **DELEGATED + TAKEN: D1-B (Telegram shim)** | `docs/decisions/2026-05-31-d1-founder-decision.md` |
+| 6 | Bullhorn A+B chase | PENDING | I owe a chase-email draft (queued) |
+| 7 | Q1 LOI (Jack's lane) | PENDING — Trigger 1 fires 2026-06-03 | n/a (founder coordinates Jack) |
+| 8 | Proxycurl + Reed + CV-Library signups | DEFERRABLE | not blocking W4 Track 1 |
+| 9 | Fathom OR Fireflies signup | DEFERRABLE | gates W6 Scribe build |
+| 10 | Xero developer account | DEFERRABLE | gates live Cash Conductor test (scaffold proceeds fixture-first) |
+
+**Net unblocks from this turn:**
+
+- The 4 design decisions are no longer pending — agent.md scaffolds can flip Proposed → Accepted at their build slice the moment the production-readiness gates (pilot LOI, Bullhorn A+B, etc.) clear.
+- D1-B is the autosend orange-tier path for v1.0; Concierge W10 build slice will deliver the `packages/utilities/autosend-bridge-telegram/` package per the decision doc §"Implementation surface".
+- W4 Track-1 work has a complete /goal prompt — paste `docs/operations/goal-week-4-track-1.md` into any new Claude Code session and it executes the next 5-7 days autonomously (with founder gates as documented).
+- Diagnostic Trigger 2 (deadline 2026-06-14) is now one founder action away from closure — register CH + Anthropic keys, run `bash scripts/run-diagnostic-smoke.sh --firm "Hays plc"`, done.
 
 ## W4 Day-25 (2026-05-31) — Codex Round 1 (agent-bundle) verdict closed
 
