@@ -1,9 +1,9 @@
 # Current priorities
 
 **Week:** Week 4 — **Day 25 / open (2026-05-31)**
-**Today's task:** **Codex Round 1 (agent-bundle skill) ran 2026-05-31 — verdict 4 RATIFIED / 5 REJECTED of 9. All 5 rejects were mechanical (citation drift + 1 internal contradiction + migration idempotency/grant/trigger/auditability gaps); none collided with the 4 founder decisions. Closed all 5 + the 2 real advisories in 6 atomic commits. Verified: v0.3 YAML parses; migration BEGIN/COMMIT + DROP/CREATE POLICY + DROP/CREATE TRIGGER balanced; 2 sequences fixed; updated_at + trigger added; WHEN clause on entities trigger; shellcheck clean; 65 vitest + 2 bash suites pass; adapter boundary 0; no remaining Sourcing Scout R+W. Ready for Codex Round 2 (re-run `--cluster E`) — expect RATIFIED 9/9 or ≤1 residual.**
-**Active plan:** Codex Round-1 findings closed. Awaits Codex Round 2 confirmation (founder re-runs the prompt / wrapper). 4 design decisions still pending founder confirm (Janitor dedup approval-gating · Sourcing Scout R-only — now reinforced by Codex · Scribe hard-Gate-A · ADR-007 provisional).
-**Most recent close:** Day 25 (2026-05-31) — Codex Round 1 verdict triaged + all 5 rejects + 2 advisories closed across 6 commits; tree clean.
+**Today's task:** **Codex Round 1 + Round 2 ran 2026-05-31. R1: 4 RATIFIED / 5 REJECTED → all 5 closed. R2: 6 RATIFIED (all 6 agent.md ✓) / 3 REJECTED (ADR-007 + v0.3 supplement + migration rollback) → all 3 closed across 3 atomic commits (4 surgical edits). R2 rejects were single-line drift items: my own R1 ADR-007 fix had cited line 320 (should have been 326); a stale "Sourcing Scout R+W" example in a documentation comment; rollback missing DROP TRIGGER guard + DROP FUNCTION for the new set_updated_at helper. All verified: YAML parses, migration + rollback DROP/CREATE balanced, shellcheck clean, bash + vitest still green. Ready for Codex Round 3 — expect RATIFIED 9/9. NOTE: master brief §10.3 step 5 ceiling is ≤2 round-trips per artefact; Round 3 crosses that for ADR-007/v0.3/migration. Justified here because R2 findings were trivial citation/idempotency drift (Codex spelled out the fixes); if R3 surfaces NEW issues, that's the real escalation signal — stop for founder arbitration.**
+**Active plan:** Codex R1 + R2 findings closed. Awaits Codex Round 3 confirmation. 4 design decisions still pending founder confirm (Janitor dedup approval-gating · Sourcing Scout R-only — confirmed by Codex × 2 · Scribe hard-Gate-A · ADR-007 provisional).
+**Most recent close:** Day 25 R2 (2026-05-31) — 3 single-line rejects closed across 3 commits; tree clean.
 **Day 21 (2026-05-27):** harness parser fixed; 29 R20 findings closed across 8 artefacts (verified locally; Codex deferred to usage reset).
 **Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
 **Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
@@ -27,7 +27,16 @@ Codex finally ran (`--cluster E`) and returned **RATIFIED: 4/9, REJECTED: 5/9**.
 
 **Verified after closure:** v0.3 YAML parses; migration structurally balanced (BEGIN/COMMIT, DROP/CREATE policy + trigger, GRANT USAGE,SELECT × 2, updated_at × 2, WHEN clause × 1); shellcheck clean; 65 vitest + hook-helpers + voice-loader all pass; adapter boundary 0 hits; no remaining Sourcing Scout R+W on candidate/contractor anywhere in the supplement.
 
-**Round 2 ready:** re-run `bash scripts/run-codex-ratification.sh --cluster E` (or re-paste the same Codex prompt). Expect RATIFIED 9/9 — none of these fixes touched ratified artefacts in a way that could regress them, and the rejected-class issues were all surgically closed at the exact lines Codex cited.
+**Round 2 ran 2026-05-31 — verdict 6 RATIFIED / 3 REJECTED:**
+
+| Artefact | R2 verdict | Closed in commit |
+|---|---|---|
+| 6 agent.md (diagnostic, janitor, scribe, cash-conductor, sourcing-scout, concierge) | **RATIFIED** ✓ | — |
+| ADR-007 | REJECTED 1 (my R1 fix wrote line 320; should be 326) | `ca66431` |
+| v0.3 supplement | REJECTED 1 (stale "broader Sourcing Scout R+W" example in field-narrowing doc block lines 351-356) | `4e49458` |
+| migration rollback `v0.3-to-v0.2.sql` | REJECTED 2 (missing `DROP TRIGGER IF EXISTS validate_voice_scores`; missing `DROP FUNCTION IF EXISTS set_updated_at()`) | `5693d9d` |
+
+**Round 3 ready** (re-run `--cluster E`) — expect RATIFIED 9/9. **Ceiling note:** master brief §10.3 step 5 caps round-trips at 2; R3 crosses for ADR-007 / v0.3 / migration. Justified because the R2 findings were tiny mechanical drift items Codex spelled out exactly. **If R3 returns NEW issues, that is the escalation signal — stop and route to founder arbitration; do NOT run R4.**
 
 ## W4 Day-21 (2026-05-27) — ratification remediation + harness fix
 
