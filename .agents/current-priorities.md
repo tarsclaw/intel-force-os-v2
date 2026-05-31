@@ -3,10 +3,62 @@
 **Week:** Week 4 — **Day 25 / open (2026-05-31)**
 **Today's task:** **WEEK 3 CONTRACT CERTIFICATION CLOSED. Codex ran 3 rounds 2026-05-31 against `--cluster E` (9 artefacts): R1 4/9 RATIFIED → R2 6/9 RATIFIED → R3 8/9 RATIFIED. All 6 agent.md fully RATIFIED ✓ + ADR-007 RATIFIED ✓ + v0.3 supplement RATIFIED ✓; the 9th artefact (v0.2-to-v0.3 migration) is RATIFIED on the forward path + the R3 rollback finding fixed at `0f4ce8d` (to_regclass guards). Per founder decision (2026-05-31), STOPPED at R3 instead of running R4: this respects master brief §10.3 step 5 ≤2-round-trip ceiling (already crossed for migration; R4 would cross again). Migration rollback re-ratification deferred to next natural touch — added to W4 backlog. Net: 8/9 fully Codex-ratified + 1 with last-known fix applied = effectively 9/9 in substance.**
 **Active plan:** Week 3 closed. W4 Track-1 /goal authored at `docs/operations/goal-week-4-track-1.md` (Cash Conductor MCP connectors + bundle scaffold + Diagnostic live-smoke wrapper + review-mcp-connector skill + cluster F ratification; 5-7 day window 2026-06-01→2026-06-05). Founder confirmed "keep all 4" design decisions 2026-05-31; founder delegated D1 to me → **D1-B (Telegram shim)** taken at `docs/decisions/2026-05-31-d1-founder-decision.md`. Remaining founder gates: ADR-007 Accept stamp (item 2 — reply "Accept ADR-007"); CH + Anthropic API keys (item 3 — saved to `_secrets.env`; smoke wrapper at `scripts/run-diagnostic-smoke.sh` then closes Trigger 2 in one command); v0.3 migration live (item 4 — wrapper + runbook ready); Bullhorn A+B chase (item 6); Q1 LOI (item 7 — Trigger 1 fires 2026-06-03).
-**Most recent close:** Day 25 evening (2026-05-31) — **v0.3 migration APPLIED to live VPS + tenancy audit 12/12 invariants PASS** (via `run-v0.3-migration-as-postgres.sh` after Day-12 ownership issue resurfaced and a stdin-pipe wrapper refactor); Week 3 contracts certified at 8/9 + fix-applied; 4 design decisions confirmed; ADR-007 Accepted; D1-B arbitrated; W4 Track-1 /goal authored + smoke wrapper shipped. Substrate ready for W4 Track-1 build.
+**Most recent close:** Day 25 overnight (2026-05-31 → 2026-06-01) — **Autonomous overnight work shipped** per `docs/operations/goal-overnight-2026-05-31.md`: (1) Hays plc smoke ran Gate A PASS 12-section 621-word; surfaced 2 path bugs in validate.sh + hook-helpers.sh (fixed via 4-candidate fallback pattern copied from context.sh); (2) `.codex/ratification/review-mcp-connector.md` Codex skill authored (151 lines, 7 checks layered on SKILL.md); (3) **`@ifos/xero` MCP connector scaffold complete** — 23/23 vitest pass, build clean, typecheck clean, OAuth refresh idempotent + concurrent-safe, README ≥150 lines, zero boundary violations. Also: v0.3 migration APPLIED to live VPS + tenancy audit 12/12 ✓ + ADR-007 Accepted + D1-B taken (earlier today). Substrate fully ready for daytime W4 Track-1 continuation (QuickBooks + Open Banking + Cash Conductor bundle).
 **Day 21 (2026-05-27):** harness parser fixed; 29 R20 findings closed across 8 artefacts (verified locally; Codex deferred to usage reset).
 **Day 20 close (2026-05-25):** R19 bilateral pass reverted premature RATIFIED status flips back to Proposed (honest-signal correction); ADR-007 drafted; v0.3 wrapper + Day-20 runbook shipped. A real Codex agent-bundle run (gpt-5.5) also fired 2026-05-25 and REJECTED all 8 artefacts — those findings are what Day-21 closed.
 **Day 19 close:** 100+ Codex rounds; first artefact RATIFIED (v0.3 supplement); ADR-006 closed Cat-1/Cat-ζ structural blocker; 6 scaffolds at Pre-Build-Round-N-Reviewed; catalogue extended to 52 ESC codes + 47 action_types; tenancy audit extended to 11 tables.
+
+## W4 Day-25 overnight (2026-05-31 → 2026-06-01) — autonomous Track-1 start ✓
+
+Founder went to sleep ~22:30 after running the Hays smoke. Claude executed the overnight goal (`docs/operations/goal-overnight-2026-05-31.md`) end-to-end:
+
+### Shipped this turn (5 atomic commits, tree clean)
+
+| Commit | Artefact | Status |
+|---|---|---|
+| `8315ab3` | `docs/operations/goal-overnight-2026-05-31.md` | overnight scope |
+| `d7d52c5` | **HOTFIX** validate.sh + hook-helpers.sh path-resolution | 4-candidate fallback (mirrors context.sh Day-8 pattern); 20+9 bash tests still green; full shellcheck CLEAN |
+| `267913b` | `.codex/ratification/review-mcp-connector.md` Codex skill | 151 lines, 7 checks layered on SKILL.md; output format identical to existing skills |
+| `0504b9d` | `@ifos/xero` MCP connector full scaffold | 14 files; build 13.84 KB ESM; **23/23 vitest pass**; OAuth idempotent + atomic-write + concurrent-dedup; rate-limit 60/min+5000/day per Xero docs; zero credential interpolations; zero boundary violations |
+
+### Hays plc smoke outcome (founder ran 23:14)
+
+- **Gate A PASS** (V1-V6 all green; V3 voice classifier skipped per scaffold)
+- 12 sections, 621 words
+- Report at `~/.ifos-local-vault/migration-test/diagnostic-reports/hays-plc-2026-05-31.md`
+- Archive at `docs/artefacts/diagnostic-hays-plc-2026-05-31.md`
+- **§12 conversation opener fell back to deterministic** because the Anthropic API returned `credit balance is too low` — founder action AM: top up at console.anthropic.com → Plans & Billing
+- After top-up, re-run `bash scripts/run-diagnostic-smoke.sh --firm "Hays plc" --sector recruitment` to get the LLM-driven §12 opener and **fully close Trigger 2** (currently partial-close — Gate A passes; LLM opener pending)
+
+### Founder action board (AM 2026-06-01)
+
+| # | Action | Status |
+|---|---|---|
+| 1 | Confirm 4 decisions | ✅ Confirmed |
+| 2 | Accept ADR-007 | ✅ Accepted |
+| 3a | CH key | ✅ Saved (length 36) |
+| 3b | Anthropic key | ✅ Saved (length 108) — but **credits = $0**; top-up needed |
+| 3c | Diagnostic smoke | ✅ Gate A PASS; LLM §12 deterministic fallback; full close pending Anthropic credit top-up |
+| 4 | v0.3 migration | ✅ APPLIED + tenancy 12/12 |
+| 5 | D1 decision | ✅ D1-B taken |
+| 6 | Bullhorn chase | ⏸ template in `docs/operations/founder-manual-playbook-2026-05-31.md` §4 |
+| 7 | Q1 LOI (Jack) | ⏸ **Trigger 1 fires 2026-06-03 (≤2 days)** |
+| 8/9/10 | Commercial signups | Deferrable |
+
+### What's queued for daytime W4 Track-1 continuation
+
+Per `docs/operations/goal-week-4-track-1.md`:
+
+- **`@ifos/quickbooks`** MCP connector — same shape as @ifos/xero (per-realm OAuth diff documented); est. 2-3 hours (pattern now established)
+- **`@ifos/open-banking`** MCP connector — TrueLayer + Plaid UK abstraction; 90-day token-aging logic with info/warn/blocking stages at ≤30/14/7d to expiry; est. 5 hours (the harder one)
+- **Cash Conductor bundle scaffold** — cycle.sh + validate.sh + context.sh + cleanup.sh + tools.yaml + 3 fixtures; depends on at least Xero + Open Banking landing
+- **Cluster F manifest add** — add Xero + QuickBooks + Open Banking + Cash Conductor to `scripts/run-codex-ratification.sh` and trigger founder-side ratification run
+
+### Tonight's failure modes that didn't fire
+
+- Path-bug hotfix tests stayed 20/20 (no regression)
+- Xero scaffold landed without API doc ambiguity issues against fixtures (live test deferred to founder Xero dev signup)
+- Tree clean at every commit; never committed red
 
 ## W4 Day-25 evening (2026-05-31) — v0.3 migration APPLIED to live VPS ✓
 
