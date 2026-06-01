@@ -90,16 +90,41 @@ Full detail in master brief §3.
    c. You understand the agent bundle v2 pattern (6 files + 3 fixtures)
    d. You understand the Codex ratification loop
    e. You know the IFOS binary is `cortextos-ifos`, NOT `cortextos`
-5. Read `.agents/current-priorities.md`
+5. Read `.agents/current-priorities.md` (header-only — it's lean now; ≤120 lines covers today's tactical state, active blockers, action board, clocks, W4 backlog). Reach for `docs/operations/decision-log.md` only when investigating origin of a current decision.
 6. Propose today's concrete plan
 7. **Wait for the founder to confirm before writing any code.**
 
+### Session-start checklist (explicit, after the reading above)
+
+Run these in your first response, before any code edits:
+
+```
+git log --oneline -10                       # last 10 commits — orient on recent work
+git status --short | grep -v '^??'          # uncommitted tracked changes (should be CLEAN at start)
+echo "CTX_INSTANCE_ID=$CTX_INSTANCE_ID"     # must print: ifos-v2
+```
+
+State in your first response: "Reading order complete. Last commit: <SHA>. Tree: <clean | uncommitted: …>. Instance: ifos-v2 ✓. Today's priorities header: <one-line summary of the 'Today's task' line>. Ready for direction."
+
+If anything's red (env unset, tree dirty unexpectedly, last commit doesn't match expectations): surface immediately, don't proceed.
+
 ## Session-end ritual — DO THIS BEFORE EVERY COMMIT
 
-1. Update `.agents/current-priorities.md` — what shipped, what's stuck, what changed
+1. Update `.agents/current-priorities.md` — what shipped, what's stuck, what changed (lean header; historical sections go to `docs/operations/decision-log.md`)
 2. Update `docs/RISK-REGISTER.md` if anything new emerged
 3. List anything queued for Codex ratification
 4. Commit with a conventional-commit message
+
+### Session-end checklist (explicit, before closing the session)
+
+```
+git status --short | grep -v '^??'          # must be CLEAN — no uncommitted tracked changes
+git log --oneline -<N>                      # confirm today's commits all landed
+```
+
+State in your last response: "Tree clean. Today's commits: <SHA list>. Next session resumes from <latest SHA>. Founder action queued for AM: <X | none>. Goal status: <% complete | done | blocked>."
+
+If the tree isn't clean: either commit the WIP under a clearly-marked `wip(` prefix OR explain why deferring; never end a session leaving uncommitted tracked changes silently.
 
 ## On being stuck
 
