@@ -103,17 +103,19 @@ CLUSTERS[F]="packages/mcp-connectors/xero|mcp-connector
 packages/mcp-connectors/quickbooks|mcp-connector
 packages/mcp-connectors/open-banking|mcp-connector"
 
-# Cluster Fbis — Cash Conductor full bundle ratification (2026-06-01 W4 Day-26
-# afternoon close). Bundle completed across morning (cycle.sh + validate.sh +
-# tools.yaml skeletons at 6ab59d8) and afternoon (context.sh + cleanup.sh +
-# 3 fixtures at 5ab2f0f). agent.md was ratified at the contract layer in W3
-# cluster E (8/9 + 1 fix-applied); this re-review checks the BUNDLE layer now
-# that sibling files exist. review-agent-bundle skill (.codex/ratification/
+# Cluster Fbis — Agent-bundle full ratifications (2026-06-01 W4 Day-26).
+# Both bundles fully present at the scaffold layer:
+#   - Cash Conductor: morning skeleton (6ab59d8) + afternoon completion (5ab2f0f)
+#   - Concierge: evening scaffold (669a4f4 + 9ec2bd6 + 524bac6 + 8ba3723 + eb1f884)
+# Both agent.md files were ratified at the contract layer in W3 cluster E
+# (8/9 + 1 fix-applied); this re-review checks the BUNDLE layer now that
+# sibling files exist. review-agent-bundle skill (.codex/ratification/
 # review-agent-bundle.md) inspects agent.md AND the surrounding bundle files
-# + fixtures from the single path given, so this cluster needs only one entry.
+# + fixtures from the single path given, so each bundle is one entry.
 # Run order: AFTER cluster F lands (Fbis depends on @ifos/{xero,quickbooks,open-banking}
 # capability declarations in tools.yaml being valid against their ratified packages).
-CLUSTERS[Fbis]="agents/recruitment/cash-conductor/agent.md|agent-bundle"
+CLUSTERS[Fbis]="agents/recruitment/cash-conductor/agent.md|agent-bundle
+agents/recruitment/concierge/agent.md|agent-bundle"
 
 # Cluster G — Architecture-decision docs accumulated since cluster A. D1-B
 # (the Telegram approval-bridge founder decision) landed 2026-05-31 and the
