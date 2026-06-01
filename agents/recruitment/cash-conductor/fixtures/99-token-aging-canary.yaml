@@ -1,0 +1,82 @@
+# Cash Conductor fixture — 99-token-aging-canary
+#
+# Adversarial. Tests the PSD2 90-day consent expiry hard-stop behaviour.
+# When the Open Banking refresh_token is within the 7-day blocking window
+# (per @ifos/open-banking getTokenAgeStage), the connector REFUSES to refresh
+# (throws OpenBankingConsentExpiredError) — Cash Conductor cycle.sh Step 1
+# must surface ESC_OPEN_BANKING_TOKEN_AGING at blocking severity (operator +
+# ifos_oncall_chat_id per catalogue §2.7) and EXIT 1 without attempting
+# transaction ingest in Step 3.
+#
+# This is the PSD2 regulatory hard stop — the user MUST re-do the bank consent
+# dance before Cash Conductor can resume. The fixture verifies the system
+# surfaces this correctly rather than silently failing at the bank API later
+# with an opaque 401.
+#
+# Per agent.md §6 ESC_OPEN_BANKING_TOKEN_AGING table row: staged severity
+# (info ≤30d / warn ≤14d / blocking ≤7d); blocking adds ifos_oncall_chat_id
+# to the operator routing.
+#
+# Status: Proposed (W4 Day-26 SKELETON).
+
+fixture_id: 99-token-aging-canary
+description: PSD2 6-day-to-expiry → blocking → ESC_OPEN_BANKING_TOKEN_AGING + cycle.sh hard exit
+tenant_slug: migration-test
+agent: cash-conductor
+expected_gate_a: N/A   # Gate A is per-chase-draft; cycle.sh aborts at Step 1 before drafts
+expected_exit_code: 1
+
+invocation:
+  command: ifosctl cash-conductor reconcile
+  flags:
+    - --mode
+    - daily-sweep
+    - --tenant
+    - migration-test
+
+tenant_config:
+  accounting_provider: xero
+  open_banking_provider: truelayer
+
+# Force the token-aging probe into the blocking window.
+# context.sh / Step 1 calls @ifos/open-banking getTokenAgeStage on the loaded
+# tokens. With consent expiry at <7 days, stage='blocking' → refresh refused.
+test_mode_overrides:
+  open_banking_token_state:
+    access_token_expires_in_seconds: 3600   # access still fresh
+    consent_expires_in_days: 6              # PSD2 consent within blocking window
+  # Force refreshTokens() call so the blocking refusal fires (regardless of
+  # whether access token would have been fresh enough to skip refresh).
+  force_refresh_attempt: true
+
+mocked_open_banking:
+  # No transactions delivered — Step 3 never runs
+  transactions: []
+
+mocked_accounting:
+  open_invoices: []  # Step 4 never runs either; cycle aborts at Step 1
+
+expected:
+  cycle_step_reached: 1   # cycle.sh exits at Step 1 auth refresh
+  esc_codes_emitted:
+    - code: ESC_OPEN_BANKING_TOKEN_AGING
+      severity: blocking
+      routing: [operator_chat_id, ifos_oncall_chat_id]
+      payload_includes:
+        - stage: blocking
+        - days_until_consent_expiry: 6
+        - provider: truelayer
+        - connection_id: <tenant-truelayer-account-id>
+  exception_thrown: OpenBankingConsentExpiredError
+  payment_writes: []
+  chase_drafts: []
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: action
+      action_type: validate_gate_a_fail   # emitted by cycle.sh Step 1 wrapper on ESC fire
+      payload_contains: "ESC_OPEN_BANKING_TOKEN_AGING; stage:blocking"
+  operator_action_required: >
+    User must re-do PSD2 consent dance via TrueLayer auth flow (NOT a code
+    change; bank-side re-authentication). Once new tokens land with refreshed
+    consent_expires_at_ms, Cash Conductor resumes automatically on next run.

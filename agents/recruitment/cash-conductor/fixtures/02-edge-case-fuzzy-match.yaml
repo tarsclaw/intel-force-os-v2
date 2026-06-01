@@ -1,0 +1,93 @@
+# Cash Conductor fixture — 02-edge-case-fuzzy-match
+#
+# Edge case. Tests the Stage-4 fuzzy multi-candidate path per agent.md §3 Output 1
+# match algorithm table — when a single bank transaction could plausibly map
+# to TWO open invoices (same payee + similar amounts within rounding tolerance),
+# Cash Conductor MUST NOT auto-write; instead it fires ESC_RECONCILIATION_AMBIGUOUS
+# (per catalogue §2.10 — multi-candidate, not low-confidence single) and queues
+# the match for consultant review via the weekly report exception list.
+#
+# Per agent.md §6: ESC_RECONCILIATION_AMBIGUOUS is warn-severity, operator_chat_id
+# routing. NOT blocking — Cash Conductor continues processing other matches.
+#
+# Per Stage 3 distinction (agent.md §6 row): single low-confidence exact-amount
+# match (e.g. one invoice within 90-day window but amount matches exactly +
+# memo missing) does NOT fire ESC_RECONCILIATION_AMBIGUOUS — that's reserved
+# for MULTI-candidate cases. Sub-0.85 single-match silently drops.
+#
+# Status: Proposed (W4 Day-26 SKELETON).
+
+fixture_id: 02-edge-case-fuzzy-match
+description: Stage-4 fuzzy multi-candidate ambiguity → ESC_RECONCILIATION_AMBIGUOUS (warn; queued)
+tenant_slug: migration-test
+agent: cash-conductor
+expected_gate_a: PASS  # Gate A is for chase drafts, not reconciliation; ambiguous match doesn't gate-fail
+expected_exit_code: 0  # warn-class ESC; cycle.sh completes
+
+invocation:
+  command: ifosctl cash-conductor reconcile
+  flags:
+    - --mode
+    - daily-sweep
+    - --tenant
+    - migration-test
+
+tenant_config:
+  accounting_provider: xero
+  open_banking_provider: truelayer
+
+# Single bank transaction; two plausible matching invoices (same payee
+# + amounts within 0.5% fuzzy tolerance per agent.md §3 Stage-4 row).
+mocked_open_banking:
+  transactions:
+    - transaction_id: tl-tx-fix-002
+      timestamp: "2026-05-22T14:00:00Z"
+      amount: 2500.00
+      currency: GBP
+      description: "BETA SEARCH PARTNERS"
+      reference: null   # no invoice number in memo → can't disambiguate via reference
+
+mocked_accounting:
+  open_invoices:
+    - InvoiceID: inv-fix-bbb-001
+      InvoiceNumber: INV-FIX-101
+      Status: AUTHORISED
+      Date: "2026-04-15"
+      DueDate: "2026-05-15"
+      Total: 2500.00
+      AmountDue: 2500.00       # EXACT match
+      Contact: { ContactID: c-beta, Name: "Beta Search Partners" }
+      Reference: null
+    - InvoiceID: inv-fix-bbb-002
+      InvoiceNumber: INV-FIX-102
+      Status: AUTHORISED
+      Date: "2026-05-10"
+      DueDate: "2026-06-09"
+      Total: 2510.00            # within 0.5% fuzzy tolerance
+      AmountDue: 2510.00
+      Contact: { ContactID: c-beta, Name: "Beta Search Partners" }  # SAME payee
+      Reference: null
+
+expected:
+  reconciliation_pass:
+    stage_1_2_matches: 0       # neither auto-writes (Stage 4 disqualifies)
+    stage_3_flagged: 0
+    stage_4_ambiguous: 1       # one transaction → 2 candidates
+    stage_5_unmatched: 0
+  payment_writes: []           # nothing auto-written
+  esc_codes_emitted:
+    - code: ESC_RECONCILIATION_AMBIGUOUS
+      severity: warn
+      routing: operator_chat_id
+      payload_includes:
+        - transaction_id: tl-tx-fix-002
+        - candidate_invoice_ids: [inv-fix-bbb-001, inv-fix-bbb-002]
+  weekly_report_exception_added: true  # appended for next Monday report §3 Output 3 §7
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: reconciliation_pass
+      payload_contains: "stage4:1"
+    - phase: action
+      action_type: cash_conductor_run_complete

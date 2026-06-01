@@ -1,0 +1,91 @@
+# Cash Conductor fixture — 01-primary (happy path)
+#
+# Tests the canonical flow per agent.md §3 + §4:
+#   Open Banking transaction → exact-amount + invoice-reference match
+#   (Stage 1 confidence 0.98) → auto reconciliation write (yellow tier
+#   accounting_reconciliation_write) → chase generation pass identifies
+#   one overdue invoice at position 1 → chase draft generated + queued
+#   to Concierge approval bridge (if autosend-bridge-telegram present)
+#   OR drafts-only mode (if bridge absent — per D1-B agent.md §1 caveat).
+#
+# Per agent.md §5 Gate A: all G1-G7 checks pass on the generated chase draft.
+#
+# Status: Proposed (W4 Day-26 SKELETON; W7-8 build slice wires the real
+#         package calls + verifies fixture expectations against actual outputs).
+
+fixture_id: 01-primary
+description: Happy path — Stage-1 exact match auto-write + 1 chase draft position-1
+tenant_slug: migration-test
+agent: cash-conductor
+expected_gate_a: PASS
+expected_exit_code: 0
+
+invocation:
+  command: ifosctl cash-conductor reconcile
+  flags:
+    - --mode
+    - webhook
+    - --tenant
+    - migration-test
+
+# Tenant accounting + Open Banking provider config (per context.sh hydration)
+tenant_config:
+  accounting_provider: xero
+  open_banking_provider: truelayer
+  operator_telegram_chat_id: "operator-test-chat-id"
+
+# Mocked Open Banking transaction (TrueLayer response shape)
+mocked_open_banking:
+  transactions:
+    - transaction_id: tl-tx-fix-001
+      timestamp: "2026-05-20T10:30:00Z"
+      amount: 1500.00          # EXACT match to invoice INV-FIX-001 below
+      currency: GBP
+      description: "ACME RECRUITMENT LTD"
+      reference: "INV-FIX-001"  # invoice-reference in memo
+
+# Mocked Xero invoices response
+mocked_accounting:
+  open_invoices:
+    - InvoiceID: inv-fix-aaa-001
+      InvoiceNumber: INV-FIX-001
+      Status: AUTHORISED
+      Date: "2026-05-01"
+      DueDate: "2026-05-31"
+      Total: 1500.00
+      AmountDue: 1500.00       # matches transaction amount EXACTLY
+      Contact: { ContactID: c-acme, Name: "Acme Recruitment Ltd" }
+      Reference: "INV-FIX-001"
+
+# Expected behaviour
+expected:
+  reconciliation_pass:
+    stage_1_2_matches: 1
+    stage_3_flagged: 0
+    stage_4_ambiguous: 0
+    stage_5_unmatched: 0
+  payment_writes:
+    - invoice_id: inv-fix-aaa-001
+      action_type: accounting_reconciliation_write
+      tier: yellow
+      amount: 1500.00
+  chase_drafts:
+    - invoice_id: inv-fix-aaa-001
+      escalation_position: 1
+      voice_score_min: 0.75
+      vault_path_pattern: "/vault/migration-test/cash-conductor-drafts/*.md"
+      action_type_emitted: xero_reminder_draft_internal
+      tier: yellow
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: reconciliation_pass
+    - phase: action
+      action_type: accounting_reconciliation_write
+    - phase: output
+      output_type: chase_draft_generated
+    - phase: action
+      action_type: xero_reminder_draft_internal
+    - phase: action
+      action_type: cash_conductor_run_complete
