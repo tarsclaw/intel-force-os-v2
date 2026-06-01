@@ -1,0 +1,124 @@
+# Concierge fixture — 02-edge-case-rejection-voice-drift
+#
+# Adversarial. Tests the highest-stakes-comm path: Event #6 (Rejected) —
+# THE HARDEST CASE per ULTRAPLAN A6 §gotchas: "respectful, specific, leaves
+# door open". Rejection sends are routed to escalation_position=3 (Step 6),
+# so the per-draft voice threshold is ≥0.82 (Step 8). The fixture supplies
+# a draft scoring 0.78 — between the position-1 (0.75) and position-3 (0.82)
+# thresholds. Without position-specific gating this would PASS at a generic
+# 0.75 floor; with position-specific gating per agent.md §4 Step 8 + ADR-007,
+# it MUST FAIL Gate A G1 + emit ESC_VOICE_DRIFT + abort the draft pipeline
+# (cycle.sh halts at Step 8 before the bridge propose call).
+#
+# This is the regression test against a quietly-loose voice gate on the
+# customer-facing rejection path.
+#
+# Status: Proposed (W4 Day-26 SKELETON).
+
+fixture_id: 02-edge-case-rejection-voice-drift
+description: Rejection (event #6) at position-3 with voice 0.78 < 0.82 threshold → ESC_VOICE_DRIFT warn + Gate A G1 fail + cycle abort
+tenant_slug: migration-test
+agent: concierge
+expected_gate_a: FAIL
+expected_exit_code: 1
+
+invocation:
+  command: ifosctl concierge process-event
+  flags:
+    - --mode
+    - webhook
+    - --tenant
+    - migration-test
+
+tenant_config:
+  email_channel: microsoft-graph
+  operator_telegram_chat_id: "987654321"
+  bullhorn_org_id: "10001"
+
+webhook_payload:
+  event_type: rejection   # event #6 in agent.md §3 12-event taxonomy
+  candidate_id: "CAND-101"
+  placement_id: "PLAC-201"
+  contact_id: "CONT-301"
+  client_id: "CLIENT-401"
+  state_from: interview-completed
+  state_to: rejected
+  event_timestamp_iso: "2026-06-01T15:00:00.000Z"
+
+mocked_bullhorn:
+  candidate:
+    id: CAND-101
+    name: Bilal Khan
+    email: bilal.khan@example.com
+    comms_history:
+      - {type: application, at: "2026-05-15T10:00:00Z"}
+      - {type: interview-booked, at: "2026-05-22T10:00:00Z"}
+      - {type: interview-completed, at: "2026-05-29T15:00:00Z"}
+  placement:
+    id: PLAC-201
+    role: VP of Engineering
+    client_id: CLIENT-401
+  client:
+    id: CLIENT-401
+    company: Acme Tech Ltd
+    primary_contact_id: CONT-301
+  contact:
+    id: CONT-301
+    name: Jordan Lee
+    email: jordan@acme-tech.example
+
+# Step 6 sets escalation_position=3 because event_type=rejection.
+# Step 8 requires voice_score ≥ 0.82 for position 3 (per agent.md §4 Step 8 + §5).
+# The mocked classifier returns 0.78 (between position-1 0.75 and position-3 0.82
+# thresholds) after 3 retries → ESC_VOICE_DRIFT warn fires.
+mocked_voice_classifier:
+  draft_score: 0.78    # FAILS position-3 threshold of 0.82
+  position: 3
+  retries_exhausted: true
+
+expected:
+  cycle_step_reached: 8   # cycle.sh halts at Step 8 before Step 11 bridge call
+  esc_codes_emitted:
+    - code: ESC_VOICE_DRIFT
+      severity: warn
+      routing: [operator_chat_id]
+      payload_includes:
+        - position: 3
+        - score: 0.78
+        - threshold: 0.82
+        - event_type: rejection
+        - candidate_id: CAND-101
+  draft_written:
+    vault_path_pattern: "/vault/migration-test/concierge-drafts/*.md"   # draft IS written; just not sent
+    expected_escalation_position: 3
+  approval_bridge:
+    invoked: false   # cycle.sh aborts before Step 11
+  send_executed: false
+  bullhorn_activity_log_written: false
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      action_type: lifecycle_event_detected
+    - phase: output
+      action_type: anti_duplicate_check
+    - phase: output
+      action_type: bullhorn_context_fetched
+    - phase: output
+      action_type: addressee_resolved
+    - phase: output
+      action_type: template_selected
+    - phase: output
+      action_type: escalation_position_set   # position=3
+    - phase: output
+      action_type: concierge_draft_rendered
+    - phase: action
+      action_type: validate_gate_a_fail
+      payload_contains: "ESC_VOICE_DRIFT; position:3; score:0.78; threshold:0.82"
+  consultant_action_required: >
+    Per agent.md §6 ESC_VOICE_DRIFT row: routes operator_chat_id (warn-tier
+    for ALL positions per catalogue lines 120-125 — position-specific paging
+    would need a catalogue amendment). Operator reviews the vault draft and
+    either rewrites manually OR retriggers Concierge for a fresh LLM pass
+    (possibly with a tone-rules tightening). The customer is NOT emailed by
+    the agent until a draft clears the 0.82 position-3 threshold.

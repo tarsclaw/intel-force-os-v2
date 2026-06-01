@@ -1,0 +1,148 @@
+# Concierge fixture — 99-bridge-timeout-canary
+#
+# Adversarial. Tests the D1-B approval-bridge timeout path. Concierge
+# generates a clean draft (passes Gate A G1-G5), posts proposeApproval to
+# the operator Telegram chat at Step 11, then awaits a reply. The operator
+# never responds — the @ifos/autosend-bridge-telegram package's
+# awaitApprovalDecision returns `outcome: "timeout"` when the absolute
+# expires_at_iso passes (PT4H default per escalation-codes.md lines 348-353).
+#
+# cycle.sh Step 11 MUST surface ESC_APPROVAL_BRIDGE_TIMEOUT (warn-tier;
+# operator + tenant-admin per agent.md §6 row 11) and DOES NOT proceed to
+# Step 12 send execution. The draft stays in vault for manual reconciliation.
+#
+# This canary catches a quiet failure mode: a bridge implementation that
+# returns approved on timeout (the absolute-deadline-vs-poll-count bug the
+# bridge package's await-decision.test.ts "never sleeps past the deadline"
+# test guards against — this fixture is the agent-layer mirror of that).
+#
+# Status: Proposed (W4 Day-26 SKELETON).
+
+fixture_id: 99-bridge-timeout-canary
+description: Operator never replies to proposeApproval → outcome=timeout → ESC_APPROVAL_BRIDGE_TIMEOUT warn + Step 12 send NOT executed
+tenant_slug: migration-test
+agent: concierge
+expected_gate_a: PASS    # Gate A passes; failure is at the bridge-await layer (post-validate)
+expected_exit_code: 1    # cycle.sh exits non-zero due to timeout branch
+
+invocation:
+  command: ifosctl concierge process-event
+  flags:
+    - --mode
+    - webhook
+    - --tenant
+    - migration-test
+
+tenant_config:
+  email_channel: microsoft-graph
+  operator_telegram_chat_id: "987654321"
+  bullhorn_org_id: "10001"
+
+webhook_payload:
+  event_type: interview-completed   # event #3 — debrief; standard position-1
+  candidate_id: "CAND-102"
+  placement_id: "PLAC-202"
+  contact_id: "CONT-302"
+  client_id: "CLIENT-402"
+  state_from: interview-scheduled
+  state_to: interview-completed
+  event_timestamp_iso: "2026-06-01T15:00:00.000Z"
+
+mocked_bullhorn:
+  candidate:
+    id: CAND-102
+    name: Casey Park
+    email: casey.park@example.com
+    comms_history:
+      - {type: interview-booked, at: "2026-05-22T10:00:00Z"}
+  placement:
+    id: PLAC-202
+    role: Staff Engineer
+    client_id: CLIENT-402
+  client:
+    id: CLIENT-402
+    company: Acme Tech Ltd
+    primary_contact_id: CONT-302
+  contact:
+    id: CONT-302
+    name: Jordan Lee
+    email: jordan@acme-tech.example
+
+# Draft passes Gate A cleanly. Position-1; voice 0.81 > 0.75 threshold.
+mocked_voice_classifier:
+  draft_score: 0.81
+  position: 1
+
+# Force the bridge to behave as if the operator never replied.
+# The autosend-bridge-telegram package's test wiring uses a fake clock to
+# advance past expires_at_iso without setting a decision in the DecisionSource;
+# this fixture exercises the agent-layer reaction to that outcome.
+test_mode_overrides:
+  autosend_bridge:
+    proposeApproval_returns:
+      approval_id: "fixture-canary-99-deadbeefcafe"
+      posted_at_iso: "2026-06-01T15:00:30.000Z"
+      expires_at_iso: "2026-06-01T19:00:30.000Z"   # +PT4H
+    awaitApprovalDecision_returns:
+      outcome: timeout
+      decided_by: null
+      decided_at_iso: null
+
+expected:
+  cycle_step_reached: 11   # cycle.sh halts at Step 11 timeout branch; Step 12 NOT reached
+  esc_codes_emitted:
+    - code: ESC_APPROVAL_BRIDGE_TIMEOUT
+      severity: warn
+      routing: [operator_chat_id, tenant_admin]   # per agent.md §6 row 11 (NOT ifos_oncall — that's the Cash Conductor routing variant)
+      payload_includes:
+        - approval_id: fixture-canary-99-deadbeefcafe
+        - timeout_seconds: 14400
+        - action_type: gmail_outlook_send_to_candidate
+        - candidate_id: CAND-102
+        - event_type: interview-completed
+  draft_written:
+    vault_path_pattern: "/vault/migration-test/concierge-drafts/*.md"
+    expected_recipient: casey.park@example.com
+    expected_escalation_position: 1
+  approval_bridge:
+    proposeApproval_invoked: true
+    awaitApprovalDecision_invoked: true
+    outcome: timeout
+  send_executed: false
+  bullhorn_activity_log_written: false
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      action_type: lifecycle_event_detected
+    - phase: output
+      action_type: anti_duplicate_check
+    - phase: output
+      action_type: bullhorn_context_fetched
+    - phase: output
+      action_type: addressee_resolved
+    - phase: output
+      action_type: template_selected
+    - phase: output
+      action_type: escalation_position_set
+    - phase: output
+      action_type: concierge_draft_rendered
+    - phase: action
+      action_type: concierge_email_draft   # yellow tier (Gate A passed)
+    - phase: output
+      action_type: pii_check_passed
+    - phase: action
+      action_type: concierge_approval_routed
+      payload_contains: "approval_id:fixture-canary-99-deadbeefcafe"
+    - phase: action
+      action_type: validate_gate_a_fail
+      payload_contains: "ESC_APPROVAL_BRIDGE_TIMEOUT; timeout_seconds:14400"
+  operator_action_required: >
+    Operator missed the 4-hour approval window. Per agent.md §6 row 11 +
+    escalation-codes.md lines 348-353: action converts to manual reconciliation;
+    operator handles offline (sends the draft manually after reviewing, OR
+    discards if no-longer-relevant). The fixture verifies that the bridge's
+    timeout outcome propagates to the agent layer correctly — no silent
+    approval on deadline expiry; no Step 12 send execution; explicit warn
+    routing to operator + tenant-admin (NOT ifos_oncall — that's the Cash
+    Conductor routing variant per its §6 entry).

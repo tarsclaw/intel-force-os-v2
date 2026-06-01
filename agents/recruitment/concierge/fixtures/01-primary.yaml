@@ -1,0 +1,118 @@
+# Concierge fixture — 01-primary
+#
+# Happy path. Event #2 from agent.md §3 (Interview booked → prep email to
+# candidate). Voice score comfortably above the position-1 threshold (≥0.75);
+# addressee resolves correctly; tone-rules pass; PII boundary clean; no prior
+# draft in the 24h window. Step 8 emits yellow concierge_email_draft; Step 11
+# proposeApproval posts to operator Telegram; operator approves at +5min;
+# Step 12 transports via MS Graph; Step 13 writes Bullhorn activity-log;
+# Step 15 records the SLA hit (well under 30-min Gate B threshold).
+#
+# Status: Proposed (W4 Day-26 SKELETON).
+
+fixture_id: 01-primary
+description: Interview-booked → prep email → operator approves → MS Graph send → Gate B SLA hit
+tenant_slug: migration-test
+agent: concierge
+expected_gate_a: PASS
+expected_exit_code: 0
+
+invocation:
+  command: ifosctl concierge process-event
+  flags:
+    - --mode
+    - webhook
+    - --tenant
+    - migration-test
+
+tenant_config:
+  email_channel: microsoft-graph
+  operator_telegram_chat_id: "987654321"
+  bullhorn_org_id: "10001"
+
+webhook_payload:
+  event_type: interview-booked  # event #2 in agent.md §3 12-event taxonomy
+  candidate_id: "CAND-100"
+  placement_id: "PLAC-200"
+  contact_id: "CONT-300"
+  client_id: "CLIENT-400"
+  state_from: applied
+  state_to: interview-scheduled
+  event_timestamp_iso: "2026-06-01T15:00:00.000Z"
+
+mocked_bullhorn:
+  candidate:
+    id: CAND-100
+    name: Alice Walker
+    email: alice.walker@example.com
+    comms_history: [{type: application, at: "2026-05-28T10:00:00Z"}]
+  placement:
+    id: PLAC-200
+    role: Senior Backend Engineer
+    client_id: CLIENT-400
+    interview_at: "2026-06-05T14:00:00Z"
+    format: video-call
+  client:
+    id: CLIENT-400
+    company: Acme Tech Ltd
+    primary_contact_id: CONT-300
+  contact:
+    id: CONT-300
+    name: Jordan Lee
+    email: jordan@acme-tech.example
+
+mocked_voice_classifier:
+  draft_score: 0.84    # well above position-1 threshold (0.75)
+  position: 1
+
+expected:
+  cycle_step_reached: 15
+  esc_codes_emitted: []   # happy path; no escalations
+  draft_written:
+    vault_path_pattern: "/vault/migration-test/concierge-drafts/*.md"
+    expected_recipient: alice.walker@example.com
+    expected_recipient_role: candidate
+    expected_event_type: interview-booked
+    expected_escalation_position: 1
+  approval_bridge:
+    outcome: approved
+    decided_by: tg-user-555
+    decision_latency_seconds: 300   # operator approves at +5min
+  send_executed:
+    channel: microsoft-graph
+    bcc_archive: true
+  bullhorn_activity_log_written: true
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      action_type: lifecycle_event_detected
+    - phase: output
+      action_type: anti_duplicate_check
+    - phase: output
+      action_type: bullhorn_context_fetched
+    - phase: output
+      action_type: addressee_resolved
+    - phase: output
+      action_type: template_selected
+    - phase: output
+      action_type: escalation_position_set
+    - phase: output
+      action_type: concierge_draft_rendered
+    - phase: action
+      action_type: concierge_email_draft   # yellow tier
+    - phase: output
+      action_type: pii_check_passed
+    - phase: action
+      action_type: concierge_approval_routed   # orange-adjacent metadata
+    - phase: action
+      action_type: gmail_outlook_send_to_candidate   # orange tier post-approval
+    - phase: output
+      action_type: bullhorn_activity_logged
+    - phase: action
+      action_type: concierge_send_complete
+    - phase: action
+      action_type: concierge_run_complete
+  gate_b_signal:
+    sla_elapsed_seconds: 600   # event → send under the 30-min (1800s) Gate B threshold
+    sla_within_threshold: true
