@@ -1,0 +1,40 @@
+{
+  "QueryResponse": {
+    "Invoice": [
+      {
+        "Id": "1001",
+        "DocNumber": "INV-1001",
+        "TxnDate": "2026-05-15",
+        "DueDate": "2026-06-14",
+        "CurrencyRef": { "value": "GBP", "name": "Pound Sterling" },
+        "TotalAmt": 1500.00,
+        "Balance": 1500.00,
+        "CustomerRef": { "value": "200", "name": "Acme Recruitment Ltd" },
+        "CustomerMemo": null,
+        "MetaData": {
+          "CreateTime": "2026-05-15T09:00:00Z",
+          "LastUpdatedTime": "2026-05-15T09:00:00Z"
+        }
+      },
+      {
+        "Id": "1002",
+        "DocNumber": "INV-1002",
+        "TxnDate": "2026-05-10",
+        "DueDate": "2026-06-09",
+        "CurrencyRef": { "value": "GBP", "name": "Pound Sterling" },
+        "TotalAmt": 4200.00,
+        "Balance": 2200.00,
+        "CustomerRef": { "value": "201", "name": "Beta Search Partners" },
+        "CustomerMemo": { "value": "Partial payment received 2026-05-20" },
+        "MetaData": {
+          "CreateTime": "2026-05-10T14:30:00Z",
+          "LastUpdatedTime": "2026-05-20T11:00:00Z"
+        }
+      }
+    ],
+    "startPosition": 1,
+    "maxResults": 100,
+    "totalCount": 2
+  },
+  "time": "2026-06-01T12:00:00Z"
+}

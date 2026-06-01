@@ -1,0 +1,20 @@
+{
+  "Payment": {
+    "Id": "p-502",
+    "TxnDate": "2026-05-22",
+    "TotalAmt": 1500.00,
+    "CustomerRef": { "value": "200", "name": "Acme Recruitment Ltd" },
+    "PaymentRefNum": "BACS-2026-05-22-002",
+    "Line": [
+      {
+        "Amount": 1500.00,
+        "LinkedTxn": [{ "TxnId": "1001", "TxnType": "Invoice" }]
+      }
+    ],
+    "MetaData": {
+      "CreateTime": "2026-05-22T14:00:00Z",
+      "LastUpdatedTime": "2026-05-22T14:00:00Z"
+    }
+  },
+  "time": "2026-06-01T12:00:00Z"
+}

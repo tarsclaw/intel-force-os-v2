@@ -1,0 +1,27 @@
+{
+  "QueryResponse": {
+    "Payment": [
+      {
+        "Id": "p-501",
+        "TxnDate": "2026-05-20",
+        "TotalAmt": 2000.00,
+        "CustomerRef": { "value": "201", "name": "Beta Search Partners" },
+        "PaymentRefNum": "BACS-2026-05-20-001",
+        "Line": [
+          {
+            "Amount": 2000.00,
+            "LinkedTxn": [{ "TxnId": "1002", "TxnType": "Invoice" }]
+          }
+        ],
+        "MetaData": {
+          "CreateTime": "2026-05-20T11:00:00Z",
+          "LastUpdatedTime": "2026-05-20T11:00:00Z"
+        }
+      }
+    ],
+    "startPosition": 1,
+    "maxResults": 100,
+    "totalCount": 1
+  },
+  "time": "2026-06-01T12:00:00Z"
+}
