@@ -289,7 +289,7 @@ _review_artefact() {
     return 2
   fi
 
-  if [[ ! -f "${REPO_ROOT}/${artefact_path}" ]]; then
+  if [[ ! -e "${REPO_ROOT}/${artefact_path}" ]]; then
     _fail "Artefact not found" "${REPO_ROOT}/${artefact_path}"
     return 2
   fi
@@ -301,6 +301,27 @@ _review_artefact() {
   local prompt_file="${SESSION_LOG_DIR}/${slug}.prompt.md"
 
   _step "Reviewing ${artefact_path} (round ${round_trip}, skill=${skill_type})"
+
+  # Build the per-artefact body — either the single file's contents, or
+  # (for package-directory artefacts like cluster F MCP connectors) a
+  # structured digest of package.json + README.md + src/**/*.ts + tests/**/*.ts.
+  # Skips node_modules + dist + lockfiles (noise) to keep the prompt under
+  # the context budget; the skill's required-reading set lives in those files.
+  local artefact_body
+  if [[ -d "${REPO_ROOT}/${artefact_path}" ]]; then
+    artefact_body=$(
+      while IFS= read -r -d '' f; do
+        rel="${f#"${REPO_ROOT}"/}"
+        printf '\n--- FILE: %s ---\n\n' "${rel}"
+        cat "${f}"
+      done < <(find "${REPO_ROOT}/${artefact_path}" \
+                 \( -name node_modules -o -name dist -o -name 'pnpm-lock.yaml' -o -name '.turbo' \) -prune -o \
+                 \( -name 'package.json' -o -name '*.md' -o -name '*.ts' -o -name '*.json' -o -name '*.yaml' -o -name '*.config.*' \) \
+                 -type f -print0 2>/dev/null | sort -z)
+    )
+  else
+    artefact_body=$(cat "${REPO_ROOT}/${artefact_path}")
+  fi
 
   # Build the prompt — top-level skill + type skill + artefact + output contract
   cat > "${prompt_file}" <<EOF
@@ -318,7 +339,7 @@ Path: ${artefact_path}
 
 --- BEGIN ARTEFACT ---
 
-$(cat "${REPO_ROOT}/${artefact_path}")
+${artefact_body}
 
 --- END ARTEFACT ---
 
