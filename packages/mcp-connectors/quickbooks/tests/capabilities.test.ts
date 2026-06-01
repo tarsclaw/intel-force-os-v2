@@ -11,7 +11,12 @@ import { saveTokens, _resetInflightForTest } from "../src/auth.js";
 import { reset as resetRateLimit } from "../src/rate-limit.js";
 import { listOpenInvoices, getInvoice } from "../src/invoices.js";
 import { listPayments, writePaymentReceived } from "../src/payments.js";
-import { QbValidationError, QbNotFoundError } from "../src/errors.js";
+import {
+  QbError,
+  QbNotFoundError,
+  QbRateLimitError,
+  QbValidationError,
+} from "../src/errors.js";
 import type {
   QbOAuthConfig,
   QbTokens,
@@ -99,6 +104,24 @@ describe("quickbooks capabilities — invoices", () => {
       getInvoice(client, "99999", { cache, no_cache: true }),
     ).rejects.toBeInstanceOf(QbNotFoundError);
   });
+
+  // Error-path coverage for listOpenInvoices (per review-mcp-connector §6 +
+  // Codex F-R1 issue #5: every capability needs ≥1 happy + ≥1 error fixture).
+  it("listOpenInvoices: persistent 429 surfaces as QbRateLimitError after retries", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      calls += 1;
+      return new Response("", {
+        status: 429,
+        headers: { "Retry-After": "0" }, // 0s = no wait; just exhausts retries fast
+      });
+    };
+    const client = new QbClient({ config: makeConfig(), fetchFn: fakeFetch });
+    await expect(
+      listOpenInvoices(client, { cache, no_cache: true }),
+    ).rejects.toBeInstanceOf(QbRateLimitError);
+    expect(calls).toBeGreaterThanOrEqual(2); // initial + ≥1 retry per max_retries=2 default
+  });
 });
 
 describe("quickbooks capabilities — payments", () => {
@@ -147,5 +170,21 @@ describe("quickbooks capabilities — payments", () => {
       QbValidationError,
     );
     expect(calls).toBe(1); // write was NOT retried
+  });
+
+  // Error-path coverage for listPayments (per review-mcp-connector §6 +
+  // Codex F-R1 issue #5): GET retries 5xx exponentially; after retries
+  // exhausted the typed error is QbError (NOT QbRateLimitError).
+  it("listPayments: persistent 500 surfaces as QbError after retries", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      calls += 1;
+      return new Response("QuickBooks internal error", { status: 500 });
+    };
+    const client = new QbClient({ config: makeConfig(), fetchFn: fakeFetch });
+    await expect(
+      listPayments(client, { cache, no_cache: true }),
+    ).rejects.toBeInstanceOf(QbError);
+    expect(calls).toBeGreaterThanOrEqual(2); // initial + retries per max_retries=2
   });
 });

@@ -10,20 +10,33 @@ QuickBooks Online (QBO) Accounting API connector for IFOS Cash Conductor (W4-W7 
 
 ## Capabilities
 
-| Function | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
-|---|---|---|---|---|
-| `QbClient` (class) | HTTP wrapper: OAuth attach + rate-limit budget + 429 / 5xx retry + per-realm URL construction | constructed in cycle.sh Step 1 | n/a (transport) | n/a |
-| `loadTokens(config)` | Read OAuth tokens from disk | Step 1 (auth refresh) | n/a (read-only) | n/a |
-| `saveTokens(config, t)` | Atomic write (.tmp + rename) to token file | refreshTokens internal | n/a | n/a |
-| `refreshTokens(config, current, fetchFn?)` | OAuth 2.0 refresh; concurrent-safe dedup per realm; returns + persists new bundle | Step 1 | `quickbooks_oauth` | green |
-| `shouldRefresh(tokens, now?, window?)` | Returns true if access_token expires within window (default 5 min) | Step 1 + per-call | n/a (pure) | n/a |
-| `refreshTokenNearExpiry(tokens, now?, danger?)` | Returns true if refresh token within 7-day re-consent danger window (QB ~100-day TTL) | operator alerting | n/a (pure) | n/a |
-| `listOpenInvoices(client, options?)` | Query API: paginated Invoice rows with Balance > 0 | Step 4 (invoice register ingest) | n/a (read-only) | n/a |
-| `getInvoice(client, invoiceId, options?)` | Single-entity read by QB Id | Step 9 (chase-draft validation) | n/a | n/a |
-| `listPayments(client, options?)` | Query API: Payment rows since date | Step 5 (reconciliation pass) | n/a | n/a |
-| `writePaymentReceived(client, payment)` | POST /payment — creates a payment record against an invoice (Stage-1/2 reconciliation auto-write) | Step 6 (reconciliation write) | `accounting_reconciliation_write` | yellow |
+Set-equal across three views per `review-mcp-connector.md` §1: the **capability ID** column matches `agents/recruitment/cash-conductor/tools.yaml`; the **function** column matches `src/index.ts` exports; the **action_type** column matches `agents/_shared/autosend-policy.yaml`.
 
-All `action_type` values listed above MUST exist in `agents/_shared/autosend-policy.yaml` with the documented tier. `quickbooks_oauth` is queued for addition at first Cash Conductor cycle.sh wiring (W7); `accounting_reconciliation_write` is already present (shared with @ifos/xero per Day-25 verification).
+| Capability ID (tools.yaml) | Function (src/index.ts) | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
+|---|---|---|---|---|---|
+| `quickbooks_oauth` | `refreshTokens(config, current, fetchFn?)` | OAuth 2.0 refresh; concurrent-safe dedup per realm; atomic-file-write persistence | Step 1 (auth refresh) | `quickbooks_oauth` | green |
+| `quickbooks_list_open_invoices` | `listOpenInvoices(client, options?)` | Query API: paginated Invoice rows with Balance > 0 | Step 4 (invoice register ingest) | n/a (read-only) | n/a |
+| `quickbooks_get_invoice` | `getInvoice(client, invoiceId, options?)` | Single-entity read by QB Id | Step 9 (chase-draft validation) | n/a | n/a |
+| `quickbooks_list_payments` | `listPayments(client, options?)` | Query API: Payment rows since date | Step 5 (reconciliation pass) | n/a | n/a |
+| `quickbooks_write_payment_received` | `writePaymentReceived(client, payment)` | POST /payment — creates a payment record against an invoice (Stage-1/2 reconciliation auto-write) | Step 6 (reconciliation write) | `accounting_reconciliation_write` | yellow |
+
+All `action_type` values above exist in `agents/_shared/autosend-policy.yaml` with the documented tier (verified 2026-06-01 Codex F-R2 closure — `quickbooks_oauth` registered as green; `accounting_reconciliation_write` already present shared with @ifos/xero).
+
+### Internal helpers (NOT bus-routed capabilities)
+
+Exposed by `src/index.ts` for consumer convenience + testing, but NOT declared in `tools.yaml`:
+
+| Function | Purpose |
+|---|---|
+| `QbClient` (class) | Transport — constructed once by cycle.sh Step 1; per-realm URL construction (production vs sandbox) |
+| `loadTokens(config)` / `saveTokens(config, t)` | Token-file I/O — called by `refreshTokens`; surfaced for test setup and operator consent-bootstrap |
+| `shouldRefresh(tokens, now?, window?)` | Pure predicate — `true` when the access_token expires within `safety_window_ms` (default 5 min) |
+| `refreshTokenNearExpiry(tokens, now?, danger?)` | Pure predicate — `true` when the **refresh** token expires within the 7-day re-consent danger window (QB ~100-day TTL); operator alerting hook |
+| `rateCheck(realm_id, now?)` | Returns `RateState` — exposes the **soft-backoff signal** (`shouldBackoff: true` at 80% of the minute bucket); consuming cycle.sh is responsible for honouring it (see §Rate limits) |
+| `rateConsume(realm_id, now?)` | Consumes a slot; returns false at the hard 100% gate |
+| `resetRateLimit(realm_id?)` | Test/diagnostic reset |
+| `_resetInflightForTest()` | Clears in-flight OAuth-refresh dedup map; for tests only |
+| `QbCache` (class) | Disk cache — default TTL 5min |
 
 ---
 
@@ -100,9 +113,18 @@ Per the published Intuit limits page (https://developer.intuit.com/app/developer
 - **10 calls per second concurrent throttle** (not enforced here — single-process Cash Conductor cycle.sh is serial)
 - No published daily cap
 
-This connector tracks the minute bucket per `src/rate-limit.ts`. Soft backoff at 80% (400/minute); hard fail at 100% → `QbRateLimitError`. State is in-process and per-realm — a multi-realm runtime that holds many `QbClient` instances in one process still gets correct isolation.
+This connector tracks the minute bucket per `src/rate-limit.ts`. **Hard gate at 100%** (`consume()` returns false → `QbRateLimitError`). **Soft signal at 80%** (400/minute) is read-only and exposed via `rateCheck()` — `RateState.shouldBackoff === true` with `reason: "minute-soft"`. The consuming agent layer (Cash Conductor cycle.sh) is responsible for honouring the soft signal (e.g. pausing batch operations); the connector does not silently throttle — the contract is "callers query soft, connector enforces hard". `tests/rate-limit.test.ts` exercises both thresholds.
 
-If you see `QbRateLimitError` consistently in Cash Conductor logs, the polling interval is too tight; tune the cycle's invoice-register ingest frequency.
+State is in-process and per-realm — a multi-realm runtime that holds many `QbClient` instances in one process still gets correct isolation.
+
+**ESC contract on bucket exhaustion** (consumer-emitted via `agents/_shared/hook-helpers.sh`):
+
+| Failure | Surfaces as | ESC code (escalation-codes.md) | Payload contract |
+|---|---|---|---|
+| Local hard-gate (100%) reached | `QbRateLimitError` thrown by `consume()`/client | `ESC_RATE_LIMIT_HIT` (warn; operator) | `{upstream: "quickbooks", retry_after_seconds: null, consecutive_429s: 0}` |
+| Upstream 429 from QB API | `QbRateLimitError` thrown with `retry_after_seconds` from `Retry-After` header | `ESC_RATE_LIMIT_HIT` | `{upstream: "quickbooks", retry_after_seconds: <N>, consecutive_429s: <N>}` |
+
+Both surface as the same ESC because from the operator's perspective they're the same operational signal (QB traffic is being throttled). The payload distinguishes local pre-emptive (`retry_after_seconds: null`) from upstream-issued.
 
 ---
 
@@ -110,9 +132,9 @@ If you see `QbRateLimitError` consistently in Cash Conductor logs, the polling i
 
 | Capability | Method | Max retries | Backoff | On exhaustion |
 |---|---|---|---|---|
-| `listOpenInvoices` / `getInvoice` / `listPayments` | GET | 2 | Exponential w/ jitter (250-1000ms) | `QbError` or `QbRateLimitError` |
-| `writePaymentReceived` | POST | **0** | n/a (writes never auto-retry) | `QbValidationError` (400) / `QbError` (5xx) |
-| `refreshTokens` | POST | **0** | n/a | `QbAuthError` (caller may re-attempt with new credentials) |
+| `listOpenInvoices` / `getInvoice` / `listPayments` | GET | 2 | Exponential w/ jitter (250-1000ms) | `QbError` / `QbRateLimitError` → `ESC_PROVIDER_FETCH_FAIL` or `ESC_RATE_LIMIT_HIT` (consumer-emitted) |
+| `writePaymentReceived` | POST | **0** | n/a (writes never auto-retry) | `QbValidationError` (400) / `QbError` (5xx) → `ESC_ACCOUNTING_WRITE_FAIL` (warn; operator; consumer-emitted; payload includes `provider: "quickbooks"`, `endpoint: "/payment"`, `status_code`, `error_body_preview`) |
+| `refreshTokens` | POST | **0** | n/a | `QbAuthError` → `ESC_ACCOUNTING_AUTH` (blocking; consumer-emitted; caller may re-attempt with fresh credentials per Bootstrap §) |
 | 401 from any GET | — | force-refresh access_token, retry once | — | `QbAuthError` |
 | 429 from any GET | — | honour `Retry-After` header, retry | jittered backoff if no header | `QbRateLimitError` |
 
