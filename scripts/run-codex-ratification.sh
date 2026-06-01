@@ -99,13 +99,29 @@ docs/verticals/recruitment/migrations/v0.2-to-v0.3.sql|postgres-migration"
 # (quickbooks + open-banking) per docs/operations/goal-w4-day-26-2026-06-01.md
 # Phase 2. All three use the mcp-connector skill landed at .codex/ratification/
 # review-mcp-connector.md (W4 Day-25 overnight commit 267913b).
-# Cash Conductor bundle (full agent-bundle ratification) queued for the NEXT
-# manifest update when its sibling files (cycle.sh + validate.sh + context.sh +
-# cleanup.sh + tools.yaml + 3 fixtures) scaffold complete — likely cluster F-bis
-# OR consolidated cluster G when ready.
 CLUSTERS[F]="packages/mcp-connectors/xero|mcp-connector
 packages/mcp-connectors/quickbooks|mcp-connector
 packages/mcp-connectors/open-banking|mcp-connector"
+
+# Cluster Fbis — Cash Conductor full bundle ratification (2026-06-01 W4 Day-26
+# afternoon close). Bundle completed across morning (cycle.sh + validate.sh +
+# tools.yaml skeletons at 6ab59d8) and afternoon (context.sh + cleanup.sh +
+# 3 fixtures at 5ab2f0f). agent.md was ratified at the contract layer in W3
+# cluster E (8/9 + 1 fix-applied); this re-review checks the BUNDLE layer now
+# that sibling files exist. review-agent-bundle skill (.codex/ratification/
+# review-agent-bundle.md) inspects agent.md AND the surrounding bundle files
+# + fixtures from the single path given, so this cluster needs only one entry.
+# Run order: AFTER cluster F lands (Fbis depends on @ifos/{xero,quickbooks,open-banking}
+# capability declarations in tools.yaml being valid against their ratified packages).
+CLUSTERS[Fbis]="agents/recruitment/cash-conductor/agent.md|agent-bundle"
+
+# Cluster G — Architecture-decision docs accumulated since cluster A. D1-B
+# (the Telegram approval-bridge founder decision) landed 2026-05-31 and the
+# bridge scaffold landed 2026-06-01 (commit 9b282d8). Ratifies via the
+# .codex/ratification/review-architecture-decision.md skill — same one cluster
+# A used. Other decision-docs may join this cluster as they accumulate
+# (e.g. migration rollback re-ratification noted in priorities backlog).
+CLUSTERS[G]="docs/decisions/2026-05-31-d1-founder-decision.md|architecture-decision"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -134,12 +150,14 @@ Examples:
   $0 --cluster A
   $0 --cluster E      # Week-3 v1.0 agent contracts + v0.3 artefacts
   $0 --cluster F      # W4 Track-1 MCP connectors (xero + quickbooks + open-banking)
+  $0 --cluster Fbis   # Cash Conductor full bundle ratification (run AFTER F)
+  $0 --cluster G      # Architecture decisions accumulated since cluster A (D1-B et al.)
 EOF
   exit 2
 fi
 
 if [[ "$1" == "--list-clusters" ]]; then
-  for cluster in A B C D E F; do
+  for cluster in A B C D E F Fbis G; do
     printf '\n\033[1mCluster %s:\033[0m\n' "${cluster}"
     printf '%s\n' "${CLUSTERS[${cluster}]}" | awk -F'|' '{ printf "  %s  [%s]\n", $1, $2 }'
   done
@@ -393,7 +411,7 @@ EOF
 _run_cluster() {
   local cluster="$1"
   if [[ -z "${CLUSTERS[${cluster}]:-}" ]]; then
-    _fail "Unknown cluster: ${cluster}" "Valid: A B C D E F"
+    _fail "Unknown cluster: ${cluster}" "Valid: A B C D E F Fbis G"
     exit 2
   fi
 
