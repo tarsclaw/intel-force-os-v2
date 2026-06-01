@@ -1,0 +1,221 @@
+# Concierge agent — tools.yaml (capability declarations)
+#
+# Status: Proposed (W4 Day-26 SKELETON; W10-13 build slice replaces per-cap
+#         stubs with concrete provider configuration + per-tenant overrides).
+# Reading order: agent.md §1 (output contract) + §2 (invocation) + §3 (12
+#         lifecycle events × per-tenant template variants) + §4 (15-step
+#         workflow) first.
+#
+# Per ADR-003 v2 agent-bundle pattern: tools.yaml declares every external
+# capability cycle.sh invokes + the autosend-policy action_type each state-
+# changing call emits. cortextOS bus uses this to authorise capability
+# invocation per agent (no capability declared here = bus refuses the call).
+#
+# Per agent.md §6: Concierge has the largest escalation surface of any v1.0
+# agent (16 ESC codes) — appropriate for the highest-stakes customer-facing
+# comms. failure_modes below map each capability's failure surface to the
+# right ESC code, citing the catalogue line where defined.
+#
+# Action-type registrations cross-referenced at agents/_shared/autosend-policy.yaml
+# (status table at bottom of this file).
+
+version: "0.1"
+agent: concierge
+
+capabilities:
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Bullhorn ATS (lifecycle event source + activity-log destination)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: bullhorn_oauth
+    package: "@ifos/bullhorn"
+    purpose: "Bullhorn OAuth refresh + per-tenant token rotation (deferred to W7 Janitor bundle Track-2 per master brief §8.2)"
+    action_type: bullhorn_oauth      # green tier; registration QUEUED until Bullhorn partnership lands
+    cycle_step: 0
+    secrets_required: [BULLHORN_CLIENT_ID, BULLHORN_CLIENT_SECRET, BULLHORN_TENANT_TOKEN]
+    rate_limit_hint: "tenant-specific; default 20/sec per tenant per Bullhorn ts_endpoint"
+    failure_modes:
+      - condition: "OAuth refresh 6+ consecutive failures (Bullhorn revoked the grant)"
+        surface: "BullhornAuthError"
+        escalation: ESC_BULLHORN_AUTH  # blocking; operator + ifos_oncall per agent.md §6 row 1
+
+  - id: bullhorn_get_candidate
+    package: "@ifos/bullhorn"
+    purpose: "Single-entity candidate fetch (name, current state, comms history) — Step 3 of §4 workflow"
+    cycle_step: 3
+    state_changing: false
+    failure_modes:
+      - condition: "429 from Bullhorn API"
+        surface: "BullhornRateLimitError"
+        escalation: ESC_RATE_LIMIT_HIT  # warn; operator; payload.upstream='bullhorn'
+
+  - id: bullhorn_get_placement
+    package: "@ifos/bullhorn"
+    purpose: "Placement entity fetch (role, client, dates) — Step 3"
+    cycle_step: 3
+    state_changing: false
+
+  - id: bullhorn_get_client
+    package: "@ifos/bullhorn"
+    purpose: "Client entity fetch (company name, primary contact) — Step 3"
+    cycle_step: 3
+    state_changing: false
+
+  - id: bullhorn_get_contact
+    package: "@ifos/bullhorn"
+    purpose: "Client-contact entity fetch (name, email) — Step 3 + Step 4 addressee resolution"
+    cycle_step: 3
+    state_changing: false
+
+  - id: bullhorn_create_activity_log
+    package: "@ifos/bullhorn"
+    purpose: "Post-send audit-trail entry in Bullhorn itself (NOT customer-visible — green tier)"
+    action_type: bullhorn_activity_log_write  # green tier; QUEUED registration
+    cycle_step: 13
+    state_changing: true
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Customer-facing email transport (orange tier — only fires post-approval)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: microsoft_graph_send
+    package: "@ifos/microsoft-graph"
+    purpose: "Microsoft Graph send_email (per-tenant config; tenant chooses MS Graph OR Gmail)"
+    action_type: gmail_outlook_send_to_candidate  # ORANGE; REGISTERED in autosend-policy.yaml; consolidated channel-agnostic action_type
+    cycle_step: 12
+    state_changing: true
+    optional: true  # alternate to gmail_send; tenant picks one
+    secrets_required: [MS_GRAPH_CLIENT_ID, MS_GRAPH_CLIENT_SECRET, MS_GRAPH_TENANT_TOKEN]
+    failure_modes:
+      - condition: "OAuth refresh fails (revoked, expired)"
+        surface: "MsGraphAuthError"
+        escalation: ESC_MS_GRAPH_AUTH  # blocking; operator + ifos_oncall + tenant-admin (token re-auth required) per agent.md §6 row 3
+      - condition: "4xx/5xx from Graph API at send time"
+        surface: "MsGraphSendError"
+        escalation: ESC_SEND_FAIL  # warn; operator; retry once 30s backoff per §4 Step 12
+
+  - id: gmail_send
+    package: "@ifos/gmail"
+    purpose: "Gmail send_email (per-tenant config; tenant chooses MS Graph OR Gmail)"
+    action_type: gmail_outlook_send_to_candidate  # ORANGE; same action_type — channel-agnostic at audit layer
+    cycle_step: 12
+    state_changing: true
+    optional: true
+    secrets_required: [GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_TENANT_TOKEN]
+    failure_modes:
+      - condition: "OAuth refresh fails"
+        surface: "GmailAuthError"
+        escalation: ESC_GMAIL_AUTH  # blocking; operator + ifos_oncall + tenant-admin
+      - condition: "4xx/5xx from Gmail API at send time"
+        surface: "GmailSendError"
+        escalation: ESC_SEND_FAIL  # warn; operator; retry once
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Autosend bridge (D1-B Telegram shim per 2026-05-31 founder decision;
+  # package scaffold landed 2026-06-01 at commit 9b282d8). Per D1-B doc
+  # §"Implementation surface" item 4: declare on BOTH Concierge AND Cash
+  # Conductor (Concierge is the primary Step-11 consumer for orange-tier
+  # gmail_outlook_send_to_candidate drafts).
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: autosend_bridge_telegram_propose
+    package: "@ifos/autosend-bridge-telegram"
+    api: proposeApproval
+    purpose: "Post orange-tier candidate-comms approval request to operator Telegram chat (D1-B founder decision)"
+    action_type: concierge_approval_routed  # ORANGE-adjacent metadata row per agent.md §6 + Step 11 hh_decision_action call; REGISTERED in autosend-policy.yaml per R19 fix
+    cycle_step: 11
+    state_changing: true
+    optional: true  # cycle.sh Step 11 checks for the package dist/; falls back to drafts-only mode if absent (per D1-C graceful degradation)
+    failure_modes:
+      - condition: "Telegram postMessage transport failure (network, 5xx, invalid chat_id)"
+        surface: "BridgeTransportError thrown by package"
+        escalation: ESC_AGENT_TOOL_FAILURE  # transport-class failure, NOT timeout (different routing)
+
+  - id: autosend_bridge_telegram_await
+    package: "@ifos/autosend-bridge-telegram"
+    api: awaitApprovalDecision
+    purpose: "Block on operator approve/reject reply from Telegram (PT4H default deadline; authoritative on absolute expires_at_iso, not poll-count × interval)"
+    cycle_step: 11
+    state_changing: false
+    optional: true
+    failure_modes:
+      - condition: "Operator never replies before PT4H expires_at_iso"
+        surface: "outcome=timeout (or BridgeTimeoutError via awaitApprovalDecisionOrThrow)"
+        escalation: ESC_APPROVAL_BRIDGE_TIMEOUT  # warn-tier per escalation-codes.md lines 348-353; routes operator + tenant-admin per agent.md §6 row 11; action converts to manual reconciliation
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Voice + tone validators (shared substrate — used at Step 8)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: voice_classifier
+    package: "@ifos/voice-classifier"
+    purpose: "Score draft body against tenant voice corpus (position-specific threshold: ≥0.75 / ≥0.78 / ≥0.82)"
+    cycle_step: 8
+    state_changing: false
+    failure_modes:
+      - condition: "Classifier returns score below position-threshold after 3 retries"
+        surface: "VoiceClassifierError"
+        escalation: ESC_VOICE_DRIFT  # warn per catalogue lines 120-125; routes operator_chat_id for ALL positions (position-specific paging would need catalogue amendment)
+
+  - id: tone_rule_engine
+    package: "@ifos/tone-rules"
+    purpose: "Apply tenant tone-rules to draft; block-severity rules halt the pipeline"
+    cycle_step: 8
+    state_changing: false
+    failure_modes:
+      - condition: "Block-severity tone-rule hit (e.g. forbidden-phrase match)"
+        surface: "ToneRuleViolation"
+        escalation: ESC_TONE_RULE_VIOLATION  # blocking; operator + ifos_oncall
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Operator notification (Telegram operator-chat-id; not customer-facing)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: telegram_notify
+    package: "@ifos/telegram"
+    purpose: "Operator-channel Telegram notifications (NOT customer-facing; green tier)"
+    action_type: operator_notify_telegram  # green; REGISTERED in autosend-policy.yaml
+    cycle_step: 15
+    state_changing: false
+    secrets_required: [TELEGRAM_BOT_TOKEN]
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Cleanup (cleanup.sh)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: concierge_cleanup
+    purpose: "Post-run cleanup (transient OAuth-cache + provider-rate-limit-cache purge for Bullhorn + MS Graph/Gmail)"
+    action_type: concierge_cleanup  # green tier; QUEUED registration for cleanup.sh wire at W10-13
+    state_changing: false
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Action-type registration status (cross-reference autosend-policy.yaml at W10-13)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Already REGISTERED in agents/_shared/autosend-policy.yaml (verified per agent.md
+# §6 + R19 R-round amendments):
+#   concierge_email_draft              yellow              [Concierge §3 output contract]
+#   concierge_approval_routed          orange-adjacent     [R19 registration fix]
+#   gmail_outlook_send_to_candidate    orange              [shared with Cash Conductor at audit layer when bullhorn channel = email]
+#   bullhorn_note_customer_visible     orange              [canonical orange]
+#   operator_notify_telegram           green
+#
+# QUEUED for registration when their build wave clears:
+#   bullhorn_oauth                     green               (W7 Janitor + Bullhorn partnership)
+#   bullhorn_activity_log_write        green               (W10-13 Concierge build slice)
+#   concierge_cleanup                  green               (W10-13 cleanup.sh wire)
+#   twilio_sms_send                    orange              (v1.1+)
+#   calendar_invite_send               orange              (v1.1+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Boundary check (per master brief §3 + review-mcp-connector.md §8)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# - No Composio / AgentMail references anywhere in this file.
+# - All packages declared are @ifos/* — no third-party adapters with policy
+#   semantics smuggled in via tools.yaml.
+# - Action types all map to autosend-policy.yaml tiers (or are explicitly
+#   marked QUEUED above for the W-X build-slice registration).
+# - microsoft-graph + gmail are the v1.0 send paths per agent.md §1; agent-
+#   identity email adapter explicitly deferred to v1.1+ per agent.md header.
