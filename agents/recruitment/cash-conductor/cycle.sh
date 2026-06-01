@@ -214,17 +214,78 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *10* ]]; then
-  # Emit yellow-tier internal draft row (always)
-  # hh_decision_action "xero_reminder_draft_internal" "invoice:<id>" payload_hash payload_preview
-  # If autosend-bridge-telegram package PRESENT: emit orange row + route to bridge
-  #   hh_decision_action "xero_reminder_send_customer" "invoice:<id>" ...
-  # If autosend-bridge-telegram package ABSENT (D1-B not yet shipped):
-  #   STOP at drafts-only; log + DO NOT emit orange row
+  # Always emit the YELLOW-tier internal-draft row first — this is the audit
+  # record that the draft exists in vault regardless of whether the orange
+  # send-approval path fires.
+  # TODO(W7-8): per draft iteration:
+  #   hh_decision_action "xero_reminder_draft_internal" "invoice:${INVOICE_ID}" \
+  #     "${PAYLOAD_HASH}" "vault_path:${DRAFT_PATH}; position:${CHASE_POSITION}"
+
   if [[ -d "${IFOS_REPO_ROOT:-}/packages/utilities/autosend-bridge-telegram/dist" ]]; then
-    : # TODO(W7-8): orange-tier emit + bridge call
+    # Bridge package PRESENT — route each draft through the D1-B Telegram shim.
+    # Per D1-B doc §"Implementation surface" items 1 + 3 (Cash Conductor consumer).
+    #
+    # Production-shape call site (SKELETON; W7-8 build slice wires the per-draft
+    # loop + the tsx CLI entrypoints — they live alongside the package at
+    # packages/utilities/autosend-bridge-telegram/bin/{propose,await}.ts and
+    # are intentionally NOT in the v0.1 scaffold per the package README §
+    # "Out of scope (v1.0)" line on CLI wrappers).
+    #
+    # Per-draft flow:
+    #
+    # 1. proposeApproval — posts to operator Telegram, returns approval-id +
+    #    deadline. Package: @ifos/autosend-bridge-telegram (proposeApproval).
+    #
+    #    PROPOSE_JSON=$(tsx "${IFOS_REPO_ROOT}/packages/utilities/autosend-bridge-telegram/bin/propose.ts" \
+    #      --action xero_reminder_send_customer \
+    #      --tenant "${CTX_TENANT_SLUG}" \
+    #      --operator-chat "${CTX_OPERATOR_TELEGRAM_CHAT_ID}" \
+    #      --target "${DRAFT_CONTACT_EMAIL}" \
+    #      --preview "${DRAFT_PREVIEW_500_CHARS}" \
+    #      --vault-path "${DRAFT_PATH}" \
+    #      --timeout-seconds 14400)
+    #    APPROVAL_ID=$(printf '%s' "${PROPOSE_JSON}" | jq -r .approval_id)
+    #    EXPIRES_AT_ISO=$(printf '%s' "${PROPOSE_JSON}" | jq -r .expires_at_iso)
+    #
+    # 2. Emit ORANGE-tier audit row — Cash Conductor OWNS xero_reminder_send_customer
+    #    per autosend-policy.yaml line 263.
+    #
+    #    hh_decision_action "xero_reminder_send_customer" "invoice:${INVOICE_ID}" \
+    #      "${PAYLOAD_HASH}" \
+    #      "approval_id:${APPROVAL_ID}; expires_at:${EXPIRES_AT_ISO}; position:${CHASE_POSITION}; vault:${DRAFT_PATH}"
+    #
+    # 3. awaitApprovalDecision — block until decision or PT4H deadline.
+    #    Package: @ifos/autosend-bridge-telegram (awaitApprovalDecision).
+    #
+    #    AWAIT_JSON=$(tsx "${IFOS_REPO_ROOT}/packages/utilities/autosend-bridge-telegram/bin/await.ts" \
+    #      --approval-id "${APPROVAL_ID}" \
+    #      --expires-at "${EXPIRES_AT_ISO}")
+    #    OUTCOME=$(printf '%s' "${AWAIT_JSON}" | jq -r .outcome)
+    #    DECIDED_BY=$(printf '%s' "${AWAIT_JSON}" | jq -r '.decided_by // ""')
+    #
+    # 4. Branch on outcome:
+    #    case "${OUTCOME}" in
+    #      approved)
+    #        # Step 11 transport proceeds (webhook-driven from Concierge after send)
+    #        : ;;
+    #      rejected)
+    #        hh_decision_output "approval_rejected" "invoice:${INVOICE_ID}" \
+    #          "approval_id:${APPROVAL_ID}; decided_by:${DECIDED_BY}; rationale:operator_rejected" ;;
+    #      timeout)
+    #        # ESC_APPROVAL_BRIDGE_TIMEOUT per agents/_shared/escalation-codes.md
+    #        # lines 348-353: warn-tier; operator + ifos_oncall_chat_id routing;
+    #        # action converts to manual reconciliation; operator handles offline.
+    #        hh_decision_action "validate_gate_a_fail" "invoice:${INVOICE_ID}" \
+    #          "${PAYLOAD_HASH}" \
+    #          "ESC_APPROVAL_BRIDGE_TIMEOUT; timeout_seconds:14400; approval_id:${APPROVAL_ID}" ;;
+    #    esac
+    : # TODO(W7-8): wire the per-draft loop above (steps 1–4); tsx CLI entrypoints land alongside in the same build slice
   else
+    # Bridge package ABSENT (dist/ missing) — drafts-only graceful degradation.
+    # DO NOT emit the orange row; Cash Conductor's chase pipeline halts at the
+    # vault-draft stage and a consultant picks the drafts up manually.
     hh_decision_output "drafts_only_mode" "tenant:${CTX_TENANT_SLUG}" \
-      "autosend-bridge-telegram package not built — D1-B Concierge W10 ships it; drafts retained in vault for manual consultant pickup"
+      "autosend-bridge-telegram package dist/ not present — drafts retained in vault for manual consultant pickup; build the package (pnpm --filter @ifos/autosend-bridge-telegram build) to enable the D1-B send path"
   fi
 fi
 

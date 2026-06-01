@@ -117,16 +117,39 @@ capabilities:
     state_changing: false
 
   # ────────────────────────────────────────────────────────────────────────
-  # Concierge autosend bridge (D1-B Telegram shim per 2026-05-31 founder decision)
+  # Autosend bridge (D1-B Telegram shim per 2026-05-31 founder decision;
+  # package scaffold landed 2026-06-01). Split into two rows because the two
+  # public-API call sites have distinct audit + failure semantics:
+  #   - proposeApproval: state-changing; emits ORANGE decision_log row
+  #   - awaitApprovalDecision: read-only poll; produces no audit row directly
+  # Per D1-B doc §"Implementation surface" item 4: declare the capability on
+  # both Concierge AND Cash Conductor (Cash Conductor is the Step-10 consumer).
   # ────────────────────────────────────────────────────────────────────────
 
-  - id: autosend_bridge_telegram
+  - id: autosend_bridge_telegram_propose
     package: "@ifos/autosend-bridge-telegram"
-    purpose: "Route orange-tier chase sends through D1-B Telegram approval shim (Concierge W10 ships this package; Cash Conductor degrades to drafts-only when absent — see agent.md §1 readiness caveat)"
+    api: proposeApproval
+    purpose: "Post orange-tier chase-send approval request to operator Telegram chat (D1-B founder decision)"
     action_type: xero_reminder_send_customer  # ORANGE tier; REGISTERED at autosend-policy.yaml line 263; Cash Conductor OWNS this action_type per the same line
     cycle_step: 10
     state_changing: true
-    optional: true  # cycle.sh Step 10 checks for the package; falls back to drafts-only mode if absent
+    optional: true  # cycle.sh Step 10 checks for the package dist/; falls back to drafts-only mode if absent (graceful degradation per agent.md §1 readiness caveat)
+    failure_modes:
+      - condition: "Telegram postMessage transport failure (network, 5xx, invalid chat_id)"
+        surface: "BridgeTransportError thrown by package"
+        escalation: ESC_AGENT_TOOL_FAILURE  # transport-class failure, NOT timeout (different routing)
+
+  - id: autosend_bridge_telegram_await
+    package: "@ifos/autosend-bridge-telegram"
+    api: awaitApprovalDecision
+    purpose: "Block on operator approve/reject reply from Telegram (PT4H deadline; authoritative on absolute expires_at_iso, not poll-count × interval)"
+    cycle_step: 10
+    state_changing: false  # poll-side; does not write tenant data
+    optional: true
+    failure_modes:
+      - condition: "Operator never replies before PT4H expires_at_iso"
+        surface: "outcome=timeout (or BridgeTimeoutError via awaitApprovalDecisionOrThrow)"
+        escalation: ESC_APPROVAL_BRIDGE_TIMEOUT  # warn-tier per escalation-codes.md lines 348-353; routes operator_chat_id + ifos_oncall_chat_id; action converts to manual reconciliation
 
   # ────────────────────────────────────────────────────────────────────────
   # Operator notification (Telegram operator-chat-id; not customer-facing)
