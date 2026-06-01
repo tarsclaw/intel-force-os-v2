@@ -94,6 +94,19 @@ docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md|architecture-decisio
 docs/verticals/recruitment/vertical-schema.v0.3-supplement.yaml|schema-change
 docs/verticals/recruitment/migrations/v0.2-to-v0.3.sql|postgres-migration"
 
+# Cluster F — W4 Track-1 MCP connectors (2026-06-01 W4 Day-26 build).
+# Three fixture-first connectors scaffolded across Day-25 (xero) + Day-26
+# (quickbooks + open-banking) per docs/operations/goal-w4-day-26-2026-06-01.md
+# Phase 2. All three use the mcp-connector skill landed at .codex/ratification/
+# review-mcp-connector.md (W4 Day-25 overnight commit 267913b).
+# Cash Conductor bundle (full agent-bundle ratification) queued for the NEXT
+# manifest update when its sibling files (cycle.sh + validate.sh + context.sh +
+# cleanup.sh + tools.yaml + 3 fixtures) scaffold complete — likely cluster F-bis
+# OR consolidated cluster G when ready.
+CLUSTERS[F]="packages/mcp-connectors/xero|mcp-connector
+packages/mcp-connectors/quickbooks|mcp-connector
+packages/mcp-connectors/open-banking|mcp-connector"
+
 PASS_COUNT=0
 FAIL_COUNT=0
 declare -a FAILED_ARTEFACTS=()
@@ -120,12 +133,13 @@ Examples:
   $0 agent-bundle agents/recruitment/diagnostic/agent.md
   $0 --cluster A
   $0 --cluster E      # Week-3 v1.0 agent contracts + v0.3 artefacts
+  $0 --cluster F      # W4 Track-1 MCP connectors (xero + quickbooks + open-banking)
 EOF
   exit 2
 fi
 
 if [[ "$1" == "--list-clusters" ]]; then
-  for cluster in A B C D E; do
+  for cluster in A B C D E F; do
     printf '\n\033[1mCluster %s:\033[0m\n' "${cluster}"
     printf '%s\n' "${CLUSTERS[${cluster}]}" | awk -F'|' '{ printf "  %s  [%s]\n", $1, $2 }'
   done
@@ -379,7 +393,7 @@ EOF
 _run_cluster() {
   local cluster="$1"
   if [[ -z "${CLUSTERS[${cluster}]:-}" ]]; then
-    _fail "Unknown cluster: ${cluster}" "Valid: A B C D E"
+    _fail "Unknown cluster: ${cluster}" "Valid: A B C D E F"
     exit 2
   fi
 
