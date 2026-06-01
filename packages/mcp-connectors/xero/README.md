@@ -10,19 +10,32 @@ Xero Accounting API connector for IFOS Cash Conductor (W4-W7 build wave per mast
 
 ## Capabilities
 
-| Function | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
-|---|---|---|---|---|
-| `XeroClient` (class) | HTTP wrapper: OAuth attach + rate-limit budget + 429 / 5xx retry | constructed in cycle.sh Step 1 | n/a (transport) | n/a |
-| `loadTokens(config)` | Read OAuth tokens from disk | Step 1 (auth refresh) | n/a (read-only) | n/a |
-| `saveTokens(config, t)` | Atomic write (.tmp + rename) to token file | refreshTokens internal | n/a | n/a |
-| `refreshTokens(config, current, fetchFn?)` | OAuth 2.0 refresh; concurrent-safe dedup; returns + persists new bundle | Step 1 | `xero_oauth` | green |
-| `shouldRefresh(tokens, now?, window?)` | Returns true if access_token expires within window (default 5 min) | Step 1 + per-call | n/a (pure) | n/a |
-| `listOpenInvoices(client, options?)` | Page through AUTHORISED+SUBMITTED invoices with AmountDue > 0 | Step 4 (invoice register ingest) | n/a (read-only) | n/a |
-| `getInvoice(client, invoiceId, options?)` | Fetch single invoice by Xero InvoiceID | Step 9 (chase-draft validation) | n/a | n/a |
-| `listPayments(client, options?)` | List ACCRECPAYMENT records (reconciliation context) | Step 5 (reconciliation pass) | n/a | n/a |
-| `writePaymentReceived(client, payment)` | PUT /Payments — creates a payment record against an invoice (Stage-1/2 reconciliation auto-write) | Step 6 (reconciliation write) | `accounting_reconciliation_write` | yellow |
+Set-equal across three views per `review-mcp-connector.md` §1: the **capability ID** column matches `agents/recruitment/cash-conductor/tools.yaml`; the **function** column matches `src/index.ts` exports; the **action_type** column matches `agents/_shared/autosend-policy.yaml`.
 
-All `action_type` values listed above MUST exist in `agents/_shared/autosend-policy.yaml` with the documented tier. `xero_oauth` + `accounting_reconciliation_write` already present per Day-25 evening verification.
+| Capability ID (tools.yaml) | Function (src/index.ts) | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
+|---|---|---|---|---|---|
+| `xero_oauth` | `refreshTokens(config, current, fetchFn?)` | OAuth 2.0 refresh; concurrent-safe dedup per tenant; atomic-file-write persistence | Step 1 (auth refresh) | `xero_oauth` | green |
+| `xero_list_open_invoices` | `listOpenInvoices(client, options?)` | Page through AUTHORISED+SUBMITTED invoices with AmountDue > 0 | Step 4 (invoice register ingest) | n/a (read-only) | n/a |
+| `xero_get_invoice` | `getInvoice(client, invoiceId, options?)` | Fetch single invoice by Xero InvoiceID | Step 9 (chase-draft validation) | n/a | n/a |
+| `xero_list_payments` | `listPayments(client, options?)` | List ACCRECPAYMENT records (reconciliation context) | Step 5 (reconciliation pass) | n/a | n/a |
+| `xero_write_payment_received` | `writePaymentReceived(client, payment)` | PUT /Payments — creates a payment record against an invoice (Stage-1/2 reconciliation auto-write) | Step 6 (reconciliation write) | `accounting_reconciliation_write` | yellow |
+
+All `action_type` values above exist in `agents/_shared/autosend-policy.yaml` with the documented tier (verified 2026-06-01 Codex F-R2 closure — `xero_oauth` registered as green at line 158; `accounting_reconciliation_write` already present at line 209).
+
+### Internal helpers (NOT bus-routed capabilities)
+
+Exposed by `src/index.ts` for consumer convenience + testing, but NOT declared in `tools.yaml`:
+
+| Function | Purpose |
+|---|---|
+| `XeroClient` (class) | Transport — constructed once by cycle.sh Step 1; not a capability in the bus sense (no `action_type`; no authz check) |
+| `loadTokens(config)` / `saveTokens(config, t)` | Token-file I/O — called by `refreshTokens`; surfaced for test setup and operator-shell consent-bootstrap helpers |
+| `shouldRefresh(tokens, now?, window?)` | Pure predicate — `true` when the access_token expires within `safety_window_ms` (default 5 min); callers use it to decide eager-refresh |
+| `rateCheck(tenant_id, now?)` | Returns `RateState` — exposes the **soft-backoff signal** (`shouldBackoff: true` at 80% of either bucket); the consuming cycle.sh is responsible for honouring it (see §Rate limits) |
+| `rateConsume(tenant_id, now?)` | Consumes a slot; returns false at the hard 100% gate — the soft signal is read-only |
+| `resetRateLimit(tenant_id?)` | Test/diagnostic reset |
+| `_resetInflightForTest()` | Clears in-flight OAuth-refresh dedup map; for tests only |
+| `XeroCache` (class) | Disk cache — default TTL 5min; surfaced for cache-aware test cases |
 
 ---
 
@@ -79,9 +92,18 @@ Per the published Xero limits page (https://developer.xero.com/documentation/gui
 - **5000 calls / day per tenant** (daily bucket, resets at midnight UTC)
 - **5 concurrent calls per app per tenant** — not enforced here; single-process Cash Conductor cycle.sh is serial
 
-This connector tracks BOTH windows per `src/rate-limit.ts`. Soft backoff at 80% (48/minute, 4000/day); hard fail at 100% → `XeroRateLimitError`. State is in-process and per-tenant — a multi-tenant runtime that holds many `XeroClient` instances in one process still gets correct isolation.
+This connector tracks BOTH windows per `src/rate-limit.ts`. **Hard gate at 100%** (`consume()` returns false → `XeroRateLimitError`). **Soft signal at 80%** (48/minute, 4000/day) is read-only and exposed via `rateCheck()` — `RateState.shouldBackoff === true` with `reason: "minute-soft" | "daily-soft"`. The consuming agent layer (Cash Conductor cycle.sh) is responsible for honouring the soft signal (e.g. pausing batch operations); the connector does not silently throttle — the contract is "callers query soft, connector enforces hard". `tests/rate-limit.test.ts` exercises both thresholds (`hits soft backoff at minute-soft (48)` + `hits hard fail at minute-hard (60)`).
 
-If you see `XeroRateLimitError` consistently in Cash Conductor logs, either the daily budget is too low for the tenant's invoice volume OR the polling interval is too tight; in either case it's an operator-tuning event, not a code bug.
+State is in-process and per-tenant — a multi-tenant runtime that holds many `XeroClient` instances in one process still gets correct isolation.
+
+**ESC contract on bucket exhaustion** (consumer-emitted via `agents/_shared/hook-helpers.sh`):
+
+| Failure | Surfaces as | ESC code (escalation-codes.md) | Payload contract |
+|---|---|---|---|
+| Local hard-gate (100%) reached | `XeroRateLimitError` thrown by `consume()`/client | `ESC_RATE_LIMIT_HIT` (warn; operator) | `{upstream: "xero", retry_after_seconds: null, consecutive_429s: 0}` |
+| Upstream 429 from Xero API | `XeroRateLimitError` thrown with `retry_after_seconds` from `Retry-After` header | `ESC_RATE_LIMIT_HIT` | `{upstream: "xero", retry_after_seconds: <N>, consecutive_429s: <N>}` |
+
+Both surface as the same ESC code because from the operator's perspective they're the same operational signal (Xero traffic is being throttled). The distinction is in the payload (`retry_after_seconds: null` means local pre-emptive vs upstream-issued).
 
 ---
 
@@ -89,13 +111,15 @@ If you see `XeroRateLimitError` consistently in Cash Conductor logs, either the 
 
 | Capability | Method | Max retries | Backoff | On exhaustion |
 |---|---|---|---|---|
-| `listOpenInvoices` / `getInvoice` / `listPayments` | GET | 2 | Exponential w/ jitter (250-1000ms) | `XeroError` or `XeroRateLimitError` |
-| `writePaymentReceived` | PUT | **0** | n/a (writes never auto-retry) | `XeroValidationError` (400) / `XeroError` (5xx) |
-| `refreshTokens` | POST | **0** | n/a | `XeroAuthError` (caller may re-attempt with new credentials) |
-| 401 from any GET | — | force-refresh access_token, retry once | — | `XeroAuthError` |
-| 429 from any GET | — | honour `Retry-After` header, retry | jittered backoff if no header | `XeroRateLimitError` |
+| `listOpenInvoices` / `getInvoice` / `listPayments` | GET | 2 | Exponential w/ jitter (250-1000ms) | `XeroError` or `XeroRateLimitError` → `ESC_PROVIDER_FETCH_FAIL` or `ESC_RATE_LIMIT_HIT` (consumer-emitted) |
+| `writePaymentReceived` | PUT | **0** | n/a (writes never auto-retry) | `XeroValidationError` (400) / `XeroError` (5xx) → `ESC_ACCOUNTING_WRITE_FAIL` (warn; operator; consumer-emitted; payload includes `provider: "xero"`, `endpoint: "/Payments"`, `status_code`, `error_body_preview`) |
+| `refreshTokens` | POST | **0** | n/a | `XeroAuthError` → `ESC_ACCOUNTING_AUTH` (blocking; consumer-emitted; caller may re-attempt with fresh credentials per Bootstrap §) |
+| 401 from any GET | — | force-refresh access_token, retry once | — | `XeroAuthError` → `ESC_ACCOUNTING_AUTH` |
+| 429 from any GET | — | honour `Retry-After` header, retry | jittered backoff if no header | `XeroRateLimitError` → `ESC_RATE_LIMIT_HIT` |
 
 Writes never auto-retry — the caller (Cash Conductor cycle.sh Step 6) decides whether a 4xx is recoverable. This avoids accidentally posting duplicate payments to Xero.
+
+The connector itself does NOT write `decision_log` rows (vault/Postgres split per ADR-002); the consuming `cycle.sh` catches the typed errors above and emits the right ESC via `hh_decision_action`/`hh_decision_output` from `agents/_shared/hook-helpers.sh`.
 
 ---
 

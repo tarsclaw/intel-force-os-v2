@@ -14,7 +14,12 @@ import {
   listPayments,
   writePaymentReceived,
 } from "../src/payments.js";
-import { XeroValidationError, XeroNotFoundError } from "../src/errors.js";
+import {
+  XeroError,
+  XeroNotFoundError,
+  XeroRateLimitError,
+  XeroValidationError,
+} from "../src/errors.js";
 import type {
   XeroOAuthConfig,
   XeroTokens,
@@ -96,6 +101,24 @@ describe("xero capabilities — invoices", () => {
       getInvoice(client, "00000000-0000-0000-0000-000000000000", { cache, no_cache: true }),
     ).rejects.toBeInstanceOf(XeroNotFoundError);
   });
+
+  // Error-path coverage for listOpenInvoices (per review-mcp-connector §6 +
+  // Codex F-R1 issue #4: every capability needs ≥1 happy + ≥1 error fixture).
+  it("listOpenInvoices: persistent 429 surfaces as XeroRateLimitError after retries", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      calls += 1;
+      return new Response("", {
+        status: 429,
+        headers: { "Retry-After": "0" }, // 0s = no wait; just exhausts retries fast
+      });
+    };
+    const client = new XeroClient({ config: makeConfig(), fetchFn: fakeFetch });
+    await expect(
+      listOpenInvoices(client, { cache, no_cache: true }),
+    ).rejects.toBeInstanceOf(XeroRateLimitError);
+    expect(calls).toBeGreaterThanOrEqual(2); // initial + ≥1 retry per max_retries=2 default for GET
+  });
 });
 
 describe("xero capabilities — payments", () => {
@@ -138,5 +161,21 @@ describe("xero capabilities — payments", () => {
     };
     await expect(writePaymentReceived(client, payload)).rejects.toBeInstanceOf(XeroValidationError);
     expect(calls).toBe(1); // write was NOT retried
+  });
+
+  // Error-path coverage for listPayments (per review-mcp-connector §6 +
+  // Codex F-R1 issue #4): GET retries 5xx exponentially; after retries
+  // exhausted the typed error is XeroError (NOT XeroRateLimitError).
+  it("listPayments: persistent 500 surfaces as XeroError after retries", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      calls += 1;
+      return new Response("Xero internal error", { status: 500 });
+    };
+    const client = new XeroClient({ config: makeConfig(), fetchFn: fakeFetch });
+    await expect(
+      listPayments(client, { cache, no_cache: true }),
+    ).rejects.toBeInstanceOf(XeroError);
+    expect(calls).toBeGreaterThanOrEqual(2); // initial + retries per max_retries=2
   });
 });
