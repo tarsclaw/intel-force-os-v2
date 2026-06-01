@@ -1,9 +1,9 @@
 # Current priorities
 
-**Week:** Week 4 — **Day 26 / closed (2026-06-01)**
-**Today's task:** **W4 Day-26 autonomous build per `docs/operations/goal-w4-day-26-2026-06-01.md` — ALL 3 PHASES SHIPPED. Phase 1 (5 compounding commits): incident doc + priorities refactor (1161→67 lines + decision-log.md) + CLAUDE.md session ritual + codex round-trip discipline learning + ECC pattern extraction (NO ecc install). Phase 2 (3 build commits): `@ifos/quickbooks` MCP (23/23 vitest) + `@ifos/open-banking` MCP (28/28 vitest incl. PSD2 token-aging property-tested) + cluster F manifest. Phase 3 stretch (1 commit, amended for shellcheck): Cash Conductor bundle skeletons (cycle.sh 14-step + validate.sh Gate A G1-G7 + tools.yaml). 10 logical changes / 9 commits. Tree clean. Tomorrow: Cash Conductor bundle fixtures + context.sh + cleanup.sh + cluster F Codex run.**
-**Active plan:** Day-26 closed; Day-27 picks up with Cash Conductor bundle completion (3 remaining files: context.sh + cleanup.sh + 3 fixtures) → cluster F Codex run (founder triggers `bash scripts/run-codex-ratification.sh --cluster F`) → if RATIFIED, Cash Conductor agent.md flips Proposed→Accepted at the bundle layer (production-readiness still gates on Hire #1 + accounting/Open Banking commercial signups per agent.md §8).
-**Most recent close:** Day 26 (2026-06-01) — autonomous 3-phase buildout: 9 commits, 0 founder gates touched during execution, all quality gates green throughout (typecheck + vitest + shellcheck + boundary scans). Process compounds: session-startup context cost dropped ~80% via priorities refactor; codex round-trip discipline codified as hard ≤2 ceiling; ECC patterns adapted IFOS-native without package install (Karpathy precedent).
+**Week:** Week 4 — **Day 26 / closed (2026-06-01) — TWO autonomous /goal runs back-to-back**
+**Today's task:** Morning (`goal-w4-day-26-2026-06-01.md`) shipped 3 phases / 9 commits (priorities refactor + 2 MCP connectors + Cash Conductor bundle skeletons). Afternoon (`goal-w4-day-26-afternoon-2026-06-01.md`) shipped 3 phases / 3 commits: **Phase A** Cash Conductor bundle completion (context.sh + cleanup.sh + 3 fixtures incl. 99-token-aging-canary PSD2 hard-stop; shellcheck CLEAN, 3/3 YAML parse); **Phase B** `@ifos/autosend-bridge-telegram` scaffold (proposeApproval + awaitApprovalDecision + awaitApprovalDecisionOrThrow; 23/23 vitest passing; injectable transport+decisions+clock; README 122 lines; per D1-B founder decision); **Phase C** T12 grep heuristic refinement (4 false positives → 0 hits, dry-run verified; decision_log INSERT wrap verified already-in-place at line 549). **Total Day-26 output: 12 commits / 0 founder gates touched / all quality gates green throughout.**
+**Active plan:** Day-26 closed (twice). Day-27 picks up with: (a) Cluster F Codex ratification — founder triggers `bash scripts/run-codex-ratification.sh --cluster F` for `@ifos/quickbooks` + `@ifos/open-banking` MCP connectors (per Phase 2 step 8 of morning goal); (b) if cluster F RATIFIED, cluster F-bis for the Cash Conductor agent-bundle (agent.md still proposed; cycle.sh + validate.sh + context.sh + cleanup.sh + 3 fixtures complete and queue-ready); (c) D1-B decision-doc ratification via `.codex/ratification/review-architecture-decision.md` skill on the autosend-bridge-telegram scaffold landed today. Production wiring (real Telegram Bot API + postgres approvals table) stays gated on Concierge W10-13 build slice per D1-B doc §"Implementation surface".
+**Most recent close:** Day 26 afternoon (2026-06-01 14:30→~15:00 BST — 30min actual vs 6h budgeted; Phase B took ~half the alotted time due to clean sibling-pattern mirror + injectable-deps design = no integration friction; Phase C item (2) was already-done so the work compressed). Commits `5ab2f0f` `9b282d8` `d551db3`. Tree clean. Cash Conductor bundle now 100% present at the scaffold layer (W7-8 build slice replaces SKELETON TODOs with live impl). `@ifos/autosend-bridge-telegram` is a fully unit-tested, build-passing, type-clean scaffold — production-shaped public API, swap-in test wiring for transport+decisions+clock.
 
 ## Active founder action board (2026-06-01)
 
@@ -34,7 +34,7 @@
 
 ## W4 backlog (actionable, not historical)
 
-- [ ] **W4 Track-1 buildout** — today via `goal-w4-day-26-2026-06-01.md`; week via `goal-week-4-track-1.md`. Status: `@ifos/xero` shipped; `@ifos/quickbooks` + `@ifos/open-banking` queued for today; Cash Conductor bundle next.
+- [ ] **W4 Track-1 buildout** — week via `goal-week-4-track-1.md`. Status: `@ifos/xero` + `@ifos/quickbooks` + `@ifos/open-banking` MCPs all shipped (74/74 vitest across the three; cluster F manifest entry exists). Cash Conductor bundle 100% present at scaffold layer (W7-8 build slice replaces TODOs). `@ifos/autosend-bridge-telegram` scaffold landed today per D1-B. **Remaining for the week**: cluster F + F-bis Codex ratification runs (founder-triggered); D1-B decision-doc ratification; production wiring deferred to W7-8 Cash Conductor + W10-13 Concierge build slices per their respective specs.
 - [ ] **Migration rollback re-ratification** — R3 `to_regclass` fix applied at `0f4ce8d`; Codex re-run deferred per §10.3 ceiling to next natural rollback touch.
 - [ ] **D1 decision doc Codex ratification** — `docs/decisions/2026-05-31-d1-founder-decision.md` queued for next Codex cluster (architecture-decision skill).
 - [ ] **Diagnostic voice classifier microservice** — W4-5 polish; gated on Anthropic credits (now have ✓).
@@ -58,7 +58,8 @@ Full chronological history (Day 1 → Day 25, all shipped items + closed backlog
 | `docs/specs/ULTRAPLAN.md` | How + sequencing (§1 + §3 + §4 + §9 + §11) |
 | `docs/decisions/v1.0-kill-criterion.md` | Triggers 1-10 + scope-cut authority |
 | `docs/decisions/` (ADR-001 → 007) | Architectural decisions, all Accepted |
-| `docs/operations/goal-w4-day-26-2026-06-01.md` | TODAY'S autonomous /goal |
+| `docs/operations/goal-w4-day-26-2026-06-01.md` | Today's morning autonomous /goal |
+| `docs/operations/goal-w4-day-26-afternoon-2026-06-01.md` | Today's afternoon autonomous /goal |
 | `docs/operations/goal-week-4-track-1.md` | Week's canonical W4 Track-1 /goal |
 | `docs/operations/founder-manual-playbook-2026-05-31.md` | Manual founder-task playbook |
 | `docs/incidents/2026-06-01-intelforce-ai-email-outage.md` | DNS post-mortem |
