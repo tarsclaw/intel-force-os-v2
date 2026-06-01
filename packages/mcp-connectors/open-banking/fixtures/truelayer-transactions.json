@@ -1,0 +1,35 @@
+{
+  "results": [
+    {
+      "transaction_id": "tl-tx-aaa-111",
+      "timestamp": "2026-05-20T10:30:00Z",
+      "amount": 2000.00,
+      "currency": "GBP",
+      "description": "BETA SEARCH PARTNERS",
+      "transaction_type": "CREDIT",
+      "transaction_category": "BUSINESS",
+      "meta": { "reference": "BACS-2026-05-20-001" }
+    },
+    {
+      "transaction_id": "tl-tx-bbb-222",
+      "timestamp": "2026-05-22T14:15:00Z",
+      "amount": 1500.00,
+      "currency": "GBP",
+      "description": "ACME RECRUITMENT LTD",
+      "transaction_type": "CREDIT",
+      "transaction_category": "BUSINESS",
+      "meta": { "reference": "BACS-2026-05-22-002" }
+    },
+    {
+      "transaction_id": "tl-tx-ccc-333",
+      "timestamp": "2026-05-25T09:00:00Z",
+      "amount": -85.50,
+      "currency": "GBP",
+      "description": "STRIPE FEE",
+      "transaction_type": "DEBIT",
+      "transaction_category": "FEES",
+      "meta": {}
+    }
+  ],
+  "status": "Succeeded"
+}

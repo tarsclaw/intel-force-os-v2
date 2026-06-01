@@ -1,0 +1,11 @@
+{
+  "results": [
+    {
+      "available": 47823.55,
+      "current": 47909.05,
+      "currency": "GBP",
+      "update_timestamp": "2026-06-01T08:30:00Z"
+    }
+  ],
+  "status": "Succeeded"
+}
