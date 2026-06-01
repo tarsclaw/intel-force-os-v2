@@ -147,6 +147,38 @@ action_types:
     irreversible: false
 
   # ───────────────────────────────────────────────────────────
+  # MCP-connector OAuth refresh action_types (added 2026-06-01
+  # per Codex cluster F Round 1 — review-mcp-connector §7 requires
+  # documented action_types to exist in this policy with matching
+  # tier; round-1 REJECT cited all 4 as missing). All green: OAuth
+  # refresh is idempotent token rotation, not external send.
+  # ───────────────────────────────────────────────────────────
+
+  xero_oauth:
+    tier: green
+    agent: cash-conductor
+    reason: "Xero OAuth 2.0 refresh — idempotent token rotation against identity.xero.com; @ifos/xero connector handles concurrent-refresh dedup per-tenant; no external send."
+    irreversible: false
+
+  quickbooks_oauth:
+    tier: green
+    agent: cash-conductor
+    reason: "QuickBooks Online OAuth 2.0 refresh — idempotent token rotation against oauth.platform.intuit.com; @ifos/quickbooks connector handles concurrent-refresh dedup per-realm; QB refresh tokens have ~100-day TTL so operator alerting on refreshTokenNearExpiry() is the consumer's responsibility, not this action_type's."
+    irreversible: false
+
+  open_banking_truelayer:
+    tier: green
+    agent: cash-conductor
+    reason: "TrueLayer OAuth 2.0 refresh — idempotent token rotation against auth.truelayer.com; @ifos/open-banking connector handles concurrent-refresh dedup per-connection; PSD2 90-day consent expiry surfaces via ESC_OPEN_BANKING_TOKEN_AGING (separate aging signal, not this action_type)."
+    irreversible: false
+
+  open_banking_plaid_uk:
+    tier: green
+    agent: cash-conductor
+    reason: "Plaid UK OAuth 2.0 refresh — v1.1+ stub; never fires v1.0. Registered now so the README + tools.yaml capability declarations have a matching policy entry per review-mcp-connector §7 set-equality."
+    irreversible: false
+
+  # ───────────────────────────────────────────────────────────
   # YELLOW — auto-send with 1-in-N spot-check (10 action_types)
   # ───────────────────────────────────────────────────────────
 
