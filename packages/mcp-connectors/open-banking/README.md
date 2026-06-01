@@ -10,18 +10,32 @@ UK Open Banking connector for IFOS Cash Conductor (W4-W7 build wave per master b
 
 ## Capabilities
 
-| Function | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
-|---|---|---|---|---|
-| `OpenBankingClient` (class) | HTTP wrapper: provider-aware base URL + OAuth attach + rate-limit + 429 / 5xx retry | constructed in cycle.sh Step 1 | n/a (transport) | n/a |
-| `loadTokens(config)` | Read OAuth tokens from disk (includes consent_expires_at_ms) | Step 1 | n/a (read-only) | n/a |
-| `saveTokens(config, t)` | Atomic write (.tmp + rename) | refreshTokens internal | n/a | n/a |
-| `refreshTokens(config, current, fetchFn?, now?)` | OAuth refresh; provider-aware; concurrent-safe per (provider, connection_id); **refuses if consent is in blocking window** | Step 1 | `open_banking_truelayer` or `open_banking_plaid_uk` | green |
-| `shouldRefresh(tokens, now?, window?)` | Returns true if access_token expires within window (default 5 min) | Step 1 + per-call | n/a (pure) | n/a |
-| `getTokenAgeStage(tokens, now?)` | Returns `{stage, days_until_consent_expiry}` — pure function over PSD2 lifecycle; classifies into fresh / info / warn / blocking | operator alerting | n/a (pure) | n/a |
-| `listTransactionsSince(client, config, options)` | List bank transactions on/after a timestamp; provider-agnostic shape; TrueLayer raw payload preserved in `raw_provider_payload` | Step 3 (transaction ingest) | n/a (read-only) | n/a |
-| `getAccountBalance(client, config)` | Current account balance (available + cleared) | Step 10 (cash-flow forecast) | n/a (read-only) | n/a |
+Set-equal across three views per `review-mcp-connector.md` §1: the **capability ID** column matches `agents/recruitment/cash-conductor/tools.yaml`; the **function** column matches `src/index.ts` exports; the **action_type** column matches `agents/_shared/autosend-policy.yaml`.
 
-All `action_type` values listed above MUST exist in `agents/_shared/autosend-policy.yaml` with the documented tier. `open_banking_truelayer` is queued for addition at first Cash Conductor cycle.sh wiring (W7).
+| Capability ID (tools.yaml) | Function (src/index.ts) | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
+|---|---|---|---|---|---|
+| `open_banking_truelayer_oauth` | `refreshTokens(config, current, fetchFn?, now?)` (provider='truelayer') | OAuth refresh; concurrent-safe per (provider, connection_id); **refuses if consent is in PSD2 blocking window (≤7 days)** | Step 1 (auth refresh) | `open_banking_truelayer` | green |
+| `open_banking_plaid_uk_oauth` (v1.1+ stub) | `refreshTokens(config, current, fetchFn?, now?)` (provider='plaid-uk') | Plaid UK OAuth refresh — interface in place; implementation throws `NotImplementedError` until v1.1+ | (never fires v1.0) | `open_banking_plaid_uk` | green |
+| `open_banking_list_transactions` | `listTransactionsSince(client, config, options)` | List bank transactions on/after a timestamp; provider-agnostic shape; TrueLayer raw payload preserved in `raw_provider_payload` | Step 3 (transaction ingest) | n/a (read-only) | n/a |
+| `open_banking_get_account_balance` | `getAccountBalance(client, config)` | Current account balance (available + cleared) | Step 10 (cash-flow forecast) | n/a (read-only) | n/a |
+
+All `action_type` values above exist in `agents/_shared/autosend-policy.yaml` with the documented tier (verified 2026-06-01 Codex F-R2 closure — both `open_banking_truelayer` and `open_banking_plaid_uk` registered as green).
+
+### Internal helpers (NOT bus-routed capabilities)
+
+Exposed by `src/index.ts` for consumer convenience + testing, but NOT declared in `tools.yaml`:
+
+| Function | Purpose |
+|---|---|
+| `OpenBankingClient` (class) | Transport — constructed once by cycle.sh Step 1; provider-aware base URL (TrueLayer prod/sandbox; Plaid UK v1.1+) |
+| `loadTokens(config)` / `saveTokens(config, t)` | Token-file I/O — includes the load-bearing PSD2 `consent_expires_at_ms` field; surfaced for test setup + operator consent-bootstrap |
+| `shouldRefresh(tokens, now?, window?)` | Pure predicate — `true` when the access_token expires within `safety_window_ms` (default 5 min) |
+| `getTokenAgeStage(tokens, now?)` | Pure predicate — returns `{stage: 'fresh'|'info'|'warn'|'blocking', days_until_consent_expiry}`; staged-severity hook for operator alerting via `ESC_OPEN_BANKING_TOKEN_AGING` |
+| `rateCheck(key, now?)` | Returns `RateState` — exposes soft-backoff signal at 80% (24/min) of the conservative 30/min ceiling; consumer responsible for honouring it |
+| `rateConsume(key, now?)` | Consumes a slot; returns false at the hard 100% gate |
+| `resetRateLimit(key?)` | Test/diagnostic reset |
+| `_resetInflightForTest()` | Clears in-flight OAuth-refresh dedup map; for tests only |
+| `OpenBankingCache` (class) | Disk cache — transactions TTL 5min; balance TTL 0 (always fresh) |
 
 ---
 
@@ -108,14 +122,26 @@ For Plaid UK (v1.1+): pattern is similar but uses `POST /link/token/create` then
 
 ## Rate limits
 
-Conservative per-provider buckets per `src/rate-limit.ts`:
+Conservative per-provider buckets per `src/rate-limit.ts`. Upstream published-limits pages:
 
-| Provider | Hard cap | Soft (80%) | Notes |
+- **TrueLayer:** https://docs.truelayer.com/docs/data-api-rate-limits — production prod-API limits are tier-dependent and not exposed as a single public number; sandbox is documented at 30/min/connection. We use the sandbox figure as the conservative ceiling for production too — it can be tuned upward when Cash Conductor cycle.sh telemetry shows actual usage patterns.
+- **Plaid UK:** https://plaid.com/docs/errors/rate-limit-exceeded/ — Plaid Standard tier publishes a 600/min per-Item ceiling; we use 30/min as the conservative starting point until v1.1+ pilots show real load.
+
+| Provider | Local hard cap (this connector) | Local soft (80%) | Upstream documented |
 |---|---|---|---|
-| TrueLayer | 30 calls/min per (provider, connection_id) | 24/min | Published prod limits are not publicly numbered; sandbox is constrained. We use a conservative 30/min ceiling. Tunable when Cash Conductor cycle.sh telemetry shows actual usage patterns. |
-| Plaid UK | 30 calls/min per (provider, item_id) | 24/min | Plaid Standard tier published cap. |
+| TrueLayer | 30 calls/min per (provider, connection_id) | 24/min | sandbox 30/min; prod tier-dependent |
+| Plaid UK | 30 calls/min per (provider, item_id) | 24/min | 600/min per-Item (Standard tier) |
+
+**Hard gate at 100%** (`consume()` returns false → `OpenBankingRateLimitError`). **Soft signal at 80%** (24/min) is read-only and exposed via `rateCheck()` — `RateState.shouldBackoff === true` with `reason: "minute-soft"`. The consuming agent layer (Cash Conductor cycle.sh) is responsible for honouring the soft signal; the connector does not silently throttle.
 
 State is in-process and per-(provider, connection_id) — a multi-bank-account runtime that holds many `OpenBankingClient` instances in one process still gets correct isolation.
+
+**ESC contract on bucket exhaustion** (consumer-emitted via `agents/_shared/hook-helpers.sh`):
+
+| Failure | Surfaces as | ESC code (escalation-codes.md) | Payload contract |
+|---|---|---|---|
+| Local hard-gate (100%) reached | `OpenBankingRateLimitError` thrown by `consume()`/client | `ESC_RATE_LIMIT_HIT` (warn; operator) | `{upstream: "truelayer" | "plaid-uk", retry_after_seconds: null, consecutive_429s: 0}` |
+| Upstream 429 from provider API | `OpenBankingRateLimitError` thrown with `retry_after_seconds` from `Retry-After` header | `ESC_RATE_LIMIT_HIT` | `{upstream: "truelayer" | "plaid-uk", retry_after_seconds: <N>, consecutive_429s: <N>}` |
 
 ---
 
@@ -123,12 +149,15 @@ State is in-process and per-(provider, connection_id) — a multi-bank-account r
 
 | Capability | Method | Max retries | Backoff | On exhaustion |
 |---|---|---|---|---|
-| `listTransactionsSince` / `getAccountBalance` | GET | 2 | Exponential w/ jitter (250-1000ms) | `OpenBankingError` or `OpenBankingRateLimitError` |
-| `refreshTokens` | POST | **0** | n/a | `OpenBankingAuthError` / `OpenBankingConsentExpiredError` (caller re-auths) |
-| 401 from any GET | — | force-refresh access_token, retry once | — | `OpenBankingAuthError` |
-| 429 from any GET | — | honour `Retry-After` header | jittered backoff if no header | `OpenBankingRateLimitError` |
+| `listTransactionsSince` / `getAccountBalance` | GET | 2 | Exponential w/ jitter (250-1000ms) | `OpenBankingError` / `OpenBankingRateLimitError` → `ESC_PROVIDER_FETCH_FAIL` or `ESC_RATE_LIMIT_HIT` (consumer-emitted) |
+| `refreshTokens` | POST | **0** | n/a | `OpenBankingAuthError` → `ESC_OPEN_BANKING_AUTH` (**blocking**; consumer-emitted; routes operator + ifos_oncall per escalation-codes.md lines 288-294; payload `failure_type: 'refresh_failed'`) |
+| `refreshTokens` blocked by PSD2 consent expiry | POST | **0** | n/a | `OpenBankingConsentExpiredError` → `ESC_OPEN_BANKING_AUTH` (blocking; payload `failure_type: 'consent_expired_90d'`); user must re-do SCA per Bootstrap § |
+| 401 from any GET | — | force-refresh access_token, retry once | — | `OpenBankingAuthError` → `ESC_OPEN_BANKING_AUTH` |
+| 429 from any GET | — | honour `Retry-After` header | jittered backoff if no header | `OpenBankingRateLimitError` → `ESC_RATE_LIMIT_HIT` |
 
-This connector has NO write operations — banks don't generally expose write APIs in the scope Cash Conductor needs. So all calls are read-only; the only state-changing op is OAuth refresh (which has its own consent-aware refusal logic).
+The only state-changing op is OAuth refresh (which has its own consent-aware refusal logic via `getTokenAgeStage`). All transaction/balance calls are read-only — banks don't generally expose write APIs in the scope Cash Conductor needs. The connector does NOT write `decision_log` rows (vault/Postgres split per ADR-002); the consuming `cycle.sh` catches the typed errors above and emits the right ESC via `hh_decision_action`/`hh_decision_output` from `agents/_shared/hook-helpers.sh`.
+
+The separate **PSD2 token-aging signal** — `ESC_OPEN_BANKING_TOKEN_AGING` (staged info → warn → blocking per consent-expiry distance) — is emitted by the consumer based on `getTokenAgeStage()` BEFORE refresh fails. That's a different code path from the refresh-failure mapping above; see `agents/_shared/escalation-codes.md` lines 296-307 for the staged severity definition and `agents/recruitment/cash-conductor/agent.md` §6 for the consumer flow.
 
 ---
 
@@ -152,12 +181,11 @@ Errors NEVER include credential values; only key names, status codes, safe metad
 ```bash
 # Unit + fixture tests (fast; no network)
 pnpm test
-
-# Live API tests (requires real TrueLayer sandbox credentials; off by default)
-MCP_LIVE_TESTS=true pnpm test
 ```
 
-**Fixture-first** per `review-mcp-connector.md` §6. The unit suite uses shape-pinned JSON fixtures under `fixtures/`; live tests are gated on `MCP_LIVE_TESTS=true`.
+**Fixture-first** per `review-mcp-connector.md` §6. The unit suite uses shape-pinned JSON fixtures under `fixtures/`.
+
+**Live tests are deferred** to the first TrueLayer dev signup — no `MCP_LIVE_TESTS`-gated `describe.skipIf(!LIVE)` block exists yet (honest-signal — review-mcp-connector §10 "Pre-build connector with `MCP_LIVE_TESTS` not yet wired: acceptable IF README marks the live tests as 'wired at first commercial signup'"). The live-test scaffold will land in the same commit as the first sandbox credentials per the W4 Track-1 /goal §1 commercial-gate; the fixture-first suite below is fully sufficient for the W4 ratification pass.
 
 Test counts (W4 Day-26 scaffold):
 - `tests/scaffold.test.ts`: 5 (public surface, exports, full error hierarchy with NotImplementedError)

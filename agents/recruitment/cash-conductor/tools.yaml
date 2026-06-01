@@ -99,10 +99,19 @@ capabilities:
   - id: open_banking_truelayer_oauth
     package: "@ifos/open-banking"
     purpose: "TrueLayer OAuth refresh + PSD2 consent age check (refuses refresh in 7-day blocking window)"
-    action_type: open_banking_truelayer  # green tier; registration queued for W7-8
+    action_type: open_banking_truelayer  # green tier; REGISTERED in autosend-policy.yaml per Codex F-R1 closure 2026-06-01
     cycle_step: 1
     secrets_required: [TRUELAYER_CLIENT_ID, TRUELAYER_CLIENT_SECRET]
     rate_limit_hint: "30/min per (provider, connection_id); 80% soft backoff"
+
+  - id: open_banking_plaid_uk_oauth
+    package: "@ifos/open-banking"
+    purpose: "Plaid UK OAuth refresh (v1.1+ stub; throws NotImplementedError until pilot tenant chooses Plaid over TrueLayer). Declared for capability-surface set-equality per review-mcp-connector §1."
+    action_type: open_banking_plaid_uk  # green tier; REGISTERED in autosend-policy.yaml per Codex F-R1 closure 2026-06-01
+    cycle_step: 1
+    secrets_required: [PLAID_CLIENT_ID, PLAID_CLIENT_SECRET]
+    rate_limit_hint: "30/min per (provider, item_id); never fires v1.0"
+    optional: true  # v1.1+ stub; v1.0 cycle.sh selects TrueLayer
 
   - id: open_banking_list_transactions
     package: "@ifos/open-banking"
