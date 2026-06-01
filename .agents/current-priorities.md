@@ -39,8 +39,8 @@
 - [ ] **D1 decision doc Codex ratification** — `docs/decisions/2026-05-31-d1-founder-decision.md` queued for next Codex cluster (architecture-decision skill).
 - [ ] **Diagnostic voice classifier microservice** — W4-5 polish; gated on Anthropic credits (now have ✓).
 - [ ] **Diagnostic LinkedIn deep data via Proxycurl** — W4 polish; gated on signup #8.
-- [ ] **Tenancy audit T12 heuristic refinement** — 4 false positives (hook-helpers.sh comments + autosend-policy.yaml line 116 + common-target-patch.json line 12). Not real hardcoded slugs.
-- [ ] **Tenancy audit `decision_log` row write** — falls back to JSONL; likely needs `SET LOCAL app.current_tenant='ifos-meta'` before INSERT in `scripts/run-tenancy-audit.sh`.
+- [x] **Tenancy audit T12 heuristic refinement** — closed 2026-06-01 Phase C (added `phase='trigger|action|output'` literal exclusions, `"description"` + `reason:` exclusions, and a `^[[:space:]]*#` pure-comment exclusion). Dry-run produces 0 hits where it previously produced 4 false positives.
+- [x] **Tenancy audit `decision_log` row write** — already wrapped in `SET LOCAL app.current_tenant='ifos-meta'` at `scripts/run-tenancy-audit.sh:549` (verified 2026-06-01 Phase C). Earlier JSONL fallback was not an SET-LOCAL issue.
 - [ ] **DKIM + DMARC TXT records** — outbound deliverability per email-outage incident TODO §5.
 - [ ] **Cluster F Codex ratification** — pending cluster F manifest entry today (Phase 2 step 8); founder triggers the run.
 

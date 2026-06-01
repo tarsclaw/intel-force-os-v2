@@ -511,11 +511,32 @@ fi
 _step "T12 — _shared/ helpers tenant-agnostic"
 
 # Look for hard-coded tenant slug references; exempt CTX env refs, examples,
-# test fixtures, and fallback placeholders
+# test fixtures, and fallback placeholders.
+#
+# Exclusion classes (each line in the -v list closes a documented false-positive
+# class; do NOT prune without re-running the suite against the audit log first):
+#   - "CTX_TENANT_SLUG" / "tenant_slug" → dynamic env-derived refs (the right pattern)
+#   - "examples" / "test-tenant" / "migration-test" → test fixtures
+#   - "fallback" / "README.md" / "escalation-codes.md" / "/tests/" / "comments" → docs/tests
+#   - "HH_AWAIT_TEST_MODE" / "policy_lookup" → known shell-helper internals
+#   - "tenant-admin" / "ifos-csm" → cortextOS-built-in tenant identifiers (not slugs)
+#   - audit phase literals: `phase='trigger'`, `phase='action'`, `phase='output'`,
+#     `gating_failed`, `fail-safe-red` → decision_log phase values, NOT tenant slugs
+#   - `^[[:space:]]*#` → pure bash-comment lines (hook-helpers.sh:193 + :204 — comments
+#     documenting decision_log phase strings, not live code)
+#   - `"description"` / `reason:` → JSON description fields + YAML reason: strings
+#     (common-target-patch.json:12 sector examples + autosend-policy.yaml:116 narrative)
+#
+# Heuristic refinement landed 2026-06-01 (Phase C of goal-w4-day-26-afternoon)
+# after 4 false positives in 20260531T212059Z audit run; reviewed each and confirmed
+# none are real hardcoded tenant slugs. If a NEW false-positive class emerges, add
+# it here with a one-line rationale rather than tightening the upstream regex —
+# false negatives (missing a real hardcoded slug) are higher-cost than noise.
 T12_HITS=$(grep -rEn "'[a-z][a-z0-9-]{2,}'" \
   "${REPO_ROOT}/agents/_shared/" \
   "${REPO_ROOT}/packages/agents-runtime/_shared/" 2>/dev/null \
-  | grep -v "CTX_TENANT_SLUG\|tenant_slug\|examples\|test-tenant\|migration-test\|fallback\|escalation-codes.md\|README.md\|/tests/\|comments\|HH_AWAIT_TEST_MODE\|policy_lookup\|gating_failed\|fail-safe-red\|tenant-admin\|ifos-csm" \
+  | grep -v "CTX_TENANT_SLUG\|tenant_slug\|examples\|test-tenant\|migration-test\|fallback\|escalation-codes.md\|README.md\|/tests/\|comments\|HH_AWAIT_TEST_MODE\|policy_lookup\|gating_failed\|fail-safe-red\|tenant-admin\|ifos-csm\|phase='trigger'\|phase='action'\|phase='output'\|\"description\"\|reason:" \
+  | grep -vE "^[^:]+:[0-9]+:[[:space:]]*#" \
   | head -10)
 
 if [[ -z "${T12_HITS}" ]]; then
