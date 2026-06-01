@@ -1,0 +1,25 @@
+{
+  "name": "@ifos/autosend-bridge-telegram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IFOS Telegram approval-bridge — proposeApproval() + awaitApprovalDecision() for orange-tier autosend gating. Per D1-B founder decision (docs/decisions/2026-05-31-d1-founder-decision.md). Consumed by Concierge cycle.sh Step 11 + Cash Conductor cycle.sh Step 10.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=20.0.0" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
