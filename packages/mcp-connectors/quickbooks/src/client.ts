@@ -96,6 +96,14 @@ export class QbClient {
       url.searchParams.set("minorversion", "73");
     }
 
+    // Per Codex F-R4 issue #2 applied to @ifos/open-banking (and mirrored here
+    // for the same bug class): refreshTokens() is state-changing — rotates the
+    // refresh_token on success — so the 401 branch should fire AT MOST ONCE per
+    // request lifecycle. A second 401 after the forced refresh means the new
+    // token is also rejected (credential revoked or upstream returned a bad
+    // bundle); throw immediately rather than wasting another rotation.
+    let didForceRefresh = false;
+
     let last_error: unknown = null;
     for (let attempt = 0; attempt <= max_retries; attempt++) {
       const allowed = consume(this.opts.config.realm_id, this.now);
@@ -144,7 +152,11 @@ export class QbClient {
       // the SAME stale token from disk if shouldRefresh() says it's not near
       // expiry. Rotate it now; persist the new bundle; let the next iteration
       // pick up the rotated token.
-      if (res.status === 401 && attempt < max_retries) {
+      //
+      // Per Codex F-R4 issue #2 (mirrored from open-banking): only ONE forced
+      // refresh per request lifecycle. If we've already refreshed and STILL
+      // get 401, throw immediately — server is rejecting the rotated token.
+      if (res.status === 401 && attempt < max_retries && !didForceRefresh) {
         if (this.current_tokens) {
           // Throws QbAuthError on refresh failure → propagates correctly.
           this.current_tokens = await refreshTokens(
@@ -153,14 +165,18 @@ export class QbClient {
             this.fetchFn,
           );
         }
+        didForceRefresh = true;
         await sleep(backoff(attempt));
         continue;
       }
-      // 401 after retries exhausted: AUTH-typed error so consumer branches
-      // correctly to ESC_ACCOUNTING_AUTH.
+      // 401 after retries exhausted OR after a forced refresh: AUTH-typed
+      // error so consumer branches correctly to ESC_ACCOUNTING_AUTH.
       if (res.status === 401) {
         throw new QbAuthError(
-          `QuickBooks ${method} ${path} returned 401 after ${attempt + 1} attempt(s) including forced refresh`,
+          `QuickBooks ${method} ${path} returned 401 after ${attempt + 1} attempt(s)` +
+            (didForceRefresh
+              ? " including a forced refresh — server is rejecting the rotated token"
+              : ""),
           401,
         );
       }

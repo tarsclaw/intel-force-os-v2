@@ -132,7 +132,7 @@ Both surface as the same ESC because from the operator's perspective they're the
 
 | Capability | Method | Max retries | Backoff | On exhaustion |
 |---|---|---|---|---|
-| `listOpenInvoices` / `getInvoice` / `listPayments` | GET | 2 | Exponential w/ jitter (250-1000ms) | `QbError` / `QbRateLimitError` → `ESC_PROVIDER_FETCH_FAIL` or `ESC_RATE_LIMIT_HIT` (consumer-emitted) |
+| `listOpenInvoices` / `getInvoice` / `listPayments` | GET | 2 | Full-jitter exponential (`Math.random() * 250 * 2^attempt`); with max_retries=2 the backoff fires on attempt 0 (range 0-249ms) and attempt 1 (range 0-499ms) — actual cumulative wait between initial request and final throw is 0-748ms | `QbError` / `QbRateLimitError` → `ESC_PROVIDER_FETCH_FAIL` or `ESC_RATE_LIMIT_HIT` (consumer-emitted) |
 | `writePaymentReceived` | POST | **0** | n/a (writes never auto-retry) | `QbValidationError` (400) / `QbError` (5xx) → `ESC_ACCOUNTING_WRITE_FAIL` (warn; operator; consumer-emitted; payload includes `provider: "quickbooks"`, `endpoint: "/payment"`, `status_code`, `error_body_preview`) |
 | `refreshTokens` | POST | **0** | n/a | `QbAuthError` → `ESC_ACCOUNTING_AUTH` (blocking; consumer-emitted; caller may re-attempt with fresh credentials per Bootstrap §) |
 | 401 from any GET | — | force-refresh access_token, retry once | — | `QbAuthError` |

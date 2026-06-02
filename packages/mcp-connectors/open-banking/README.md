@@ -18,7 +18,7 @@ Set-equal across three views per `review-mcp-connector.md` §1: the **capability
 |---|---|---|---|---|---|
 | `open_banking_truelayer_oauth` | `refreshTokens(config, current, fetchFn?, now?)` | OAuth refresh against TrueLayer; concurrent-safe per (provider, connection_id); **refuses if consent is in PSD2 blocking window (≤7 days)** | Step 1 (auth refresh) | `open_banking_truelayer` | green |
 | `open_banking_list_transactions` | `listTransactionsSince(client, config, options)` | List bank transactions on/after a timestamp; TrueLayer raw payload preserved in `raw_provider_payload` for v1.1+ provider-agnostic upgrade | Step 3 (transaction ingest) | n/a (read-only) | n/a |
-| `open_banking_get_account_balance` | `getAccountBalance(client, config)` | Current account balance (available + cleared) | Step 10 (cash-flow forecast) | n/a (read-only) | n/a |
+| `open_banking_get_account_balance` | `getAccountBalance(client, config)` | Current account balance (available + cleared) | Step 13 (weekly cash-flow forecast) | n/a (read-only) | n/a |
 
 `open_banking_truelayer` action_type exists in `agents/_shared/autosend-policy.yaml` at green tier. `open_banking_plaid_uk` ALSO exists in the policy (registered 2026-06-01 in commit f414492) — kept registered to avoid churn when v1.1+ work re-promotes Plaid; not currently consumed.
 
@@ -150,7 +150,7 @@ State is in-process and per-(provider, connection_id) — a multi-bank-account r
 
 | Capability | Method | Max retries | Backoff | On exhaustion |
 |---|---|---|---|---|
-| `listTransactionsSince` / `getAccountBalance` | GET | 2 | Exponential w/ jitter (250-1000ms) | `OpenBankingError` / `OpenBankingRateLimitError` → `ESC_PROVIDER_FETCH_FAIL` or `ESC_RATE_LIMIT_HIT` (consumer-emitted) |
+| `listTransactionsSince` / `getAccountBalance` | GET | 2 | Full-jitter exponential (`Math.random() * 250 * 2^attempt`); with max_retries=2 the backoff fires on attempt 0 (range 0-249ms) and attempt 1 (range 0-499ms) — actual cumulative wait between initial request and final throw is 0-748ms | `OpenBankingError` / `OpenBankingRateLimitError` → `ESC_PROVIDER_FETCH_FAIL` or `ESC_RATE_LIMIT_HIT` (consumer-emitted) |
 | `refreshTokens` | POST | **0** | n/a | `OpenBankingAuthError` → `ESC_OPEN_BANKING_AUTH` (**blocking**; consumer-emitted; routes operator + ifos_oncall per escalation-codes.md lines 288-294; payload `failure_type: 'refresh_failed'`) |
 | `refreshTokens` blocked by PSD2 consent expiry | POST | **0** | n/a | `OpenBankingConsentExpiredError` → `ESC_OPEN_BANKING_AUTH` (blocking; payload `failure_type: 'consent_expired_90d'`); user must re-do SCA per Bootstrap § |
 | 401 from any GET | — | force-refresh access_token, retry once | — | `OpenBankingAuthError` → `ESC_OPEN_BANKING_AUTH` |
@@ -217,10 +217,10 @@ agents/recruitment/cash-conductor/cycle.sh
    │
    ├── Step 1  (auth refresh + consent age check)  ──┐
    ├── Step 3  (bank transaction ingest)            ──┼─→ @ifos/open-banking (this package)
-   └── Step 10 (weekly cash-flow forecast balance)  ──┘    │
+   └── Step 13 (weekly cash-flow forecast balance)  ──┘    │
                                                           ↓
-                                                     TrueLayer or Plaid UK
-                                                     (provider chosen at config time)
+                                                     TrueLayer (v1.0 only;
+                                                     Plaid UK = v1.1+ internal stub)
                                                           ↓
                                                      OAuth bearer (PSD2-consented)
 ```

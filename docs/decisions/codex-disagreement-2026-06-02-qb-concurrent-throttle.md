@@ -3,7 +3,7 @@
 **Status:** Counter-argument accepted (founder-authorized 2026-06-02; not implementing Codex's requested change).
 **Date:** 2026-06-02.
 **Author:** Claude Code (autonomous; founder approved escalation path to R4 with this counter-argument).
-**Codex session:** `20260602T105413Z-29512` Round 3, `packages_mcp-connectors_quickbooks.output.md` issue #1.
+**Codex sessions:** R3 `20260602T105413Z-29512` issue #1 (initial); R4 `20260602T111820Z-43583` issue #1 (reaffirmed under same reasoning). The counter-argument STANDS — see "What would change the call" below; until those conditions become true, this stays disagreed.
 
 ## Codex's claim (verbatim)
 

@@ -93,6 +93,17 @@ export class OpenBankingClient {
       }
     }
 
+    // Per Codex F-R4 issue #2 (open-banking): the 401 path forces a refresh,
+    // and refreshTokens() is state-changing (rotates the refresh_token on
+    // success — the old one is invalidated server-side). Allowing the 401
+    // branch to fire on multiple attempts in the same request lifecycle would
+    // rotate twice for a single end-user request, wasting a refresh_token
+    // rotation. Track whether we've already forced a refresh in this request;
+    // a second 401 after the forced refresh → throw immediately (the server
+    // is rejecting our newly-rotated token, which means consent is revoked
+    // or the refresh itself returned an invalid token).
+    let didForceRefresh = false;
+
     let last_error: unknown = null;
     for (let attempt = 0; attempt <= max_retries; attempt++) {
       const allowed = consume(
@@ -142,7 +153,13 @@ export class OpenBankingClient {
       // next iteration pick up the rotated token. Throws OpenBankingAuthError
       // (or OpenBankingConsentExpiredError if PSD2 consent is in blocking)
       // on refresh failure → propagates correctly.
-      if (res.status === 401 && attempt < max_retries) {
+      //
+      // Per Codex F-R4 issue #2: only ONE forced refresh per request lifecycle
+      // (refresh_token rotation is state-changing). If we already refreshed AND
+      // are STILL getting 401, the new token itself is rejected — server-side
+      // consent is gone or upstream token endpoint returned a bad bundle.
+      // Throw AUTH-typed error immediately.
+      if (res.status === 401 && attempt < max_retries && !didForceRefresh) {
         if (this.current_tokens) {
           this.current_tokens = await refreshTokens(
             this.opts.config,
@@ -150,15 +167,19 @@ export class OpenBankingClient {
             this.fetchFn,
           );
         }
+        didForceRefresh = true;
         await sleep(backoff(attempt));
         continue;
       }
-      // 401 after retries exhausted: AUTH-typed error (NOT generic
-      // OpenBankingError) so consumer branches correctly to ESC_OPEN_BANKING_AUTH.
-      // Per Codex F-R2 issue #2 (open-banking).
+      // 401 after retries exhausted OR after a forced refresh: AUTH-typed
+      // error (NOT generic OpenBankingError) so consumer branches correctly
+      // to ESC_OPEN_BANKING_AUTH. Per Codex F-R2 issue #2 + F-R4 issue #2.
       if (res.status === 401) {
         throw new OpenBankingAuthError(
-          `Open Banking ${method} ${path} returned 401 after ${attempt + 1} attempt(s) including forced refresh`,
+          `Open Banking ${method} ${path} returned 401 after ${attempt + 1} attempt(s)` +
+            (didForceRefresh
+              ? " including a forced refresh — server is rejecting the rotated token (consent revoked or upstream returned a bad bundle)"
+              : ""),
           401,
         );
       }

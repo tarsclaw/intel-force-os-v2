@@ -14,6 +14,7 @@ import { listTransactionsSince } from "../src/transactions.js";
 import { getAccountBalance } from "../src/balance.js";
 import {
   NotImplementedError,
+  OpenBankingAuthError,
   OpenBankingError,
   OpenBankingRateLimitError,
 } from "../src/errors.js";
@@ -197,6 +198,53 @@ describe("open-banking capabilities — TrueLayer (v1.0)", () => {
     expect(getCalls).toBe(2);
     expect(refreshCalls).toBe(1);
     expect(observedSecondAuth).toBe("Bearer rotated-access-token-after-401");
+  });
+
+  // Per Codex F-R4 issue #2: only ONE forced refresh per request lifecycle.
+  // refreshTokens() is state-changing (rotates the refresh_token on success);
+  // allowing the 401 branch to fire twice would rotate twice for one request.
+  // After the first forced refresh, a second 401 → throw OpenBankingAuthError
+  // immediately (server is rejecting our rotated token = consent revoked or
+  // upstream returned a bad bundle).
+  it("401 after a forced refresh throws OpenBankingAuthError without a second refresh", async () => {
+    let getCalls = 0;
+    let refreshCalls = 0;
+
+    const fakeFetch: typeof fetch = async (input) => {
+      const url = typeof input === "string" ? input : (input as URL).toString();
+      if (url.includes("auth.truelayer-sandbox.com/connect/token")) {
+        refreshCalls += 1;
+        return new Response(
+          JSON.stringify({
+            access_token: "rotated-access-token-still-bad",
+            refresh_token: "rotated-refresh-token",
+            expires_in: 3600,
+            scope: "accounts transactions balance",
+            token_type: "Bearer",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      // EVERY data GET returns 401 — simulates server-side consent revocation
+      getCalls += 1;
+      return new Response("", { status: 401 });
+    };
+
+    const config = makeConfig();
+    const client = new OpenBankingClient({ config, fetchFn: fakeFetch });
+
+    await expect(
+      listTransactionsSince(client, config, {
+        since: "2026-05-01T00:00:00Z",
+        cache,
+        no_cache: true,
+      }),
+    ).rejects.toBeInstanceOf(OpenBankingAuthError);
+
+    // First 401 → forced refresh (refreshCalls=1); second 401 (with new
+    // token) → throws immediately. NO third refresh attempt.
+    expect(refreshCalls).toBe(1);
+    expect(getCalls).toBe(2);
   });
 });
 
