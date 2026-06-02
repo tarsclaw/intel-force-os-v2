@@ -104,14 +104,13 @@ capabilities:
     secrets_required: [TRUELAYER_CLIENT_ID, TRUELAYER_CLIENT_SECRET]
     rate_limit_hint: "30/min per (provider, connection_id); 80% soft backoff"
 
-  - id: open_banking_plaid_uk_oauth
-    package: "@ifos/open-banking"
-    purpose: "Plaid UK OAuth refresh (v1.1+ stub; throws NotImplementedError until pilot tenant chooses Plaid over TrueLayer). Declared for capability-surface set-equality per review-mcp-connector §1."
-    action_type: open_banking_plaid_uk  # green tier; REGISTERED in autosend-policy.yaml per Codex F-R1 closure 2026-06-01
-    cycle_step: 1
-    secrets_required: [PLAID_CLIENT_ID, PLAID_CLIENT_SECRET]
-    rate_limit_hint: "30/min per (provider, item_id); never fires v1.0"
-    optional: true  # v1.1+ stub; v1.0 cycle.sh selects TrueLayer
+  # NOTE: open_banking_plaid_uk_oauth was declared here in R1 (commit 47dbce1)
+  # for capability-surface set-equality with the OB README. Codex F-R3 issue #1
+  # rightly flagged that declaring a v1.1+ stub as a current capability
+  # violates the single-upstream-provider contract + has no success fixtures.
+  # Removed per docs/decisions/2026-06-02-codex-cluster-f-r3-justification.md.
+  # Plaid UK remains as an internal stub in @ifos/open-banking src/ for v1.1+
+  # work but is NOT a v1.0 bus-routed capability.
 
   - id: open_banking_list_transactions
     package: "@ifos/open-banking"

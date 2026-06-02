@@ -12,14 +12,15 @@ UK Open Banking connector for IFOS Cash Conductor (W4-W7 build wave per master b
 
 Set-equal across three views per `review-mcp-connector.md` §1: the **capability ID** column matches `agents/recruitment/cash-conductor/tools.yaml`; the **function** column matches `src/index.ts` exports; the **action_type** column matches `agents/_shared/autosend-policy.yaml`.
 
+**Provider scope (v1.0):** TrueLayer ONLY. Plaid UK exists as an internal stub in `src/` for v1.1+ work but is NOT a v1.0 bus-routed capability (per Codex F-R3 closure 2026-06-02 — `docs/decisions/2026-06-02-codex-cluster-f-r3-justification.md`; pre-R3 the v1.1+ stub was declared as a v1.0 capability for set-equality, which violated review-mcp-connector single-upstream-provider intent + had no success fixtures to back the surface). When the first IFOS tenant picks Plaid over TrueLayer in v1.1+, the Plaid implementation graduates to a bus-routed capability and re-registers here.
+
 | Capability ID (tools.yaml) | Function (src/index.ts) | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
 |---|---|---|---|---|---|
-| `open_banking_truelayer_oauth` | `refreshTokens(config, current, fetchFn?, now?)` (provider='truelayer') | OAuth refresh; concurrent-safe per (provider, connection_id); **refuses if consent is in PSD2 blocking window (≤7 days)** | Step 1 (auth refresh) | `open_banking_truelayer` | green |
-| `open_banking_plaid_uk_oauth` (v1.1+ stub) | `refreshTokens(config, current, fetchFn?, now?)` (provider='plaid_uk') | Plaid UK OAuth refresh — interface in place; implementation throws `NotImplementedError` until v1.1+ | (never fires v1.0) | `open_banking_plaid_uk` | green |
-| `open_banking_list_transactions` | `listTransactionsSince(client, config, options)` | List bank transactions on/after a timestamp; provider-agnostic shape; TrueLayer raw payload preserved in `raw_provider_payload` | Step 3 (transaction ingest) | n/a (read-only) | n/a |
+| `open_banking_truelayer_oauth` | `refreshTokens(config, current, fetchFn?, now?)` | OAuth refresh against TrueLayer; concurrent-safe per (provider, connection_id); **refuses if consent is in PSD2 blocking window (≤7 days)** | Step 1 (auth refresh) | `open_banking_truelayer` | green |
+| `open_banking_list_transactions` | `listTransactionsSince(client, config, options)` | List bank transactions on/after a timestamp; TrueLayer raw payload preserved in `raw_provider_payload` for v1.1+ provider-agnostic upgrade | Step 3 (transaction ingest) | n/a (read-only) | n/a |
 | `open_banking_get_account_balance` | `getAccountBalance(client, config)` | Current account balance (available + cleared) | Step 10 (cash-flow forecast) | n/a (read-only) | n/a |
 
-All `action_type` values above exist in `agents/_shared/autosend-policy.yaml` with the documented tier (verified 2026-06-01 Codex F-R2 closure — both `open_banking_truelayer` and `open_banking_plaid_uk` registered as green).
+`open_banking_truelayer` action_type exists in `agents/_shared/autosend-policy.yaml` at green tier. `open_banking_plaid_uk` ALSO exists in the policy (registered 2026-06-01 in commit f414492) — kept registered to avoid churn when v1.1+ work re-promotes Plaid; not currently consumed.
 
 ### Internal helpers (NOT bus-routed capabilities)
 

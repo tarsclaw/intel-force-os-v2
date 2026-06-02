@@ -1,5 +1,13 @@
 // @ifos/open-banking — public API
 //
+// v1.0 SCOPE: TrueLayer only. Plaid UK exists as an internal stub in src/ for
+// v1.1+ work but is NOT a v1.0 bus-routed capability — per Codex cluster F R3
+// closure 2026-06-02 (docs/decisions/2026-06-02-codex-cluster-f-r3-justification.md),
+// declaring a v1.1+ stub as a current capability violated review-mcp-connector
+// single-upstream-provider intent + had no success fixtures to back the surface.
+// The Plaid stub stays in src/ so v1.1+ work has scaffolding to graduate from;
+// it just isn't surfaced as a v1.0 capability.
+//
 // The exports below split into TWO groups per review-mcp-connector §1 +
 // README §"Capabilities":
 //   (1) BUS-ROUTED CAPABILITIES — each maps 1:1 to a tools.yaml capability ID
@@ -8,24 +16,18 @@
 //   (2) INTERNAL HELPERS — exposed for consumer convenience + testing, but NOT
 //       declared as bus capabilities (no action_type; no authz check).
 //
-// Provider scope (W4 Day-26):
-//   - TrueLayer: fully implemented (v1.0 path per Cash Conductor §9 Q2).
-//   - Plaid UK: interface present; implementation throws NotImplementedError
-//     until v1.1+ (no UK Cash Conductor pilot needs Plaid at v1.0).
-//
 // PSD2 90-day consent tracking is THE load-bearing distinction from Xero / QB:
 // banks legally require user re-authentication every 90 days regardless of
 // refresh-token TTL. See auth.ts getTokenAgeStage + README §"PSD2 consent lifecycle".
 
 // ─────────────────────────────────────────────────────────────────────────
 // (1) Bus-routed capabilities (set-equal with cash-conductor/tools.yaml §open-banking)
+//     v1.0 = TrueLayer only.
 // ─────────────────────────────────────────────────────────────────────────
 
-// open_banking_truelayer_oauth (action_type: open_banking_truelayer, green tier)
-// open_banking_plaid_uk_oauth — same function with provider='plaid_uk'; throws
-// NotImplementedError until v1.1+; action_type open_banking_plaid_uk green tier
-// per autosend-policy.yaml (registered for set-equality even though it never
-// fires in v1.0).
+// open_banking_truelayer_oauth (action_type: open_banking_truelayer, green tier).
+// The function dispatches internally by config.provider; calling with
+// provider='plaid_uk' throws NotImplementedError (v1.1+ stub kept in src/auth.ts).
 export { refreshTokens } from "./auth.js";
 // open_banking_list_transactions (read-only)
 export { listTransactionsSince } from "./transactions.js";
