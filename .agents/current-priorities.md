@@ -17,10 +17,10 @@
 - ✅ Disagreement docs in tree; build progress unblocked
 - ✅ Decision-log + risk register + Sourcing Scout caveat + Bullhorn-path RESOLVED row all caught up
 - ⏸ Tenancy audit deferred to founder (needs ifos_app Postgres password; non-blocking — W4 polish edits were additive-only on schema-touching surfaces; bash scripts/run-tenancy-audit.sh when you have the password)
-- ⏸ Bullhorn dev-support reply pending (2-5 days; gates Janitor W5 build)
+- ⏸ Bullhorn dev-support reply pending (2-5 days; **W5 plan unblocked** — Janitor + Scribe + Sourcing Scout bundles scaffold against public Bullhorn docs at bullhorn.github.io; live integration tests deferred to dev-support reply)
 - ⏸ Q1 LOI with Jack pending (gates Trigger 1 fire 2026-06-03)
-- ⏸ Email infra hardening (DKIM/DMARC/external test/secondary gmail; founder-paced; not blocking)
-- 🟢 W5 /goal shape: Janitor agent-bundle scaffold (mirror CC + Concierge pattern) + `@ifos/bullhorn` MCP connector scaffold against the verified developer-API path
+- ✅ Email infra DONE 2026-06-02 (action board items 11 + 12)
+- 🟢 **W5 execution plan: see `docs/operations/goal-week-5-execution-plan.md`** — Bullhorn-independent scaffolding-first approach; 3 remaining v1.0 agent bundles + @ifos/bullhorn MCP + WorkOS v0.4 schema work, all landable without live Bullhorn
 
 ## Active founder action board (2026-06-01)
 
@@ -38,8 +38,8 @@
 | 8 | ~~Proxycurl signup~~ | ❌ **DEFERRED to v1.1+ (2026-06-02)** — Proxycurl shut down 2025 (LinkedIn lawsuit; nubela.co/blog/goodbye-proxycurl/); NinjaPear successor doesn't carry LinkedIn data. v1.0 Sourcing Scout operates against 3 sources (Bullhorn passive-match + Reed + CV-Library), not 4. LinkedIn-vendor selection deferred to W8-9 build slice (candidates: Lix / Phantombuster / Apify / Sales Navigator). Risk 14 in RISK-REGISTER. |
 | 9 | Fathom OR Fireflies signup | Deferrable — W6 Scribe gate |
 | 10 | Xero developer account | Deferrable — gates live Cash Conductor test (fixture-first proceeds) |
-| 11 | Email infra: send test from external + verify M365 receipt | ⏸ per `docs/incidents/2026-06-01-intelforce-ai-email-outage.md` TODO §3 |
-| 12 | Secondary email channel (gmail backup) | ⏸ `docs/operations/contact-channels.md` to author post-DNS lesson |
+| 11 | Email infra: external → M365 test + DKIM + DMARC | ✅ **DONE 2026-06-02** — founder confirmed |
+| 12 | Secondary email channel (gmail backup) | ✅ **DONE 2026-06-02** — founder confirmed |
 
 ## Active triggers (kill-criterion clocks)
 
