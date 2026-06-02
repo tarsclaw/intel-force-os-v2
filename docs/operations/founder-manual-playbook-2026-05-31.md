@@ -194,26 +194,26 @@ Accept ADR-007
 
 ## 🟡 PRIORITY 4 — Bullhorn A+B chase (~5 min)
 
-**Why this priority:** Bullhorn partnerships form was submitted 2026-05-24 (7 days ago). The 2-5 business-day response window is past. Force-fallback fires 2026-06-10 (10 days). Chase now.
+**Why this priority:** Bullhorn partnerships form was submitted 2026-05-24. Any reply between 2026-05-24 → 2026-06-01 would have BOUNCED due to the M365 MX outage (`docs/incidents/2026-06-01-intelforce-ai-email-outage.md`). Re-submit the form with incident-aware framing acknowledging that original replies may not have reached us. Force-fallback fires ~2026-06-10. **Chase via FORM RE-SUBMISSION (not email — `partnerships@bullhorn.com` does NOT exist; verified 2026-05-23 + re-verified 2026-06-02 per `docs/decisions/bullhorn-integration-path.md` line 68).**
 
-### Step 4.1 — Send the chase email
+### Step 4.1 — Re-submit the Bullhorn partnerships form
 
-Send this email (edit the name + reference if you have the contact). Address it to `partnerships@bullhorn.com` OR the named contact who acknowledged your original submission.
+URL: **https://www.bullhorn.com/become-a-partner/** (verified live 2026-06-02 via WebFetch). Fill out the Marketo form on the page; paste the body below into the form's longest free-text field (typically labelled "Tell us about your enquiry" / "Comments" / "How can we help").
 
-**Subject:** Following up: IFOS partner-programme enquiry submitted 2026-05-24
-
-**Body:**
+**Form body (incident-aware framing):**
 
 ```
-Hi [Name / Partnerships team],
+Following up on the partner-programme enquiry I submitted via this same
+form on 2026-05-24 (8 business days ago). A note on the gap: our M365
+inbound mail was misconfigured 2026-05-24 → 2026-06-01 after a DNS
+provider switch dropped the MX records — fully resolved 2026-06-01 — so
+if your team replied during that window the reply would not have reached
+us. Apologies for the chase. The mailbox is now stable.
 
-Following up on the partner-programme enquiry I submitted via the
-become-a-partner form on 2026-05-24. Reference number [if you have one]:
-[insert].
-
-We're an early-stage agency-tech product (Intel Force OS) building a
-recruitment-operations automation layer on top of Bullhorn, with a pilot
-agency lined up. Two questions remain blocking on our side:
+We're an early-stage agency-tech product (Intel Force OS, Intel Force Ltd
+UK) building a recruitment-operations automation layer on top of Bullhorn,
+with a pilot agency lined up for W7-8. Two questions remain blocking on
+our side:
 
   A. For production tenants reading + writing Bullhorn data on behalf of
      UK recruitment agencies via our hosted SaaS — is marketplace partner
@@ -226,13 +226,23 @@ agency lined up. Two questions remain blocking on our side:
      a dev-tenant model we can use for staging, separate from the
      production tenant's data?
 
-Happy to jump on a 20-min call if easier than email. Otherwise a quick
-written response on A + B unblocks our W4-5 build sprint.
+Happy to jump on a 20-min call if easier than form/email. Otherwise a
+written response on A + B unblocks our W5 build sprint.
 
 Thanks,
-Maddox
-[contact]
+Maddox Rigby
+madsrigby@outlook.com (now stable; please prefer this over any prior
+intelforce.ai address you may have on file from earlier conversations)
 ```
+
+**Form-field tips:**
+- "Company" → `Intel Force Ltd`
+- "Country" → `United Kingdom`
+- "Email" → `madsrigby@outlook.com` (NOT the intelforce.ai address until you've completed the external→M365 test in Priority 11; lingering propagation risk on the company domain isn't worth the chase)
+- "Phone" → your UK mobile (optional but helps prioritisation)
+- Any "How did you hear about us?" → "Previous form submission 2026-05-24"
+
+**Why a personal Outlook address as reply-to:** the M365 misconfiguration was on `@intelforce.ai`. Specifying `madsrigby@outlook.com` while DNS propagation settles is honest + low-risk + easy to explain in the form body above. Switch to the company address once Priority 11 confirms M365 receives external mail cleanly.
 
 ### Step 4.2 — Confirm back to me
 
