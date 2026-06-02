@@ -187,4 +187,46 @@ describe("quickbooks capabilities — payments", () => {
     ).rejects.toBeInstanceOf(QbError);
     expect(calls).toBeGreaterThanOrEqual(2); // initial + retries per max_retries=2
   });
+
+  // 401-forces-refresh: per Codex F-R2 issue #1, a 401 on a GET MUST trigger
+  // an explicit refreshTokens() call before retrying — NOT just null the cache
+  // (which would reload the same stale token from disk if shouldRefresh()
+  // returns false). This test would FAIL against the pre-fix code.
+  it("401 on GET forces explicit token refresh + retry uses new access_token", async () => {
+    let getCalls = 0;
+    let refreshCalls = 0;
+    let observedSecondAuth: string | null = null;
+
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : (input as URL).toString();
+      if (url.includes("oauth.platform.intuit.com/oauth2/v1/tokens/bearer")) {
+        refreshCalls += 1;
+        return new Response(
+          JSON.stringify({
+            access_token: "rotated-access-token-after-401",
+            refresh_token: "rotated-refresh-token",
+            expires_in: 3600,
+            x_refresh_token_expires_in: 100 * 24 * 60 * 60,
+            token_type: "Bearer",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      // Invoice GET path
+      getCalls += 1;
+      if (getCalls === 1) {
+        return new Response("", { status: 401 });
+      }
+      observedSecondAuth = (init?.headers as Record<string, string>)?.["Authorization"] ?? null;
+      return makeOkResponse(INVOICES_PAGE_1);
+    };
+
+    const client = new QbClient({ config: makeConfig(), fetchFn: fakeFetch });
+    const invoices = await listOpenInvoices(client, { cache, no_cache: true });
+
+    expect(invoices.length).toBeGreaterThan(0);
+    expect(getCalls).toBe(2); // initial 401 + retry
+    expect(refreshCalls).toBe(1); // forced refresh between attempts
+    expect(observedSecondAuth).toBe("Bearer rotated-access-token-after-401");
+  });
 });

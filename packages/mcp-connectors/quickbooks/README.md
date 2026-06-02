@@ -1,6 +1,6 @@
 # @ifos/quickbooks
 
-QuickBooks Online (QBO) Accounting API connector for IFOS Cash Conductor (W4-W7 build wave per master brief §8.2 + ULTRAPLAN §8.1 A4). OAuth 2.0 with **per-realm** token rotation + invoice read + payment read/write. Fixture-first; live API gated behind `MCP_LIVE_TESTS=true`.
+QuickBooks Online (QBO) Accounting API connector for IFOS Cash Conductor (W4-W7 build wave per master brief §8.2 + ULTRAPLAN §8.1 A4). OAuth 2.0 with **per-realm** token rotation + invoice read + payment read/write. Fixture-first; live tests deferred to first commercial QB sandbox signup (see §Tests).
 
 **Status:** Proposed (W4 Day-26 scaffold; awaits Codex ratification via `.codex/ratification/review-mcp-connector.md` cluster F + first commercial QB sandbox signup for live-test verification).
 
@@ -161,20 +161,19 @@ Errors NEVER include credential values in their `.message` — only the key NAME
 ```bash
 # Unit + fixture tests (fast; no network)
 pnpm test
-
-# Live API tests (requires real QB sandbox credentials; off by default)
-MCP_LIVE_TESTS=true pnpm test
 ```
 
-**Fixture-first** per `review-mcp-connector.md` §6. The unit suite uses shape-pinned JSON fixtures under `fixtures/`; live tests are gated on `MCP_LIVE_TESTS=true`.
+**Fixture-first** per `review-mcp-connector.md` §6. The unit suite uses shape-pinned JSON fixtures under `fixtures/`.
 
-Test counts (W4 Day-26 scaffold):
+**Live tests are deferred** to the first commercial QB sandbox signup — no `MCP_LIVE_TESTS`-gated `describe.skipIf(!LIVE)` block exists yet (honest-signal per review-mcp-connector §10 "Pre-build connector with `MCP_LIVE_TESTS` not yet wired: acceptable IF README marks the live tests as 'wired at first commercial signup'"). The live-test scaffold lands in the same commit as the first sandbox credentials.
+
+Test counts:
 - `tests/scaffold.test.ts`: 5 (public surface, exports, error hierarchy)
 - `tests/rate-limit.test.ts`: 5 (initial state, soft 400, hard 500, per-realm isolation, etc.)
 - `tests/auth.test.ts`: 7 (load missing, round-trip, shouldRefresh, refreshTokenNearExpiry, refresh success, 401 + no-token-leak, concurrent dedup)
-- `tests/capabilities.test.ts`: 6 (list/get invoice happy + 404, list/write payment happy + 400)
+- `tests/capabilities.test.ts`: 9 (list/get invoice happy + 404, list/write payment happy + 400, **listOpenInvoices 429 retry-exhaust, listPayments 500 retry-exhaust, 401-forces-refresh-then-retry** — all 3 added per Codex F-R1/F-R2)
 
-**Total: 23 vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1).
+**Total: 26 vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1).
 
 ---
 
@@ -206,7 +205,7 @@ agents/recruitment/cash-conductor/cycle.sh
                                          OAuth bearer (no tenant header — realm in URL)
 ```
 
-Cash Conductor's full bundle (cycle.sh + validate.sh + context.sh + cleanup.sh + tools.yaml + fixtures) lands later in W4-7 per `agents/recruitment/cash-conductor/agent.md` §8. This connector is one of three accounting substrate options consumed (Xero / QuickBooks / Sage — Sage deferred per Cash Conductor §9 Q8).
+Cash Conductor's full bundle (cycle.sh + validate.sh + context.sh + cleanup.sh + tools.yaml + 3 fixtures) **landed at the scaffold layer 2026-06-01** (commits 6ab59d8 + 5ab2f0f) with SKELETON TODO(W7-8) markers throughout. The W7-8 build slice replaces the TODOs with live impl; this connector is the accounting substrate it consumes (alongside @ifos/xero — Sage deferred per Cash Conductor §9 Q8). Per Cash Conductor agent.md §8, production-readiness still gates on Hire #1 + accounting commercial signups.
 
 ---
 

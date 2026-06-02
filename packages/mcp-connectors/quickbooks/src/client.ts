@@ -138,11 +138,31 @@ export class QbClient {
         return (await res.json()) as T;
       }
 
-      // 401: token bad — force a refresh next iteration
+      // 401: server invalidated the access_token — force an explicit refresh
+      // BEFORE the next iteration. Per Codex F-R2 issue #1 (qb): nulling the
+      // cached token alone is insufficient — getValidAccessToken() will reload
+      // the SAME stale token from disk if shouldRefresh() says it's not near
+      // expiry. Rotate it now; persist the new bundle; let the next iteration
+      // pick up the rotated token.
       if (res.status === 401 && attempt < max_retries) {
-        this.current_tokens = null;
+        if (this.current_tokens) {
+          // Throws QbAuthError on refresh failure → propagates correctly.
+          this.current_tokens = await refreshTokens(
+            this.opts.config,
+            this.current_tokens,
+            this.fetchFn,
+          );
+        }
         await sleep(backoff(attempt));
         continue;
+      }
+      // 401 after retries exhausted: AUTH-typed error so consumer branches
+      // correctly to ESC_ACCOUNTING_AUTH.
+      if (res.status === 401) {
+        throw new QbAuthError(
+          `QuickBooks ${method} ${path} returned 401 after ${attempt + 1} attempt(s) including forced refresh`,
+          401,
+        );
       }
 
       // 429: rate-limited; honour Retry-After then retry (GET only)
