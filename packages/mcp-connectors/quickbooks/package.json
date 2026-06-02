@@ -2,7 +2,7 @@
   "name": "@ifos/quickbooks",
   "version": "0.1.0",
   "private": true,
-  "description": "IFOS QuickBooks Online MCP connector — OAuth 2.0 refresh (per-realm) + invoices read + payments read/write. Used by Cash Conductor agent §4 Steps 4-6 + 10-11 per agents/recruitment/cash-conductor/tools.yaml.",
+  "description": "IFOS QuickBooks Online MCP connector — OAuth 2.0 refresh (per-realm) + invoices read + payments read/write. Used by Cash Conductor agent §4 Steps 1, 4, 5, 6, 9 per agents/recruitment/cash-conductor/tools.yaml.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": { "node": ">=20.0.0" },
