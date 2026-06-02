@@ -1,7 +1,7 @@
 # Concierge — no candidate ghosted
 
 **Status:** Proposed.
-**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R4 closed yellow draft tier + Step 7 decision-log + ULTRAPLAN line citation cleanup. R19 fixes (today): `concierge_approval_routed` action_type registered in autosend-policy.yaml, Gate B 90% citation corrected to ADR-007 (was incorrectly attributed to ULTRAPLAN A6 line 567), voice threshold position-specific Gate A enforcement. ADR-007 (Concierge Gate A 30-min SLA hybrid) drafted at `docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md`; Concierge Status flip Proposed → Accepted requires ADR-007 RATIFIED. Awaits Q1 LOI + Bullhorn Sub-decisions A+B + Microsoft Graph / Gmail per-tenant signup + Founder Decision D1 autosend orange-tier path + ADR-007 RATIFIED + W10 build slice.
+**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R4 closed yellow draft tier + Step 7 decision-log + ULTRAPLAN line citation cleanup. R19 fixes (2026-05-24): `concierge_approval_routed` action_type registered in autosend-policy.yaml, Gate B 90% citation corrected to ADR-007 (was incorrectly attributed to ULTRAPLAN A6 line 567), voice threshold position-specific Gate A enforcement. ADR-007 (Concierge Gate A 30-min SLA hybrid) **Accepted 2026-05-31 (founder-arbitrated) + Codex RATIFIED at Round 3** — the agent.md Status-flip blocker on the ADR side is now CLOSED. Remaining Proposed → Accepted blockers: Q1 LOI + Bullhorn Sub-decisions A+B + Microsoft Graph / Gmail per-tenant signup + Founder Decision D1 autosend orange-tier path + W10 build slice (see §10).
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W10-13 per master brief §8.2 line 600 + ULTRAPLAN §8.1 A6 line 559 (master brief says W10-13 = 4 weeks; ULTRAPLAN says W9-10 = 2 weeks; master brief authoritative — the XL complexity flag in ULTRAPLAN A6 line 568 corroborates the 4-week duration).
@@ -236,7 +236,7 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
       D1-C (no autosend in v1.0): draft to vault for manual consultant pickup
     → per autosend-policy.yaml: orange-tier; consultant approves
     → ESC_APPROVAL_BRIDGE_TIMEOUT if no approval within the policy timeout
-      (default PT4H per autosend-policy.yaml lines 235-239 + escalation-codes.md
+      (default PT4H per autosend-policy.yaml (grep `^  gmail_outlook_send_to_candidate:` or `^  bullhorn_note_customer_visible:` to verify the orange-tier `timeout` field; default `PT4H`) + escalation-codes.md
       lines 348-353; looked up per action_type, not hardcoded) (D1-A/B)
     → hh_decision_action("concierge_approval_routed",
       "candidate:<bullhorn_id>:<event_type>", payload_hash,
@@ -253,9 +253,14 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
 13. Bullhorn activity-log write
     → bullhorn.create_activity_log(candidate_id, "concierge: <event_type>
       sent at <ISO>")
-    → maintains audit trail in Bullhorn itself
-    → hh_decision_output("bullhorn_activity_logged",
-      "candidate:<bullhorn_id>", "event_type:<type>")
+    → maintains audit trail in Bullhorn itself (NOT customer-visible;
+      separate from bullhorn_note_customer_visible orange tier)
+    → hh_decision_action("bullhorn_activity_log_write",
+      "candidate:<bullhorn_id>", payload_hash,
+      "event_type:<type>; bullhorn_activity_id:<id>") — green tier per
+      autosend-policy.yaml (registered 2026-06-02 per Codex Fbis-R1 closure;
+      grep `^  bullhorn_activity_log_write:` to verify). External-write
+      action_type required for tier classification per autosend-policy §3.
 
 14. Lifecycle state advance (Bullhorn write, conditional)
     → some events trigger Bullhorn state changes (e.g., interview-completed
@@ -269,7 +274,11 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
     → check ghosted-rate metric (any candidate with no Concierge action in
       14 days post-state-change → contributes to ghosted-rate)
     → if ghosted-rate >5% for tenant in 30-day rolling: ESC_GATE_B_MISS
-    → hh_decision_action("concierge_run_complete", session_id, run_mode)
+    → hh_decision_action("concierge_run_complete", "session:<tenant_slug>",
+      payload_hash, "mode:<webhook|poll|nurture-sweep|manual>; drafts:<N>;
+      sends:<N>; ghosted_rate:<float>") — green tier per autosend-policy.yaml;
+      4-arg signature matches `_shared/hook-helpers.sh` `hh_decision_action
+      <action_type> <target> <payload_hash> <payload_preview>` contract.
     → exit code 0
 ```
 
@@ -290,7 +299,12 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4 + ULTRAPLAN A6 line
 
 The 30-minute draft SLA (ULTRAPLAN A6 line 566) is interpreted as a Gate B leading metric (90% target) per §1 framing, NOT a per-draft Gate A hard-fail. Polling-fallback delays would otherwise block legitimate drafts. Per-draft SLA misses fire `ESC_CONCIERGE_SLA_MISS` (warn, aggregated).
 
-Gate A failures fire `ESC_ADDRESSEE_MISMATCH` or `ESC_TONE_RULE_VIOLATION` or `ESC_PII_LEAKAGE_RISK` or `ESC_AGENT_OUTPUT_SHAPE` (output-shape constraint — missing Bullhorn context OR voice threshold misses persistently) — all blocking; draft to `/tmp`; operator notified immediately.
+Gate A failures fire ESC codes per their catalogue-defined severity (do NOT conflate "Gate A blocks the draft from sending" with "ESC severity escalates to oncall"):
+
+- **Catalogue blocking-severity:** `ESC_ADDRESSEE_MISMATCH`, `ESC_PII_LEAKAGE_RISK` — these route to operator + ifos_oncall_chat_id per catalogue §2.10 (truly customer-impacting violations).
+- **Catalogue warn-severity:** `ESC_TONE_RULE_VIOLATION`, `ESC_AGENT_OUTPUT_SHAPE` — these route to operator_chat_id only per catalogue §2.10 + §2.7 (per-draft signal-quality issues; not customer-impacting unless multiple aggregate).
+
+ALL FOUR cause Gate A to block the draft from sending (validate.sh exits non-zero; draft stays in vault; cycle.sh aborts the orange-tier emission). The "blocking" of the DRAFT is `validate.sh` behavior; the "blocking" severity of the ESC code is the operator-paging-urgency lookup. These are separate dimensions. Draft is moved to `/tmp` (out of the customer-facing path) regardless of ESC severity; operator is notified immediately for blocking-tier ESCs, asynchronously-aggregated for warn-tier.
 
 **Honesty note (per bilateral-disposition Cat-5):** Concierge `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W10-13 build slice. The W10-13 build delivers `agents/recruitment/concierge/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
 
@@ -321,10 +335,10 @@ Concierge uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | (Concierge does NOT use `ESC_CANDIDATE_DATA_INCOMPLETE` — per catalogue §2.10 that code is reserved for Sourcing Scout shortlist completeness. Concierge's missing-Bullhorn-context case fires `ESC_AGENT_OUTPUT_SHAPE` per Gate A discipline below.) | — | — |
 | `ESC_ADDRESSEE_MISMATCH` | Step 4 critical — wrong recipient | **blocking** | operator + ifos_oncall |
 | `ESC_VOICE_DRIFT` | Voice classifier below the position-specific threshold (≥0.75/0.78/0.82) after 3 retries. The Gate A hard-fail (validate.sh exits non-zero; draft not sent) is expressed through `validate_gate_a_fail`, NOT through this code's severity: per catalogue (escalation-codes.md lines 120-125) `ESC_VOICE_DRIFT` is `warn` → `operator_chat_id` for ALL positions. Position-specific paging urgency (e.g. oncall on rejections) would require a catalogue amendment adding position-severity semantics — not yet made. | warn | operator_chat_id |
-| `ESC_TONE_RULE_VIOLATION` | Block-severity tone rule hit | **blocking** | operator + ifos_oncall |
+| `ESC_TONE_RULE_VIOLATION` | Block-severity tone rule hit | warn (catalogue) — Gate A still blocks the draft from sending via validate.sh; ESC severity governs operator-paging urgency only | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_CONCIERGE_SLA_MISS` | Draft >30 min after lifecycle event | warn | (logged; aggregated to Gate B) |
-| `ESC_APPROVAL_BRIDGE_TIMEOUT` | No consultant approval within the policy timeout (default PT4H per escalation-codes.md lines 348-353 + autosend-policy.yaml lines 235-239) | warn | operator + tenant-admin |
+| `ESC_APPROVAL_BRIDGE_TIMEOUT` | No consultant approval within the policy timeout (default PT4H per escalation-codes.md lines 348-353 + autosend-policy.yaml (grep `^  gmail_outlook_send_to_candidate:` or `^  bullhorn_note_customer_visible:` to verify the orange-tier `timeout` field; default `PT4H`)) | warn | operator + tenant-admin |
 | `ESC_SEND_FAIL` | Email provider 4xx/5xx | warn | operator_chat_id |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) — distinct from ESC_AUTOSEND_BLOCKED which is for red-tier action attempts only | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | Ghosted-rate >5% OR send-as-is <60% OR 30-min SLA hit-rate <90% for 30 consecutive days | warn | founder + operator |
@@ -432,7 +446,7 @@ Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `82
 
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies
-- **ADR-007 (Concierge Gate A 30-min SLA hybrid) RATIFIED** — closes the documented deviation from ULTRAPLAN A6 line 566 wording. ADR drafted at `docs/decisions/ADR-007-concierge-gate-a-30min-sla-hybrid.md` (Day 20 W4 bilateral pass); ratifies via `.codex/ratification/review-architecture-decision.md` skill. Until RATIFIED, agent.md's Gate B framing of the 30-min SLA is documented disposition only.
+- **✅ ADR-007 (Concierge Gate A 30-min SLA hybrid) ACCEPTED + RATIFIED** — Accepted 2026-05-31 (founder-arbitrated) + Codex RATIFIED at Round 3 per `.codex/ratification/review-architecture-decision.md` skill (commit `c862c77`). Closes the documented deviation from ULTRAPLAN A6 line 566 wording; agent.md's Gate B framing of the 30-min SLA is now the canonical disposition. This Status-flip blocker is satisfied.
 - **Founder Decision D1 RESOLVED** (Q1 above) — without this, Concierge build cannot start
 - Founder approves §9 Q2 (lifecycle taxonomy) + Q3 (send window) + Q4 (rejection routing) + Q5 (template authoring UX) + Q6 (Gate B UX)
 - Q7-Q9 documented decisions captured
