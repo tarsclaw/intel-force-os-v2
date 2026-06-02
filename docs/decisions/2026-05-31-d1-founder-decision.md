@@ -1,6 +1,6 @@
 # Founder Decision D1 — autosend orange-tier path
 
-**Status:** Accepted (founder-arbitrated 2026-05-31 via explicit delegation: *"i pretty much trust your decision making for the technical build stuff"*).
+**Status:** Accepted (founder-arbitrated 2026-05-31 via explicit delegation: *"i pretty much trust your decision making for the technical build stuff"*). Codex ratification: **deferred-to-W10-13-build-slice** per `docs/decisions/codex-disagreement-2026-06-02-fbis-g-scaffold-runtime-drift.md` (cluster G stopped at partial-ratification after 4 rounds; the structural decision is accepted; the cross-doc consistency surface gets reconciled when W10-13 lands).
 **Decision:** **D1-B — Telegram shim** for v1.0; D1-A as v1.1+ upgrade.
 **Date:** 2026-05-31
 **Author:** Claude Code (arbitrating per delegated authority); founder may override at any time before Concierge W10 build start.
