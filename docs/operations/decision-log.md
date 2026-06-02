@@ -1164,3 +1164,43 @@ Per master brief §10.6 first ratification run — Day 7 added items 20 + 21 + t
 - **Day 4 finding (2026-05-17):** Hetzner has no UK data centre — NBG1 used as equivalent. Surfaced as 9th atomic-correction edit. Functionally equivalent: same Hetzner eu-central zone, Schrems II EU jurisdiction, ~25-30ms UK latency.
 - **Day 4 LUKS rotation pattern (2026-05-17):** Path B exposure (LUKS passphrase entered chat for ifos-unlock end-to-end test) closed via `cryptsetup luksChangeKey` with VPS-generated new passphrase + `--test-passphrase` verification. Pattern documented in runbook §12 deviation 20. v1.1 runbook revision: investigate paste-once-and-cache helper that doesn't require chat exposure. Lesson: Path A protocol cost (~90s of founder time per interactive step) is the right trade-off vs Path B (chat exposure + post-hoc rotation).
 - **Day 4 Path D pattern (2026-05-17):** New protocol for VPS-side credential generation that never enters chat context. Used for ifos_app password in §5.4: `openssl rand -base64 24` on VPS → `/vault/.ifos_app_password.tmp` (LUKS-encrypted, mode 0600) → `CREATE ROLE` via psql stdin heredoc → founder retrieves at convenience. Reusable for future password generation operations.
+
+---
+
+## Day 27 — 2026-06-02 (Codex closure + Bullhorn pivot + Proxycurl handling)
+
+A full chapter closed today: 13 Codex ratification rounds across clusters F, Fbis, G; one strategic vendor pivot (Bullhorn marketplace deferred); one materialised-but-mitigated vendor risk (Proxycurl shutdown). The cluster F + Fbis + G arc earned its own decision-doc at `docs/decisions/codex-disagreement-2026-06-02-fbis-g-scaffold-runtime-drift.md` covering the partial-ratification outcome (1 ratified + 5 proposed-with-disagreement-on-file across 6 artefacts).
+
+### Strategic decisions ratified today
+
+1. **Codex hard-stop precedent codified as repeatable pattern.** After 13 rounds across F + Fbis + G, the founder + Claude established a hard-stop rule that fires when (a) my "this should converge" predictions are wrong N times in a row + (b) the Nth round still surfaces NEW issues + (c) the diminishing-returns line is clearly hit. The escape valve is **partial-ratification with structured disagreement docs** rather than infinite rounds. Cluster F closed at 1 ratified + 2 disagreement-on-file (xero/QB/OB); cluster Fbis + G closed at 0 ratified + 3 disagreement-on-file (CC agent-bundle + Concierge agent-bundle + D1-B decision-doc). **The 7 substantive bugs Codex caught across the arc validate the value** (401-loop bug + 401-double-refresh + bullhorn_activity_log_write registration + Step 15 helper signature + voice threshold completeness + anti-dup query mechanism + schema-before-code violation + false Day-4 _secrets.env claim). Real bugs caught: ✅. Infinite-round productivity loss avoided: ✅. Re-trigger condition for partial-ratification: W7-8 + W10-13 build slices reconcile agent.md ↔ code drift naturally when both files are touched in same workflow.
+
+2. **Bullhorn marketplace deferral (Sub-decision A RESOLVED).** Partner form requires ≥2 live customers; IFOS is pre-pilot (0 live + 1 LOI in active negotiation); marketplace ~$5-25k/yr partner fees + certification overhead not justified at ≤3-pilot scale where founder-led direct sales doesn't need marketplace distribution. v1.0 path = direct API per-tenant OAuth (auth-code flow; each tenant Bullhorn admin authorises IFOS as a connected app). Marketplace re-evaluated at v1.1+ scale (3+ live pilots, marketplace-as-customer-acquisition-channel viable). Founder pivoted 2026-06-02 from partnerships form to Bullhorn developer-support route at `developer.bullhorn.com` for the technical question (Sub-decision B). RISK 2 severity Medium → Low; ADR-005 framing extended. See `docs/decisions/bullhorn-integration-path.md` Sub-decision A RESOLVED row (commit `f13cc15`) for the full reasoning.
+
+3. **Proxycurl→NinjaPear shutdown handling for Sourcing Scout v1.0.** Proxycurl shut down 2025 following LinkedIn's Jan 2025 lawsuit against Nubela (~50% of Proxycurl revenue was LinkedIn scraping). Successor product NinjaPear (same team) explicitly does NOT carry LinkedIn data. v1.0 Sourcing Scout's original 4-source design (Bullhorn passive-match + LinkedIn/Proxycurl + Reed + CV-Library) drops to 3 active sources at v1.0; LinkedIn deep-data deferred to v1.1+ when a legally-clear vendor lands. v1.1+ candidate vendors named: Lix, Phantombuster, Apify (LinkedIn-aware contracts), or LinkedIn's Sales Navigator enterprise API (much higher cost). Gate B target (≥6 of 10 advance per ULTRAPLAN A5 line 553) unchanged; the marginal contribution of LinkedIn data is unknown until pilot data informs the v1.1+ vendor decision. NEW Risk 14 added to RISK-REGISTER. See `agents/recruitment/sourcing-scout/agent.md` v1.0 caveat (commit `622a2e7`).
+
+4. **Partial-ratification framework as a repeatable build pattern.** Disagreement docs at `docs/decisions/codex-disagreement-2026-06-02-*.md` (5 docs total across cluster F + Fbis + G) established the shape: artefact-Status moves to "Proposed-with-disagreement-on-file"; disagreement doc names the issue, the counter-argument, the re-trigger conditions, and what would change the call. This pattern can be reused for any future Codex round where the marginal value of round N+1 is low relative to its cost. Build progress is unblocked at the disagreement-doc-in-tree state; cluster re-runs happen when the natural trigger (build slice, vendor decision, skill hardening) fires.
+
+### Shipped today (W4 Day-27)
+
+1. `docs/decisions/codex-disagreement-2026-06-02-qb-concurrent-throttle.md` — QB R3+R4 counter-argument (commits `f9e85d8` + `497fa0c`)
+2. `docs/decisions/codex-disagreement-2026-06-02-ob-plaid-internal-stub.md` — OB R4 counter-argument (commit `497fa0c`)
+3. `docs/decisions/codex-disagreement-2026-06-02-fbis-g-scaffold-runtime-drift.md` — combined Fbis + G hard-stop (commit `c189eb0`)
+4. `docs/decisions/2026-06-02-codex-cluster-f-r3-justification.md` — R3 work justification (commit `587b2ae`)
+5. Cluster F + Fbis + G fix bundle commits (16 commits total across the day)
+6. Bullhorn integration-path Sub-decision A RESOLVED (commit `f13cc15`)
+7. Sourcing Scout v1.0 caveat re Proxycurl→NinjaPear (commit `622a2e7`)
+8. Risk Register updates (commit `2c644e9`)
+9. Founder-manual playbook §4 Bullhorn chase route corrected to form-not-email (commit `b4bc3cc`)
+10. W4 polish goal execution in progress (this commit + remaining Phase 1+2+3)
+
+### Stuck
+
+(nothing structurally — cluster F + Fbis + G partial-ratification is intentional; build slices re-trigger ratification naturally; Bullhorn dev-support reply expected 2-5 business days; LinkedIn vendor decision queued for W8-9)
+
+### Carry-forward to W5
+
+- Bullhorn dev-support reply (2-5 business days) → unblocks Janitor W5 build
+- Q1 LOI with Jack → unblocks Trigger 1 (fires 2026-06-03)
+- Email infra hardening (DKIM/DMARC/external test/secondary gmail) → founder-paced
+- W5 /goal shape: Janitor agent-bundle scaffold (mirroring Cash Conductor + Concierge pattern) + Bullhorn MCP connector scaffolded against the verified developer-API path
