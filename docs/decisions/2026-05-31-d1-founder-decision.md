@@ -56,15 +56,16 @@ Three paths were on the table for the v1.0 orange-tier approval mechanism:
 
 ## Codex ratification
 
-This decision doc ratifies via `.codex/ratification/review-architecture-decision.md` skill. Will be added to the next `--cluster F` (or future cluster) ratification run.
+This decision doc ratifies via `.codex/ratification/review-architecture-decision.md` skill. Currently in flight under **cluster G** (`bash scripts/run-codex-ratification.sh --cluster G`); session-by-session ratification status is tracked in the closing Status-update line.
 
 ## Consequences
 
 - **Concierge §9 Q1 RESOLVED** — strike from "open questions" list at next agent.md touch.
-- **Cash Conductor §8 D1-pending fallback** — flips from "drafts-only if unresolved" to "orange-tier `xero_reminder_send_customer` writes are live once Concierge W10 ships the `autosend-bridge-telegram` package."
-- **Concierge ratification §10** — `Founder Decision D1 RESOLVED` blocker now satisfied. Remaining Concierge Proposed → Accepted blockers per §10: Codex Round 4 Phase 2 (DONE), ADR-007 Accepted (PENDING founder Accept), founder approves §9 Q2-Q6 (PENDING).
-- **No schema impact.** D1-B reuses `tenant_adapters.config` for the operator chat ID; no v0.4 supplement work added by this decision.
-- **No additional API keys/signups for the founder vault.** Day-4 provisioning (`docs/runbooks/day-4-provisioning.md` §6.5) creates the `_secrets.env` SKELETON only (touched empty at mode 0600); the Telegram bot token is populated by founder bootstrap (NOT covered by Day-4 — see incident response below), and the per-tenant operator chat-id is populated by tenant onboarding (W10-13 build slice; see implementation surface item 5 above). Once both are in place, no recurring credentials work — the bot token doesn't rotate per send; the chat-id is per-tenant-stable.
+- **Cash Conductor §8 D1-pending fallback** — flips from "drafts-only if unresolved" to "orange-tier `xero_reminder_send_customer` writes are live once Concierge W10-13 lands the autosend-bridge production wiring."
+- **Concierge ratification §10** — `Founder Decision D1 RESOLVED` blocker now satisfied. Remaining Concierge Proposed → Accepted blockers per §10: ADR-007 Accepted + Codex RATIFIED (DONE 2026-05-31 + Round 3), pilot LOI (PENDING), Bullhorn A+B (PENDING), founder approves §9 Q2-Q6 (PENDING).
+- **Schema impact: v0.4 supplement required (deferred to W10-13 Concierge build slice).** D1-B requires a per-tenant operator-Telegram-chat-id storage location. `tenant_adapters.config` is the natural home BUT the v0.3 supplement's `validate_tenant_adapters_config_v0_3` trigger hard-fails on unknown keys per Rule 2 and `operator_telegram_chat_id` is NOT in the current allowlist (see implementation surface item 5 for the full rationale + interim function-arg-mode workaround). The schema work + migration land in the W10-13 Concierge build slice as part of bridge-production-wiring; the decision-doc itself is structurally complete without that schema work. The previously-stated "No schema impact" claim has been removed — it was inconsistent with implementation surface item 5.
+- **No additional API keys/signups for the founder vault.** Day-4 provisioning (`docs/runbooks/day-4-provisioning.md` §6.5) creates the `_secrets.env` SKELETON only (touched empty at mode 0600); the Telegram bot token is populated by founder bootstrap (covered separately by tenant onboarding playbook — NOT Day-4), and the per-tenant operator chat-id is populated by tenant onboarding (W10-13 build slice; see implementation surface item 5 above). Once both are in place, no recurring credentials work — the bot token doesn't rotate per send; the chat-id is per-tenant-stable.
+- **Schema-before-code discipline — interim acceptance.** The five rules (master brief §1) state schema-before-code. Today's state has the bridge package scaffold + consumer wiring landed BEFORE the schema supplement. The interim resolution is acceptable because the consumers run in **function-arg mode only** (chat-id passed as function argument, NOT read from `tenant_adapters`) — so no consumer code actually attempts to read the not-yet-allowlisted key. The schema-before-code rule is respected at the runtime level (no schema-violating read happens); the consumer scaffolding is fine to exist as long as the function-arg-only constraint holds until the v0.4 supplement lands.
 
 ---
 
@@ -72,4 +73,4 @@ This decision doc ratifies via `.codex/ratification/review-architecture-decision
 
 ---
 
-**Status update:** Accepted on 2026-05-31 by founder-delegated arbitration (D1-B over D1-A and D1-C); package scaffold `@ifos/autosend-bridge-telegram` landed 2026-06-01 (commit `9b282d8`); consumer wiring landed on both Cash Conductor (commit `076e231`) and Concierge (commit `669a4f4` + `9ec2bd6`); awaiting Codex ratification via `.codex/ratification/review-architecture-decision.md` skill (cluster G).
+**Status update:** Accepted on 2026-05-31 by founder-delegated arbitration (D1-B over D1-A and D1-C); package scaffold `@ifos/autosend-bridge-telegram` landed 2026-06-01 (commit `9b282d8`); consumer wiring landed on both Cash Conductor (commit `076e231`) and Concierge (commits `669a4f4` + `9ec2bd6`) — **in FUNCTION-ARG MODE only**, no `tenant_adapters.config.operator_telegram_chat_id` read attempts until the v0.4 schema supplement lands in the Concierge W10-13 build slice; Codex ratification currently in flight under cluster G (R2 closing 2026-06-02 per `docs/decisions/codex-disagreement-2026-06-02-*` ledger and the cluster G round-trip arc).
