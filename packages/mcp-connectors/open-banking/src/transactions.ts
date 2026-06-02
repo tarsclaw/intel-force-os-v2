@@ -47,7 +47,7 @@ export async function listTransactionsSince(
   config: OpenBankingConfig,
   options: ListTransactionsOptions,
 ): Promise<OpenBankingTransaction[]> {
-  if (config.provider === "plaid-uk") {
+  if (config.provider === "plaid_uk") {
     throw new NotImplementedError(
       "Plaid UK listTransactionsSince not yet implemented (v1.1+ deferred per Cash Conductor §9 Q2)",
     );

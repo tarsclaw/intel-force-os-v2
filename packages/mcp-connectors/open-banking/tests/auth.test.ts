@@ -158,7 +158,7 @@ describe("open-banking auth", () => {
   });
 
   it("refreshTokens: Plaid UK provider throws NotImplementedError (v1.1+ deferred)", async () => {
-    const config = makeConfig(token_file, { provider: "plaid-uk" });
+    const config = makeConfig(token_file, { provider: "plaid_uk" });
     await expect(
       refreshTokens(config, FIXTURE_TOKENS, fetch),
     ).rejects.toBeInstanceOf(NotImplementedError);

@@ -22,7 +22,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 // open_banking_truelayer_oauth (action_type: open_banking_truelayer, green tier)
-// open_banking_plaid_uk_oauth — same function with provider='plaid-uk'; throws
+// open_banking_plaid_uk_oauth — same function with provider='plaid_uk'; throws
 // NotImplementedError until v1.1+; action_type open_banking_plaid_uk green tier
 // per autosend-policy.yaml (registered for set-equality even though it never
 // fires in v1.0).

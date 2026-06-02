@@ -6,7 +6,7 @@
 //   - Plaid UK: interface defined; implementation deferred to v1.1+ (throws
 //     NotImplementedError until then).
 
-export type OpenBankingProvider = "truelayer" | "plaid-uk";
+export type OpenBankingProvider = "truelayer" | "plaid_uk";
 
 export interface OpenBankingTokens {
   access_token: string;

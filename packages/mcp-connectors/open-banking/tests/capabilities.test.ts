@@ -12,7 +12,11 @@ import { saveTokens, _resetInflightForTest } from "../src/auth.js";
 import { reset as resetRateLimit } from "../src/rate-limit.js";
 import { listTransactionsSince } from "../src/transactions.js";
 import { getAccountBalance } from "../src/balance.js";
-import { NotImplementedError } from "../src/errors.js";
+import {
+  NotImplementedError,
+  OpenBankingError,
+  OpenBankingRateLimitError,
+} from "../src/errors.js";
 import type {
   OpenBankingConfig,
   OpenBankingTokens,
@@ -107,11 +111,98 @@ describe("open-banking capabilities — TrueLayer (v1.0)", () => {
     expect(bal.currency).toBe("GBP");
     expect(bal.fetched_at).toBe("2026-06-01T08:30:00Z");
   });
+
+  // Error-path coverage for listTransactionsSince + getAccountBalance per
+  // Codex F-R2 issue #3 (open-banking): review-mcp-connector §6 requires
+  // ≥1 happy + ≥1 error fixture per capability. R1 wrongly assumed the Plaid
+  // NotImplementedError test counted as the error path; Codex correctly
+  // distinguishes "stub-throws-on-unsupported-provider" from "TrueLayer
+  // upstream returns error".
+  it("listTransactionsSince: persistent 429 surfaces as OpenBankingRateLimitError after retries", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      calls += 1;
+      return new Response("", {
+        status: 429,
+        headers: { "Retry-After": "0" },
+      });
+    };
+    const config = makeConfig();
+    const client = new OpenBankingClient({ config, fetchFn: fakeFetch });
+    await expect(
+      listTransactionsSince(client, config, {
+        since: "2026-05-01T00:00:00Z",
+        cache,
+        no_cache: true,
+      }),
+    ).rejects.toBeInstanceOf(OpenBankingRateLimitError);
+    expect(calls).toBeGreaterThanOrEqual(2);
+  });
+
+  it("getAccountBalance: persistent 500 surfaces as OpenBankingError after retries", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      calls += 1;
+      return new Response("TrueLayer internal error", { status: 500 });
+    };
+    const config = makeConfig();
+    const client = new OpenBankingClient({ config, fetchFn: fakeFetch });
+    await expect(getAccountBalance(client, config)).rejects.toBeInstanceOf(
+      OpenBankingError,
+    );
+    expect(calls).toBeGreaterThanOrEqual(2);
+  });
+
+  // 401-forces-refresh: per Codex F-R2 issue #2 (open-banking), a 401 on a GET
+  // MUST trigger an explicit refreshTokens() call before retrying, AND on final
+  // exhaustion throw OpenBankingAuthError (not the generic OpenBankingError).
+  it("401 on GET forces explicit token refresh + retry uses new access_token", async () => {
+    let getCalls = 0;
+    let refreshCalls = 0;
+    let observedSecondAuth: string | null = null;
+
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : (input as URL).toString();
+      if (url.includes("auth.truelayer-sandbox.com/connect/token")) {
+        refreshCalls += 1;
+        return new Response(
+          JSON.stringify({
+            access_token: "rotated-access-token-after-401",
+            refresh_token: "rotated-refresh-token",
+            expires_in: 3600,
+            scope: "accounts transactions balance",
+            token_type: "Bearer",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      // Data GET path
+      getCalls += 1;
+      if (getCalls === 1) {
+        return new Response("", { status: 401 });
+      }
+      observedSecondAuth = (init?.headers as Record<string, string>)?.["Authorization"] ?? null;
+      return makeOkResponse(TL_TRANSACTIONS);
+    };
+
+    const config = makeConfig();
+    const client = new OpenBankingClient({ config, fetchFn: fakeFetch });
+    const txns = await listTransactionsSince(client, config, {
+      since: "2026-05-01T00:00:00Z",
+      cache,
+      no_cache: true,
+    });
+
+    expect(txns.length).toBeGreaterThan(0);
+    expect(getCalls).toBe(2);
+    expect(refreshCalls).toBe(1);
+    expect(observedSecondAuth).toBe("Bearer rotated-access-token-after-401");
+  });
 });
 
 describe("open-banking capabilities — Plaid UK (v1.1+ deferred)", () => {
   it("listTransactionsSince throws NotImplementedError for Plaid UK", async () => {
-    const config = makeConfig({ provider: "plaid-uk" });
+    const config = makeConfig({ provider: "plaid_uk" });
     const client = new OpenBankingClient({ config });
     await expect(
       listTransactionsSince(client, config, { since: "2026-05-01T00:00:00Z" }),
@@ -119,7 +210,7 @@ describe("open-banking capabilities — Plaid UK (v1.1+ deferred)", () => {
   });
 
   it("getAccountBalance throws NotImplementedError for Plaid UK", async () => {
-    const config = makeConfig({ provider: "plaid-uk" });
+    const config = makeConfig({ provider: "plaid_uk" });
     const client = new OpenBankingClient({ config });
     await expect(getAccountBalance(client, config)).rejects.toBeInstanceOf(
       NotImplementedError,

@@ -31,7 +31,7 @@ export async function getAccountBalance(
   client: OpenBankingClient,
   config: OpenBankingConfig,
 ): Promise<OpenBankingBalance> {
-  if (config.provider === "plaid-uk") {
+  if (config.provider === "plaid_uk") {
     throw new NotImplementedError(
       "Plaid UK getAccountBalance not yet implemented (v1.1+ deferred per Cash Conductor §9 Q2)",
     );

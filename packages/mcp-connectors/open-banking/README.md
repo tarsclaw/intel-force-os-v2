@@ -15,7 +15,7 @@ Set-equal across three views per `review-mcp-connector.md` §1: the **capability
 | Capability ID (tools.yaml) | Function (src/index.ts) | Purpose | Cash Conductor cycle.sh step | action_type | Tier |
 |---|---|---|---|---|---|
 | `open_banking_truelayer_oauth` | `refreshTokens(config, current, fetchFn?, now?)` (provider='truelayer') | OAuth refresh; concurrent-safe per (provider, connection_id); **refuses if consent is in PSD2 blocking window (≤7 days)** | Step 1 (auth refresh) | `open_banking_truelayer` | green |
-| `open_banking_plaid_uk_oauth` (v1.1+ stub) | `refreshTokens(config, current, fetchFn?, now?)` (provider='plaid-uk') | Plaid UK OAuth refresh — interface in place; implementation throws `NotImplementedError` until v1.1+ | (never fires v1.0) | `open_banking_plaid_uk` | green |
+| `open_banking_plaid_uk_oauth` (v1.1+ stub) | `refreshTokens(config, current, fetchFn?, now?)` (provider='plaid_uk') | Plaid UK OAuth refresh — interface in place; implementation throws `NotImplementedError` until v1.1+ | (never fires v1.0) | `open_banking_plaid_uk` | green |
 | `open_banking_list_transactions` | `listTransactionsSince(client, config, options)` | List bank transactions on/after a timestamp; provider-agnostic shape; TrueLayer raw payload preserved in `raw_provider_payload` | Step 3 (transaction ingest) | n/a (read-only) | n/a |
 | `open_banking_get_account_balance` | `getAccountBalance(client, config)` | Current account balance (available + cleared) | Step 10 (cash-flow forecast) | n/a (read-only) | n/a |
 
@@ -140,8 +140,8 @@ State is in-process and per-(provider, connection_id) — a multi-bank-account r
 
 | Failure | Surfaces as | ESC code (escalation-codes.md) | Payload contract |
 |---|---|---|---|
-| Local hard-gate (100%) reached | `OpenBankingRateLimitError` thrown by `consume()`/client | `ESC_RATE_LIMIT_HIT` (warn; operator) | `{upstream: "truelayer" | "plaid-uk", retry_after_seconds: null, consecutive_429s: 0}` |
-| Upstream 429 from provider API | `OpenBankingRateLimitError` thrown with `retry_after_seconds` from `Retry-After` header | `ESC_RATE_LIMIT_HIT` | `{upstream: "truelayer" | "plaid-uk", retry_after_seconds: <N>, consecutive_429s: <N>}` |
+| Local hard-gate (100%) reached | `OpenBankingRateLimitError` thrown by `consume()`/client | `ESC_RATE_LIMIT_HIT` (warn; operator) | `{upstream: "truelayer" | "plaid_uk", retry_after_seconds: null, consecutive_429s: 0}` |
+| Upstream 429 from provider API | `OpenBankingRateLimitError` thrown with `retry_after_seconds` from `Retry-After` header | `ESC_RATE_LIMIT_HIT` | `{upstream: "truelayer" | "plaid_uk", retry_after_seconds: <N>, consecutive_429s: <N>}` |
 
 ---
 
@@ -187,14 +187,14 @@ pnpm test
 
 **Live tests are deferred** to the first TrueLayer dev signup — no `MCP_LIVE_TESTS`-gated `describe.skipIf(!LIVE)` block exists yet (honest-signal — review-mcp-connector §10 "Pre-build connector with `MCP_LIVE_TESTS` not yet wired: acceptable IF README marks the live tests as 'wired at first commercial signup'"). The live-test scaffold will land in the same commit as the first sandbox credentials per the W4 Track-1 /goal §1 commercial-gate; the fixture-first suite below is fully sufficient for the W4 ratification pass.
 
-Test counts (W4 Day-26 scaffold):
+Test counts:
 - `tests/scaffold.test.ts`: 5 (public surface, exports, full error hierarchy with NotImplementedError)
 - `tests/rate-limit.test.ts`: 5 (initial state, soft 24, hard 30, per-(provider, connection) isolation)
 - `tests/token-aging.test.ts`: 6 (property-based day 0-100 boundary: fresh, info, warn, blocking, negative/already-expired, days_until consistency)
 - `tests/auth.test.ts`: 8 (load missing, round-trip, shouldRefresh, refresh success + consent_expires preserved, 401 + no-token-leak, **blocking-consent refuses refresh**, concurrent dedup, Plaid-UK NotImplementedError)
-- `tests/capabilities.test.ts`: 4 (TrueLayer transactions + balance from fixtures; Plaid UK NotImplementedError for both)
+- `tests/capabilities.test.ts`: 7 (TrueLayer transactions + balance from fixtures; Plaid UK NotImplementedError for both; **listTransactionsSince 429 retry-exhaust, getAccountBalance 500 retry-exhaust, 401-forces-refresh-then-retry** — all 3 added per Codex F-R2 #2 + #3)
 
-**Total: 28 vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1).
+**Total: 31 vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1).
 
 ---
 

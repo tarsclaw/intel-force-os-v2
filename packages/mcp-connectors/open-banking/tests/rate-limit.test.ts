@@ -40,6 +40,6 @@ describe("open-banking rate-limit", () => {
     for (let i = 0; i < 25; i++) consume("truelayer", "acct-A");
     expect(check("truelayer", "acct-A").shouldBackoff).toBe(true);
     expect(check("truelayer", "acct-B").shouldBackoff).toBe(false);
-    expect(check("plaid-uk", "acct-A").shouldBackoff).toBe(false);
+    expect(check("plaid_uk", "acct-A").shouldBackoff).toBe(false);
   });
 });

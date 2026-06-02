@@ -127,7 +127,7 @@ export async function refreshTokens(
     );
   }
 
-  if (config.provider === "plaid-uk") {
+  if (config.provider === "plaid_uk") {
     throw new NotImplementedError(
       "Plaid UK OAuth refresh not yet implemented (v1.1+ deferred per Cash Conductor §9 Q2; v1.0 path is TrueLayer)",
     );
