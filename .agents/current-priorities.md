@@ -12,10 +12,11 @@
 7. Sourcing Scout v1.0 caveat for Proxycurl→NinjaPear shutdown (LinkedIn deep-data deferred to v1.1+; v1.0 = 3 active sources)
 8. Bridge product hygiene: `bullhorn_activity_log_write` action_type registered; 7 real bugs caught + fixed across the Codex arc
 
-**W5 readiness:**
-- ✅ Tree clean (will verify at Phase 2 smoke)
+**W5 readiness (verified 2026-06-02 W4 polish smoke):**
+- ✅ Tree clean; 134/134 vitest across 6 MCP packages; 6/6 typecheck CLEAN; shellcheck CLEAN; 9/9 YAML parse; 0 boundary violations
 - ✅ Disagreement docs in tree; build progress unblocked
-- ✅ Decision-log + risk register caught up
+- ✅ Decision-log + risk register + Sourcing Scout caveat + Bullhorn-path RESOLVED row all caught up
+- ⏸ Tenancy audit deferred to founder (needs ifos_app Postgres password; non-blocking — W4 polish edits were additive-only on schema-touching surfaces; bash scripts/run-tenancy-audit.sh when you have the password)
 - ⏸ Bullhorn dev-support reply pending (2-5 days; gates Janitor W5 build)
 - ⏸ Q1 LOI with Jack pending (gates Trigger 1 fire 2026-06-03)
 - ⏸ Email infra hardening (DKIM/DMARC/external test/secondary gmail; founder-paced; not blocking)
