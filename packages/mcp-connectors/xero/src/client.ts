@@ -131,11 +131,36 @@ export class XeroClient {
         return (await res.json()) as T;
       }
 
-      // 401: token bad — force a refresh next iteration
+      // 401: server invalidated the access_token — force an explicit refresh
+      // BEFORE the next iteration. Per Codex F-R2 issue #1 (xero): nulling the
+      // cached token alone is insufficient — getValidAccessToken() will reload
+      // the SAME stale token from disk if shouldRefresh() says it's not near
+      // expiry (the access_token's epoch-expiry is unaffected by server-side
+      // revocation). Rotate it now; persist the new bundle; let the next
+      // iteration pick up the rotated token.
       if (res.status === 401 && attempt < max_retries) {
-        this.current_tokens = null;
+        if (this.current_tokens) {
+          // Throws XeroAuthError on refresh failure → propagates correctly.
+          this.current_tokens = await refreshTokens(
+            this.opts.config,
+            this.current_tokens,
+            this.fetchFn,
+          );
+        } else {
+          // No cached tokens — let getValidAccessToken() either load fresh
+          // from disk or throw the canonical "no tokens; bootstrap required"
+          // XeroAuthError on the next iteration.
+        }
         await sleep(backoff(attempt));
         continue;
+      }
+      // 401 after retries exhausted: surface as AUTH-typed error so the
+      // consumer's branch logic maps to ESC_ACCOUNTING_AUTH correctly.
+      if (res.status === 401) {
+        throw new XeroAuthError(
+          `Xero ${method} ${path} returned 401 after ${attempt + 1} attempt(s) including forced refresh`,
+          401,
+        );
       }
 
       // 429: rate-limited; honour Retry-After then retry (GET only)

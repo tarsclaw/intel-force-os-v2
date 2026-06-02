@@ -178,4 +178,47 @@ describe("xero capabilities — payments", () => {
     ).rejects.toBeInstanceOf(XeroError);
     expect(calls).toBeGreaterThanOrEqual(2); // initial + retries per max_retries=2
   });
+
+  // 401-forces-refresh: per Codex F-R2 issue #1, a 401 on a GET MUST trigger
+  // an explicit refreshTokens() call before retrying — NOT just null the cache
+  // (which would reload the same stale token from disk if shouldRefresh()
+  // returns false). This test would FAIL against the pre-fix code: the second
+  // GET would use the same access_token and the 401 loop would never break.
+  it("401 on GET forces explicit token refresh + retry uses new access_token", async () => {
+    let getCalls = 0;
+    let refreshCalls = 0;
+    let observedSecondAuth: string | null = null;
+
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : (input as URL).toString();
+      if (url.includes("identity.xero.com/connect/token")) {
+        refreshCalls += 1;
+        return new Response(
+          JSON.stringify({
+            access_token: "rotated-access-token-after-401",
+            refresh_token: "rotated-refresh-token",
+            expires_in: 1800,
+            scope: "accounting.transactions offline_access",
+            token_type: "Bearer",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      // Invoice GET path
+      getCalls += 1;
+      if (getCalls === 1) {
+        return new Response("", { status: 401 });
+      }
+      observedSecondAuth = (init?.headers as Record<string, string>)?.["Authorization"] ?? null;
+      return makeOkResponse(INVOICES_PAGE_1);
+    };
+
+    const client = new XeroClient({ config: makeConfig(), fetchFn: fakeFetch });
+    const invoices = await listOpenInvoices(client, { cache, no_cache: true });
+
+    expect(invoices.length).toBe(2);
+    expect(getCalls).toBe(2); // initial 401 + retry
+    expect(refreshCalls).toBe(1); // forced refresh between attempts
+    expect(observedSecondAuth).toBe("Bearer rotated-access-token-after-401");
+  });
 });
