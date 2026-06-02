@@ -2,7 +2,11 @@
 # Concierge agent — context.sh (pre-cycle hydration; W4 Day-26 SKELETON)
 #
 # Status: Proposed (W4 Day-26 SKELETON; W10-13 build slice replaces stubs
-#         with real provider config + tenant_adapters reads).
+#         with real provider config + tenant_adapters reads — GATED on the
+#         v0.4 schema supplement landing FIRST per Codex Fbis-R3 closure +
+#         D1-B decision-doc §Implementation surface item 5; today's SKELETON
+#         reads via env-var fallback, NOT tenant_adapters, so no schema
+#         violation at runtime).
 # Reading order: agent.md §2 (invocation surface) + §4 Step 0 (session start)
 # + §7 (voice + tone constraints) first.
 #
@@ -78,7 +82,12 @@ source "${_SHARED_DIR}/hook-helpers.sh"
 # Step 1 — Email channel resolution (MS Graph OR Gmail per tenant)
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W10-13): SELECT config->>'email_channel' FROM tenant_adapters WHERE tenant_slug=$1
+# TODO(W10-13): land v0.4 schema supplement adding `email_channel` to the
+# `tenant_adapters.config` allowlist (currently not in v0.3 allowlist;
+# validate_tenant_adapters_config_v0_3 trigger would hard-fail an unknown-key
+# SELECT). THEN: SELECT config->>'email_channel' FROM tenant_adapters
+# WHERE tenant_slug=$1. Until v0.4 lands, the env-var fallback is the
+# ONLY supported path (no tenant_adapters read attempted at runtime).
 # Default: microsoft-graph (most common in UK recruitment per CSM survey).
 export CTX_EMAIL_CHANNEL="${IFOS_FORCE_EMAIL_CHANNEL:-microsoft-graph}"
 
@@ -115,9 +124,14 @@ export CTX_COMMS_TEMPLATE_LIBRARY_PATH="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-v
 # Step 5 — Operator routing (Telegram chat ID for autosend-bridge per D1-B)
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W10-13): SELECT config->>'operator_telegram_chat_id' FROM tenant_adapters
-# WHERE tenant_slug=$1 (per D1-B doc §"Implementation surface" item 5 — already
-# supported by existing Telegram surface; no new schema needed).
+# TODO(W10-13): land v0.4 schema supplement adding `operator_telegram_chat_id`
+# to the `tenant_adapters.config` allowlist (currently NOT in v0.3 allowlist
+# per D1-B decision-doc §Implementation surface item 5; validate_tenant_adapters_config_v0_3
+# would hard-fail). THEN: SELECT config->>'operator_telegram_chat_id' FROM
+# tenant_adapters WHERE tenant_slug=$1. Until v0.4 lands, the env-var fallback
+# is the ONLY supported path (no tenant_adapters read attempted at runtime).
+# The autosend-bridge package consumes this CTX_* var as a function argument
+# (per package README §Dependency injection), NOT via tenant_adapters read.
 export CTX_OPERATOR_TELEGRAM_CHAT_ID="${IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID:-STUB}"
 
 # ────────────────────────────────────────────────────────────────────────

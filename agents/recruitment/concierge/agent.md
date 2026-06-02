@@ -1,7 +1,9 @@
 # Concierge — no candidate ghosted
 
 **Status:** Proposed.
-**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R4 closed yellow draft tier + Step 7 decision-log + ULTRAPLAN line citation cleanup. R19 fixes (2026-05-24): `concierge_approval_routed` action_type registered in autosend-policy.yaml, Gate B 90% citation corrected to ADR-007 (was incorrectly attributed to ULTRAPLAN A6 line 567), voice threshold position-specific Gate A enforcement. ADR-007 (Concierge Gate A 30-min SLA hybrid) **Accepted 2026-05-31 (founder-arbitrated) + Codex RATIFIED at Round 3** — the agent.md Status-flip blocker on the ADR side is now CLOSED. Remaining Proposed → Accepted blockers: Q1 LOI + Bullhorn Sub-decisions A+B + Microsoft Graph / Gmail per-tenant signup + Founder Decision D1 autosend orange-tier path + W10 build slice (see §10).
+**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R4 closed yellow draft tier + Step 7 decision-log + ULTRAPLAN line citation cleanup. R19 fixes (2026-05-24): `concierge_approval_routed` action_type registered in autosend-policy.yaml, Gate B 90% citation corrected to ADR-007 (was incorrectly attributed to ULTRAPLAN A6 line 567), voice threshold position-specific Gate A enforcement. ADR-007 (Concierge Gate A 30-min SLA hybrid) **Accepted 2026-05-31 (founder-arbitrated) + Codex RATIFIED at Round 3** — the agent.md Status-flip blocker on the ADR side is now CLOSED. **Founder Decision D1 ACCEPTED 2026-05-31** as D1-B (Telegram approval-shim per `docs/decisions/2026-05-31-d1-founder-decision.md`); `@ifos/autosend-bridge-telegram` package scaffold landed 2026-06-01 (commit `9b282d8`); Concierge consumer wiring landed (commits `669a4f4` + `9ec2bd6`). Remaining Proposed → Accepted blockers: Q1 LOI + Bullhorn Sub-decisions A+B + Microsoft Graph / Gmail per-tenant signup + W10-13 build slice landing the autosend-bridge production wiring (Telegram Bot API + postgres approvals reader) + v0.4 schema supplement adding `operator_telegram_chat_id` + `email_channel` to the `tenant_adapters.config` allowlist (per D1-B decision-doc §Implementation surface item 5) — see §10.
+
+**Reading-discipline note (added 2026-06-02 per Codex Fbis-R3 closure):** this `agent.md` is the **CONTRACT** that the W10-13 build slice implements against. The 6 sibling bundle files (`cycle.sh` + `validate.sh` + `context.sh` + `cleanup.sh` + `tools.yaml`) + 3 fixtures EXIST AS SCAFFOLD (landed across commits `669a4f4` + `9ec2bd6` + `524bac6` + `8ba3723` + `eb1f884` per Day-26 evening + R-round closures); they carry `TODO(W10-13)` markers throughout that the W10-13 build slice replaces with live implementation matching the contract below. **Audit-row signatures + workflow steps documented below describe the CONTRACT shape; current SKELETON cycle.sh emits only minimal trigger/output markers — the yellow-tier + orange-tier audit rows the contract names are NOT yet emitted at runtime.** The SKELETON `context.sh` uses **env-var fallbacks** today (`IFOS_FORCE_EMAIL_CHANNEL`, `IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID`) — the `TODO(W10-13)` markers documenting future `tenant_adapters.config` reads are gated on a v0.4 schema supplement landing FIRST (those keys are NOT in the v0.3 allowlist; the validator would hard-fail). Don't read agent.md as a description of running code; read it as the spec the W10-13 build slice implements after the v0.4 supplement lands.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W10-13 per master brief §8.2 line 600 + ULTRAPLAN §8.1 A6 line 559 (master brief says W10-13 = 4 weeks; ULTRAPLAN says W9-10 = 2 weeks; master brief authoritative — the XL complexity flag in ULTRAPLAN A6 line 568 corroborates the 4-week duration).
@@ -140,15 +142,26 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
      "<entity_type>:<bullhorn_id>", "<from>→<to>")
 
 2. Anti-duplicate guard
-   → query decision_log for prior `concierge_email_draft` row for same
-     (candidate_id, payload.event_type) in last 24h with phase IN
-     ('output', 'action') — if a prior draft was emitted AND either sent OR
-     is still pending consultant action, the new event is a duplicate trigger
-   → if found AND send-completed: skip (true duplicate)
-   → if found BUT prior draft never sent (no `gmail_outlook_send_to_candidate`
-     follow-up action row): allow the new draft attempt (per Q7 disposition)
-   → hh_decision_output("anti_duplicate_check", "<entity_type>:<bullhorn_id>",
-     "<duplicate_status>")
+   → `concierge_email_draft` is the yellow-tier action_type used at Step 8;
+     its target field per `hh_decision_action(action_type, target, ...)` is
+     `candidate:<bullhorn_id>:<event_type>` (the event_type is encoded into
+     the target string, not stored as a structured payload field — payload
+     jsonb only carries what the autosend helper layer emits, not
+     structured per-event metadata).
+   → query: SELECT 1 FROM decision_log WHERE agent_name='concierge'
+     AND action_type='concierge_email_draft'
+     AND target LIKE 'candidate:<bullhorn_id>:<event_type>'
+     AND phase IN ('action','gating_failed')
+     AND created_at > now() - interval '24 hours'
+   → if found AND any subsequent `gmail_outlook_send_to_candidate` action
+     row exists for the same candidate target in same window: skip (true
+     duplicate — already sent)
+   → if found BUT no `gmail_outlook_send_to_candidate` follow-up: allow
+     the new draft attempt (per Q7 disposition)
+   → hh_decision_output("anti_duplicate_check", "candidate:<bullhorn_id>:<event_type>",
+     "duplicate_status:<found|fresh>; prior_send_completed:<true|false>")
+     — note artefact_ref carries the candidate+event composite (matches the
+     query LIKE pattern); reason carries the status outcome.
 
 3. Bullhorn context fetch
    → bullhorn.get_candidate(candidate_id) → name, current state, comms history
@@ -196,7 +209,11 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
    → output = email body + subject + recommended_send_time
    → write to /vault/<tenant>/concierge-drafts/<draft_id>.md
    → hh_decision_output("concierge_draft_rendered",
-     "candidate:<bullhorn_id>:<event_type>", "vault_path:<path>; voice_score:<N>; words:<N>")
+     "/vault/<tenant>/concierge-drafts/<draft_id>.md",
+     "candidate:<bullhorn_id>:<event_type>; voice_score:<N>; words:<N>")
+     — per §3 line 105: vault path is the canonical artefact_ref (the
+     second hh_decision_output argument); the candidate+event composite
+     and voice metadata ride the reason string parameter.
    → ESC_VOICE_DRIFT if classifier score below the escalation_position-specific
      threshold (position 1 ≥0.75; position 2 ≥0.78; position 3 ≥0.82 per Step 8)
      after 3 retries — the position is set in Step 6 and is the per-draft Gate A
@@ -234,7 +251,7 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
      "result:passed")
 
 11. Autosend-bridge routing (D1 path)
-    → per Founder Decision D1 (final selection at W10 design):
+    → per Founder Decision D1 (selected 2026-05-31 as D1-B — Telegram shim per `docs/decisions/2026-05-31-d1-founder-decision.md`; v1.1+ upgrade path to D1-A queued):
       D1-A (bridge to cortextOS approval system): POST internal API
       D1-B (lightweight Telegram shim): send approval prompt to operator
       D1-C (no autosend in v1.0): draft to vault for manual consultant pickup
@@ -310,7 +327,7 @@ Gate A failures fire ESC codes per their catalogue-defined severity (do NOT conf
 
 ALL FOUR cause Gate A to block the draft from sending (validate.sh exits non-zero; draft stays in vault; cycle.sh aborts the orange-tier emission). The "blocking" of the DRAFT is `validate.sh` behavior; the "blocking" severity of the ESC code is the operator-paging-urgency lookup. These are separate dimensions. Draft is moved to `/tmp` (out of the customer-facing path) regardless of ESC severity; operator is notified immediately for blocking-tier ESCs, asynchronously-aggregated for warn-tier.
 
-**Honesty note (per bilateral-disposition Cat-5):** Concierge `validate.sh` does NOT exist yet — this scaffold describes the intended Gate A contract for the W10-13 build slice. The W10-13 build delivers `agents/recruitment/concierge/validate.sh` against the contract above. Current text is the spec the build slice implements against, not a description of running code.
+**Honesty note (updated 2026-06-02 per Codex Fbis-R3 closure):** `agents/recruitment/concierge/validate.sh` **EXISTS as SKELETON** (committed `524bac6` on 2026-06-01) — the 5 Gate A checks G1-G5 are defined as TODO(W10-13) markers inside the SKELETON validate.sh; the W10-13 build slice replaces the TODOs with live impl per the contract above. The §5 contract describes what validate.sh's TODOs will become; the SKELETON file structurally exists and passes shellcheck CLEAN today but does not yet enforce the checks at runtime.
 
 ### Gate B — Outcome thresholds (success metrics, not block)
 
@@ -399,7 +416,10 @@ Concierge build cannot start until ALL of the following are confirmed:
 | **Gmail / Google Workspace signup** (alternative per tenant) | Tenant onboarding | ⏸ |
 | Microsoft Graph MCP connector | W10 build start (~3 days) | ⏸ |
 | Gmail MCP connector | W10 build start (~3 days) | ⏸ |
-| **Founder Decision D1 (autosend orange-tier path)** RESOLVED | Founder decision; awaits review of D1-A/B/C spec | ⏸ |
+| **Founder Decision D1 (autosend orange-tier path) ACCEPTED 2026-05-31** as D1-B (Telegram shim) per `docs/decisions/2026-05-31-d1-founder-decision.md` | ✅ ACCEPTED |
+| **Autosend bridge package scaffold** — `@ifos/autosend-bridge-telegram` lib + types + tests landed 2026-06-01 (commit `9b282d8`); Concierge consumer wiring at cycle.sh Step 11 landed (commits `669a4f4` + `9ec2bd6`) | ✅ SCAFFOLDED (Concierge side) |
+| **Autosend bridge production wiring** — real Telegram Bot API + postgres approvals reader; this build slice (W10-13) delivers | W10-13 self | ⏸ |
+| **v0.4 schema supplement** adding `operator_telegram_chat_id` + `email_channel` to `tenant_adapters.config` allowlist (per D1-B decision-doc §Implementation surface item 5) | W10-13 self | ⏸ |
 | Autosend bridge built (per D1 outcome) | W10 build start (~2 days for D1-A; less for D1-B/C) | ⏸ |
 | Voice classifier microservice live | W4-5 polish | ⏸ |
 | Per-tenant comms-template library at `/vault/<slug>/concierge-templates/` | Tenant onboarding | ⏸ |
@@ -451,7 +471,7 @@ Per `.codex/ratification/review-agent-bundle.md` skill (built Day 19, commit `82
 Status flips Proposed → Accepted when:
 - Codex Round 4 Phase 2 ratifies
 - **✅ ADR-007 (Concierge Gate A 30-min SLA hybrid) ACCEPTED + RATIFIED** — Accepted 2026-05-31 (founder-arbitrated) + Codex RATIFIED at Round 3 per `.codex/ratification/review-architecture-decision.md` skill (commit `c862c77`). Closes the documented deviation from ULTRAPLAN A6 line 566 wording; agent.md's Gate B framing of the 30-min SLA is now the canonical disposition. This Status-flip blocker is satisfied.
-- **Founder Decision D1 RESOLVED** (Q1 above) — without this, Concierge build cannot start
+- ✅ **Founder Decision D1 ACCEPTED 2026-05-31** as D1-B (Telegram shim) per `docs/decisions/2026-05-31-d1-founder-decision.md`; package scaffold + Concierge consumer wiring landed 2026-06-01. NO LONGER a Proposed→Accepted blocker. The autosend-bridge production wiring + v0.4 schema supplement are W10-13 build-slice deliverables (Accepted→In-Force blockers, not Proposed→Accepted)
 - Founder approves §9 Q2 (lifecycle taxonomy) + Q3 (send window) + Q4 (rejection routing) + Q5 (template authoring UX) + Q6 (Gate B UX)
 - Q7-Q9 documented decisions captured
 

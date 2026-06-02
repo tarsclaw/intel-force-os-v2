@@ -30,7 +30,8 @@ invocation:
     - --tenant
     - migration-test
 
-tenant_config:
+tenant_env_overrides:  # NOT tenant_adapters reads — these populate IFOS_FORCE_EMAIL_CHANNEL + IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID env vars per context.sh fallback chain. v0.4 schema supplement is required before these can land in tenant_adapters.config.
+# Schema-before-code (per Codex Fbis-R3 closure + D1-B decision-doc §Implementation surface item 5): until v0.4 supplement adds operator_telegram_chat_id + email_channel to the tenant_adapters.config allowlist, fixtures specify these as env-var inputs (read by context.sh via env fallback) rather than postgres reads.
   email_channel: microsoft-graph
   operator_telegram_chat_id: "987654321"
   bullhorn_org_id: "10001"
