@@ -1,13 +1,25 @@
 # Current priorities
 
-**Week:** Week 4 — **Day 26 / closed FOUR TIMES (2026-06-01) — morning + afternoon + evening + evening-2 (Codex F-R1 fix bundle) autonomous /goal runs**
+**Week:** Week 4 — **CLOSED 2026-06-02 (Day 27).** W5 starts when Bullhorn dev-support reply lands (~2-5 business days from 2026-06-02 = by 2026-06-09) OR Q1 LOI with Jack lands (whichever first).
 
-**Latest:** Cluster Fbis + G HARD STOP at R4 per pre-agreed escalation rule (founder-authorized AskUserQuestion 2026-06-02). 4 rounds × ~30 issues, ~70% caused by my own piecemeal-fix discipline; predictions "this should converge" wrong 3x in a row. Single combined disagreement doc landed: `docs/decisions/codex-disagreement-2026-06-02-fbis-g-scaffold-runtime-drift.md` — covers Cash Conductor agent-bundle + Concierge agent-bundle + D1-B decision-doc with 3 structured counter-arguments (scaffold-vs-runtime-drift deferred to build slice; line-citation drift accepted as tax; cross-doc mutual-consistency is a coordination problem hand-edits don't solve). Re-trigger conditions explicit: W7-8 Cash Conductor build slice / W10-13 Concierge build slice / hardening of review-agent-bundle skill. Real-bug yield captured: 7 substantive things caught + fixed across the 4 rounds (bullhorn_activity_log_write registration, Step 15 helper signature, voice threshold completeness, anti-dup query mechanism, schema-before-code in context.sh + fixtures, false Day-4 _secrets.env claim, false FUNCTION-ARG MODE claim). 3 artefact Status lines updated to 'Proposed-with-disagreement-on-file'. **Cluster F + Fbis + G GRAND TOTAL across all 13 Codex rounds: 1 ratified (xero) + 5 proposed-with-disagreement-on-file (QB concurrent throttle, OB v1.1+ Plaid stub, Cash Conductor agent-bundle, Concierge agent-bundle, D1-B decision-doc).** Build progress unblocked — W7-8 + W10-13 build slices proceed against current SKELETON + spec state; the disagreement docs are the audit trail. Tree clean. Next: founder picks next focus area (build slice work, new feature work, commercial signups, or other backlog).
+**W4 deliverables shipped:**
+1. 3 MCP connectors scaffolded (xero/quickbooks/open-banking; 74+ vitest across the three; xero RATIFIED; QB + OB Proposed-with-disagreement-on-file per `codex-disagreement-2026-06-02-*` docs)
+2. Cash Conductor full agent-bundle at SKELETON layer (agent.md + cycle.sh + validate.sh + context.sh + cleanup.sh + tools.yaml + 3 fixtures; W7-8 build slice replaces TODOs with live impl)
+3. Concierge full agent-bundle at SKELETON layer (same shape; W10-13 build slice)
+4. `@ifos/autosend-bridge-telegram` package scaffold + consumer wiring on both CC + Concierge (23/23 vitest; injectable transport+decisions+clock; per D1-B founder decision)
+5. Codex ratification framework battle-tested across 13 rounds: 1 ratified + 5 proposed-with-disagreement-on-file; pattern codified as repeatable
+6. Bullhorn Sub-decision A RESOLVED (marketplace deferred to v1.1+; direct API per-tenant OAuth = v1.0 path; founder pivoted to dev-support route)
+7. Sourcing Scout v1.0 caveat for Proxycurl→NinjaPear shutdown (LinkedIn deep-data deferred to v1.1+; v1.0 = 3 active sources)
+8. Bridge product hygiene: `bullhorn_activity_log_write` action_type registered; 7 real bugs caught + fixed across the Codex arc
 
-
-**Today's task:** Morning (9 commits): priorities refactor + 2 MCP connectors + Cash Conductor bundle skeletons. Afternoon (3 commits): Cash Conductor bundle completion + `@ifos/autosend-bridge-telegram` scaffold + T12 grep refinement. **Evening (11 commits) per `goal-w4-day-26-afternoon-2026-06-01.md`** (the second /goal carried into evening): **Phase 1** wire bridge into Cash Conductor (tools.yaml split into propose/await + failure_modes; cycle.sh Step 10 production-shape call site as commentary; 076e231); **Phase 2** Codex manifest entries cluster Fbis + cluster G (0f1a0d1); **Phase 3** full Concierge bundle scaffold (5 commits 669a4f4→eb1f884: 14-cap tools.yaml + 15-step cycle.sh + Gate A G1-G5 validate.sh + context.sh hydration + cleanup.sh + 3 fixtures incl. rejection-voice-drift adversarial + 99-bridge-timeout-canary); **Phase 3+** Fbis extension to include Concierge (b3f4206). **Total Day-26 output: 23 commits / 0 founder gates touched / all quality gates green throughout.**
-**Active plan:** Day-26 closed (thrice). Day-27 picks up with founder-triggered Codex runs: (a) `bash scripts/run-codex-ratification.sh --cluster F` (3 MCP connectors); (b) if F RATIFIED, `--cluster Fbis` (Cash Conductor AND Concierge full agent-bundle ratifications — both 100% present at scaffold layer; review-agent-bundle skill inspects each); (c) `--cluster G` D1-B decision-doc ratification via review-architecture-decision skill. Production wiring (real Telegram Bot API + postgres approvals table; W7-8 Cash Conductor + W10-13 Concierge build slices) stays gated per respective doc §"Implementation surface" notes.
-**Most recent close:** Day 26 evening (2026-06-01 ~15:00→16:00 BST — ~1h actual vs 5h budgeted; sibling-pattern mirror + injectable-deps design + clean shellcheck/YAML gates throughout = no integration friction; Concierge bundle 5 files in ~25min; manifest extension in 1 commit). Tree clean. **Both Cash Conductor AND Concierge bundles now 100% present at scaffold layer** — W7-8 + W10-13 build slices respectively replace SKELETON TODOs with live impl.
+**W5 readiness:**
+- ✅ Tree clean (will verify at Phase 2 smoke)
+- ✅ Disagreement docs in tree; build progress unblocked
+- ✅ Decision-log + risk register caught up
+- ⏸ Bullhorn dev-support reply pending (2-5 days; gates Janitor W5 build)
+- ⏸ Q1 LOI with Jack pending (gates Trigger 1 fire 2026-06-03)
+- ⏸ Email infra hardening (DKIM/DMARC/external test/secondary gmail; founder-paced; not blocking)
+- 🟢 W5 /goal shape: Janitor agent-bundle scaffold (mirror CC + Concierge pattern) + `@ifos/bullhorn` MCP connector scaffold against the verified developer-API path
 
 ## Active founder action board (2026-06-01)
 
@@ -20,9 +32,9 @@
 | 3c | Diagnostic smoke (LLM §12 live) | ✅ **Trigger 2 CLOSED** — 634-word 12-section Hays plc report archived at `docs/artefacts/diagnostic-hays-plc-2026-06-01.md` |
 | 4 | v0.3 migration to live VPS | ✅ APPLIED via `run-v0.3-migration-as-postgres.sh`; tenancy audit 12/12 |
 | 5 | Founder Decision D1 | ✅ D1-B Telegram shim (commit `8d9acc2`) |
-| 6 | Bullhorn chase (post email-fix) | 🔴 **FIRE refreshed form** — email outage discovered 2026-06-01; original 2026-05-24 submission's replies bounced; chase template (incident-aware framing) in chat 2026-06-01 + `docs/operations/founder-manual-playbook-2026-05-31.md` §4 |
+| 6 | Bullhorn chase (post email-fix) | 🟢 **PIVOTED 2026-06-02** — marketplace form route abandoned (requires ≥2 live customers; not justified at ≤3-pilot scale; ~$5-25k/yr); Sub-decision A RESOLVED (marketplace deferred to v1.1+; direct API per-tenant OAuth = v1.0). Founder submitted dev-support enquiry at `developer.bullhorn.com` 2026-06-02 for Sub-decision B (OAuth technical details). Awaiting 2-5 business-day reply (by ~2026-06-09). |
 | 7 | Q1 LOI (Jack) | ⏸ Jack lane (on track per founder 2026-06-01); Trigger 1 fires 2026-06-03 |
-| 8 | Proxycurl signup | Deferrable — W9 Sourcing Scout gate |
+| 8 | ~~Proxycurl signup~~ | ❌ **DEFERRED to v1.1+ (2026-06-02)** — Proxycurl shut down 2025 (LinkedIn lawsuit; nubela.co/blog/goodbye-proxycurl/); NinjaPear successor doesn't carry LinkedIn data. v1.0 Sourcing Scout operates against 3 sources (Bullhorn passive-match + Reed + CV-Library), not 4. LinkedIn-vendor selection deferred to W8-9 build slice (candidates: Lix / Phantombuster / Apify / Sales Navigator). Risk 14 in RISK-REGISTER. |
 | 9 | Fathom OR Fireflies signup | Deferrable — W6 Scribe gate |
 | 10 | Xero developer account | Deferrable — gates live Cash Conductor test (fixture-first proceeds) |
 | 11 | Email infra: send test from external + verify M365 receipt | ⏸ per `docs/incidents/2026-06-01-intelforce-ai-email-outage.md` TODO §3 |
