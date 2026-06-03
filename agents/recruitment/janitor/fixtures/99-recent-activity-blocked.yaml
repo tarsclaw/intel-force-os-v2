@@ -1,0 +1,140 @@
+# Janitor fixture — 99-recent-activity-blocked
+#
+# Adversarial. Tests the BULK recent-activity defence — when ALL identified
+# dedup candidates have recent Bullhorn activity in the last 90 days, NONE
+# can auto-merge. The Step 3-4 pass discards them (per agent.md §4); the
+# review-band-via-recency pairs surface as a batch of ESC_DUPLICATE_DETECTED
+# approval requests; the day-30 report shows zero auto-merges + a Gate B miss.
+#
+# This protects the no-merge-on-recent-activity invariant per ULTRAPLAN A2
+# line 510 verbatim ("EITHER candidate has Bullhorn activity in last 90 days"
+# disqualifies). The defence is BOTH-sided: even one candidate with recent
+# activity blocks the pair. The fixture verifies the bulk-block behaviour
+# rather than the single-pair case (covered by 02-edge-case).
+#
+# Per agent.md §5: ESC_DUPLICATE_DETECTED on every pair (not Gate A failure;
+# SUCCESS-path approval gate per catalogue §2.5). cycle.sh exits 0 (no
+# blocking error — just nothing auto-wrote). ESC_GATE_B_MISS does NOT fire
+# on this single run — only after 3 consecutive runs of BOTH thresholds missed.
+#
+# Status: Proposed (W5 Day-31 SKELETON).
+
+fixture_id: 99-recent-activity-blocked
+description: Bulk recent-activity defence — 3 high-confidence pairs ALL blocked by 90d-activity check → 3× ESC_DUPLICATE_DETECTED + 0 auto-writes + Gate B missed (single run; no ESC fire)
+tenant_slug: migration-test
+agent: janitor
+expected_gate_a: PASS   # Gate A G3 rejects each proposal; not a hard exit failure
+expected_exit_code: 0   # cycle.sh completes; warn-tier ESC; report shows 0 auto-writes
+
+invocation:
+  command: ifosctl janitor
+  flags:
+    - --mode
+    - full-cleanup
+    - --tenant
+    - migration-test
+
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  janitor_dedup_threshold: 0.85
+  operator_telegram_chat_id: "operator-test-chat-id"
+
+# Three high-confidence dedup pairs, ALL with at least one candidate having
+# Bullhorn activity in the last 90 days. Per ULTRAPLAN A2 line 510 verbatim,
+# Step 3 discards every pair where EITHER candidate has recent activity.
+mocked_bullhorn:
+  candidates_scanned:
+    # Pair A — both candidates active recently
+    - id: 3001
+      firstName: "Alice"
+      lastName: "Active"
+      email: "alice.active@example.test"
+      phone: "+447700900003"
+      last_activity_days: 10
+    - id: 3002
+      firstName: "Alice"
+      lastName: "Active"
+      email: "alice.active@example.test"
+      phone: "+447700900003"
+      last_activity_days: 25
+    # Pair B — primary stale, target active
+    - id: 3003
+      firstName: "Bob"
+      lastName: "Builder"
+      email: "bob.builder@example.test"
+      phone: "+447700900004"
+      last_activity_days: 200
+    - id: 3004
+      firstName: "Bob"
+      lastName: "Builder"
+      email: "bob.builder@example.test"
+      phone: "+447700900004"
+      last_activity_days: 45
+    # Pair C — primary active, target stale
+    - id: 3005
+      firstName: "Carol"
+      lastName: "Coder"
+      email: "carol.coder@example.test"
+      phone: "+447700900005"
+      last_activity_days: 60
+    - id: 3006
+      firstName: "Carol"
+      lastName: "Coder"
+      email: "carol.coder@example.test"
+      phone: "+447700900005"
+      last_activity_days: 250
+  clients_scanned: []
+
+mocked_companies_house:
+  searches: []
+
+expected:
+  dedup_candidate_pass:
+    auto_merges: 0               # ALL blocked by G3 recent-activity check
+    review_band: 3               # all 3 pairs surface as approval requests
+    dropped: 0                   # sub-0.70 confidence would drop silently; these are ≥0.85
+  bullhorn_writes: []            # NO auto-writes
+  esc_codes_emitted:
+    - code: ESC_DUPLICATE_DETECTED
+      severity: warn
+      routing: operator_chat_id   # via Telegram approval gate
+      count: 3                    # one per blocked pair
+      payload_includes_per_pair:
+        - {primary_id: 3001, merge_target_id: 3002, review_band_reason: "both_candidates_recent_activity"}
+        - {primary_id: 3003, merge_target_id: 3004, review_band_reason: "candidate_3004_recent_activity_days:45"}
+        - {primary_id: 3005, merge_target_id: 3006, review_band_reason: "candidate_3005_recent_activity_days:60"}
+  day_30_report:
+    vault_path_pattern: "/vault/migration-test/janitor-reports/day-30-*.md"
+    sections_present: [1, 2, 3, 4, 5, 6, 7, 8]   # section 7 lists all 3 review-band pairs
+    gate_b_dedup_pct: "0"        # zero auto-merges this run
+    gate_b_completeness_pct: "0"  # zero backfills this run
+    gate_b_met: false             # SINGLE-run miss (not 3-consecutive) → no ESC_GATE_B_MISS fire per agent.md §5
+  esc_gate_b_miss_fired: false   # explicit: 3-consecutive trigger NOT activated by single-run miss
+  operator_notification:
+    tier: yellow                  # Gate B missed → yellow + 200-char executive summary
+    channel: telegram
+    chat_id: "operator-test-chat-id"
+    summary_chars: "<=200"
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: dedup_candidate_pass
+      payload_contains: "auto_merges:0; review_band:3"
+    - phase: action
+      action_type: operator_approval_request   # 3× (one per blocked pair)
+      count: 3
+    - phase: output
+      output_type: day_30_report
+      payload_contains: "gate_b_dedup_pct:0; gate_b_completeness_pct:0; gate_b_met:false"
+    - phase: action
+      action_type: operator_notify_telegram
+    - phase: action
+      action_type: janitor_run_complete
+operator_action_required: >
+  Operator reviews 3 approval requests via Telegram. For each pair, decides
+  whether to manually merge (despite recent activity — operator override) or
+  leave the duplicate. The day-30 report shows zero auto-writes this run;
+  this is EXPECTED behavior protecting the no-merge-on-recent-activity invariant.
+  If 3 consecutive nightly runs all show this pattern, ESC_GATE_B_MISS fires
+  for operator heuristic review (not a kill; tuning signal).

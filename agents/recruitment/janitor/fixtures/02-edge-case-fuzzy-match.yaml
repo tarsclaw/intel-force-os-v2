@@ -1,0 +1,100 @@
+# Janitor fixture — 02-edge-case-fuzzy-match
+#
+# Edge case. Tests the review-band dedup path per agent.md §5 + §6 — when a
+# proposed merge has high confidence (≥0.85) BUT one of the candidates has
+# Bullhorn activity in the last 90 days, validate.sh Gate A G3 REJECTS the
+# auto-write and fires ESC_DUPLICATE_DETECTED (SUCCESS-path warn — operator
+# approves via Telegram approval gate; NOT a Gate A failure code per agent.md
+# §5 + catalogue §2.5 distinction).
+#
+# Per agent.md §5: ESC_DUPLICATE_DETECTED is the SUCCESS-path approval gate
+# for two pair classes — (1) confidence 0.70-0.85 (review band by confidence)
+# AND (2) confidence ≥0.85 with recent activity (review band by recency).
+# This fixture tests class (2).
+#
+# Status: Proposed (W5 Day-31 SKELETON).
+
+fixture_id: 02-edge-case-fuzzy-match
+description: High-confidence dedup pair (0.91) with recent Bullhorn activity → ESC_DUPLICATE_DETECTED SUCCESS-path approval gate (NOT auto-write)
+tenant_slug: migration-test
+agent: janitor
+expected_gate_a: PASS   # Gate A is per-write-proposal; G3 rejects the auto-write but is not a hard exit failure
+expected_exit_code: 0   # cycle.sh continues to Step 10-11; warn-tier ESC
+
+invocation:
+  command: ifosctl janitor
+  flags:
+    - --mode
+    - full-cleanup
+    - --tenant
+    - migration-test
+
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  janitor_dedup_threshold: 0.85
+  operator_telegram_chat_id: "operator-test-chat-id"
+
+# Bullhorn scan returns one high-confidence dedup pair, but candidate 2002 has
+# recent activity (a placement in the last 30 days). validate.sh G3 will reject
+# the auto-write; the proposal goes to the operator via the Telegram approval gate.
+mocked_bullhorn:
+  candidates_scanned:
+    - id: 2001
+      firstName: "John"
+      lastName: "Smith"
+      email: "john.smith@example.test"
+      phone: "+447700900002"
+      linkedin_url: "https://linkedin.com/in/john-smith"
+      last_activity_days: 150   # outside 90d window
+      dateLastModified: 1716900000000
+    - id: 2002
+      firstName: "John"
+      lastName: "Smith"
+      email: "john.smith@example.test"
+      phone: "+447700900002"
+      linkedin_url: "https://linkedin.com/in/john-smith"
+      last_activity_days: 20    # INSIDE 90d recency window → triggers G3
+      dateLastModified: 1717800000000
+  clients_scanned: []
+
+mocked_companies_house:
+  searches: []
+
+expected:
+  dedup_candidate_pass:
+    auto_merges: 0               # G3 rejects (recent activity)
+    review_band: 1               # the John Smith pair goes to approval queue
+    dropped: 0
+  bullhorn_writes: []            # NO auto-write — operator must approve first
+  esc_codes_emitted:
+    - code: ESC_DUPLICATE_DETECTED
+      severity: warn
+      routing: operator_chat_id   # via Telegram approval gate per catalogue §2.5
+      payload_includes:
+        primary_id: 2001
+        merge_target_id: 2002
+        confidence: 0.91
+        review_band_reason: "candidate_2002_recent_activity_days:20"
+  day_30_report:
+    vault_path_pattern: "/vault/migration-test/janitor-reports/day-30-*.md"
+    sections_present: [1, 2, 3, 4, 5, 6, 7, 8]   # section 7 (Exception list) includes the review-band pair
+    gate_b_dedup_pct: "<15"      # no auto-merges → may miss Gate B (single-run; doesn't trigger ESC_GATE_B_MISS — that's 3-consecutive only)
+    gate_b_completeness_pct: ">=0"
+    gate_b_met: false            # single-run miss; tracked in report but does NOT fire ESC
+  operator_notification:
+    tier: yellow                 # Gate B missed → yellow not green
+    channel: telegram
+    chat_id: "operator-test-chat-id"
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: dedup_candidate_pass
+      payload_contains: "auto_merges:0; review_band:1"
+    - phase: action
+      action_type: operator_approval_request   # Telegram approval gate fires
+      payload_contains: "ESC_DUPLICATE_DETECTED"
+    - phase: action
+      action_type: operator_notify_telegram
+    - phase: action
+      action_type: janitor_run_complete

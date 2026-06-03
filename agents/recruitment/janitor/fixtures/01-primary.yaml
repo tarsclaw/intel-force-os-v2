@@ -1,0 +1,138 @@
+# Janitor fixture — 01-primary (happy path)
+#
+# Tests the canonical flow per agent.md §3 + §4:
+#   Bullhorn entity scan → identify a single high-confidence dedup pair
+#   (confidence 0.92; no Bullhorn activity in last 90 days) → validate.sh
+#   Gate A G1-G7 all pass → @ifos/bullhorn updateCandidate write (yellow tier
+#   bullhorn_candidate_dedupe action_type) → field completeness audit identifies
+#   one client missing client.industry → Companies House enrichment fills it
+#   (yellow tier bullhorn_field_backfill) → day-30 report assembled with
+#   both Gate B thresholds met (dedup ≥15% + completeness ≥10%) → green-tier
+#   operator notification via Telegram.
+#
+# Per agent.md §5 Gate A: all G1-G7 checks pass on every emitted write proposal.
+# Per agent.md §5 Gate B: dual-threshold (dedup ≥15% AND completeness ≥10%)
+# both met for this 30-day window.
+#
+# Status: Proposed (W5 Day-31 SKELETON; W6-7 build slice wires the real
+#         package calls + verifies fixture expectations against actual outputs).
+
+fixture_id: 01-primary
+description: Happy path — 1 dedup auto-merge (≥0.85; no recent activity) + 1 field backfill via Companies House + day-30 report Gate B met
+tenant_slug: migration-test
+agent: janitor
+expected_gate_a: PASS
+expected_exit_code: 0
+
+invocation:
+  command: ifosctl janitor
+  flags:
+    - --mode
+    - full-cleanup
+    - --tenant
+    - migration-test
+
+# Tenant config (per context.sh hydration; v0.4 supplement LIVE on VPS allows
+# bullhorn_corporation_id top-level read).
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  janitor_dedup_threshold: 0.85
+  operator_telegram_chat_id: "operator-test-chat-id"
+
+# Mocked Bullhorn scan response (Step 2 — entities modified since last run)
+mocked_bullhorn:
+  candidates_scanned:
+    - id: 1001
+      firstName: "Jane"
+      lastName: "Doe"
+      email: "jane.doe@example.test"
+      phone: "+447700900001"
+      linkedin_url: "https://linkedin.com/in/jane-doe"
+      last_activity_days: 180   # well outside 90-day recency window
+      dateLastModified: 1717000000000
+    - id: 1002
+      firstName: "Jane"
+      lastName: "Doe"
+      email: "jane.doe@example.test"
+      phone: "+447700900001"
+      linkedin_url: "https://linkedin.com/in/jane-doe"
+      last_activity_days: 200   # well outside 90-day recency window
+      dateLastModified: 1717100000000
+  clients_scanned:
+    - id: 5001
+      name: "Acme Tech Ltd"
+      industry: null              # MISSING — Companies House enrichment fills it
+      companies_house_number: null
+
+# Mocked Companies House response (Step 6 enrichment)
+mocked_companies_house:
+  searches:
+    - query: "Acme Tech Ltd"
+      result_crn: "12345678"
+      result_industry: "Technology"
+
+# Expected behaviour
+expected:
+  dedup_candidate_pass:
+    auto_merges: 1               # Jane Doe pair (1001 + 1002)
+    review_band: 0               # no 0.70-0.85 ambiguity; no recent-activity blocks
+    dropped: 0
+  dedup_contractor_pass:
+    auto_merges: 0               # no contractor entities in this fixture
+    review_band: 0
+    dropped: 0
+  field_completeness_audit:
+    missing_fields_total: 1      # client 5001 missing industry + CRN
+  companies_house_enrichment:
+    lookups: 1
+    backfilled: 1                # Acme Tech Ltd → industry filled
+    cache_hits: 0                # cold cache for this fixture
+  bullhorn_writes:
+    - action_type: bullhorn_candidate_dedupe
+      tier: yellow
+      sample_rate: 10
+      payload_includes:
+        primary_id: 1001
+        merge_target_id: 1002
+        confidence: 0.92
+    - action_type: bullhorn_field_backfill
+      tier: yellow
+      sample_rate: 10
+      payload_includes:
+        primary_id: 5001
+        field: "industry"
+        new_value: "Technology"
+        source: "companies_house"
+  day_30_report:
+    vault_path_pattern: "/vault/migration-test/janitor-reports/day-30-*.md"
+    sections_present: [1, 2, 3, 4, 5, 6, 7, 8]
+    gate_b_dedup_pct: ">=15"
+    gate_b_completeness_pct: ">=10"
+    gate_b_met: true
+  operator_notification:
+    tier: green
+    channel: telegram
+    chat_id: "operator-test-chat-id"
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: bullhorn_auth_refresh
+    - phase: output
+      output_type: mode_routed
+    - phase: output
+      output_type: bullhorn_entity_scan
+    - phase: output
+      output_type: dedup_candidate_pass
+    - phase: output
+      output_type: companies_house_enrichment
+    - phase: action
+      action_type: bullhorn_candidate_dedupe
+    - phase: action
+      action_type: bullhorn_field_backfill
+    - phase: output
+      output_type: day_30_report
+    - phase: action
+      action_type: operator_notify_telegram
+    - phase: action
+      action_type: janitor_run_complete
