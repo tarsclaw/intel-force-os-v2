@@ -1,0 +1,73 @@
+// Rate limiter for CV-Library. Per-account_id isolation; conservative
+// 60/min hard default pending W6-live verification at commercial signup
+// (CV-Library does not publish rate-limit numbers anonymously; recruiter
+// docs accessible post-signup only per 2026-06-03 WebFetch attempt).
+
+const MINUTE_MS = 60 * 1000;
+const MINUTE_HARD = 60;
+const MINUTE_SOFT = Math.floor(MINUTE_HARD * 0.8); // 48
+
+const minuteTimestamps: Map<string, number[]> = new Map();
+
+export interface RateState {
+  account_id: string;
+  minute_used: number;
+  minute_remaining: number;
+  shouldBackoff: boolean;
+  reason: "ok" | "minute-soft" | "minute-hard";
+}
+
+function pruneMinute(arr: number[] | undefined, now: number): number[] {
+  if (!arr) return [];
+  return arr.filter((ts) => now - ts < MINUTE_MS);
+}
+
+export function check(
+  account_id: string,
+  now: () => number = Date.now,
+): RateState {
+  const t = now();
+  const minute = pruneMinute(minuteTimestamps.get(account_id), t);
+  minuteTimestamps.set(account_id, minute);
+
+  const minute_used = minute.length;
+  let reason: RateState["reason"] = "ok";
+  let shouldBackoff = false;
+
+  if (minute_used >= MINUTE_HARD) {
+    reason = "minute-hard";
+    shouldBackoff = true;
+  } else if (minute_used >= MINUTE_SOFT) {
+    reason = "minute-soft";
+    shouldBackoff = true;
+  }
+
+  return {
+    account_id,
+    minute_used,
+    minute_remaining: MINUTE_HARD - minute_used,
+    shouldBackoff,
+    reason,
+  };
+}
+
+export function consume(
+  account_id: string,
+  now: () => number = Date.now,
+): boolean {
+  const state = check(account_id, now);
+  if (state.reason === "minute-hard") return false;
+  const t = now();
+  const minute = pruneMinute(minuteTimestamps.get(account_id), t);
+  minute.push(t);
+  minuteTimestamps.set(account_id, minute);
+  return true;
+}
+
+export function reset(account_id?: string): void {
+  if (account_id !== undefined) {
+    minuteTimestamps.delete(account_id);
+  } else {
+    minuteTimestamps.clear();
+  }
+}

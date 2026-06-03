@@ -1,0 +1,25 @@
+{
+  "name": "@ifos/cv-library",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IFOS CV-Library MCP connector — candidate-search surface for Sourcing Scout source #3 (W9). Auth model placeholder pending W6-live verification at commercial signup (per docs/operations/founder-api-signups-2026-06-03.md P3). v0.1.0 assumes HTTP Basic auth as the UK-job-board norm; consumer can override.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=20.0.0" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
