@@ -1,0 +1,25 @@
+{
+  "name": "@ifos/granola",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IFOS Granola MCP wrapper — typed surface over the official Granola MCP server at https://mcp.granola.ai/mcp + OAuth 2.1 PKCE token persistence + per-workspace_id rate-limit + plan-tier guard + typed errors. Used by Scribe agent (W6+) for meeting transcript ingest. Wraps the 6 official Granola MCP tools (query_granola_meetings, list_meetings, get_meetings, list_meeting_folders, get_meeting_transcript, get_account_info) adding IFOS-specific rate-limit, ESC mapping, audit, and PaidPlan-only guards on folders + transcripts.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=20.0.0" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
