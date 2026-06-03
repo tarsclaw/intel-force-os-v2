@@ -1,0 +1,157 @@
+# Sourcing Scout fixture — 99-dnc-bulk-filter
+#
+# Adversarial. Tests the bulk-DNC-filter path per agent.md §4 Step 8.
+# When a brief's natural candidate pool overlaps heavily with the tenant's
+# DNC list (e.g. the tenant has previously placed-then-fired or had bad
+# experiences with most candidates matching the brief criteria), Step 8
+# can drop most candidates. If post-DNC count drops below the 5-candidate
+# floor, Gate A G1 fails + ESC_AGENT_OUTPUT_SHAPE; the partial report goes
+# to /tmp with the DNC drops enumerated in the exception list.
+#
+# This protects against the "silently produces a tiny list because most
+# matches are DNC-blocked" failure mode — the operator gets explicit
+# visibility into WHY the list is short via the exception list + ESC fire.
+# Also tests that the DNC filter correctly matches against multiple identifier
+# types (email + phone + name) AND that the v0.3-allowlisted blocked_recipients
+# array is loaded correctly from tenant_adapters.config.
+#
+# Per agent.md §6: this is NOT ESC_DNC_FILTER_HIT (catalogue §2.10 reserved
+# for outbound send refusal). Sourcing-time DNC drops log to exception list
+# WITHOUT ESC fire per agent.md §4 Step 8 disposition. ESC_AGENT_OUTPUT_SHAPE
+# fires for the Gate A G1 floor violation.
+#
+# Status: Proposed (W5 Day-33 SKELETON).
+
+fixture_id: 99-dnc-bulk-filter
+description: 12 candidates aggregated; 9 match tenant DNC list (varied identifier types); 3 survive; Gate A G1 floor violated → ESC_AGENT_OUTPUT_SHAPE + partial report
+tenant_slug: migration-test
+agent: sourcing-scout
+expected_gate_a: FAIL   # G1 fails on count floor after DNC filter
+expected_exit_code: 1
+
+invocation:
+  command: ifosctl sourcing-scout source
+  flags:
+    - --mode
+    - cli
+    - --tenant
+    - migration-test
+    - --brief-id
+    - "12345"
+
+# Tenant has a heavy DNC list (varied identifier types — email, phone, name)
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  firm_domains: "acme.test"
+  blocked_recipients:
+    - "alice.a@example.test"           # email match
+    - "bob.b@example.test"             # email match
+    - "+447700900003"                  # phone match (Carol)
+    - "dave.d@example.test"            # email match
+    - "+447700900005"                  # phone match (Eve)
+    - "Frank Fisher"                   # name match (rare but allowed; covers candidates with no email/phone)
+    - "iris.i@example.test"            # email match
+    - "+447700900020"                  # phone match (Mia)
+    - "noah.n@example.test"            # email match
+
+mocked_bullhorn_brief:
+  id: 12345
+  title: "Senior React Engineer"
+  location: "London"
+
+# Same source pool as 01-primary (12 candidates total post-dedup; intentionally
+# overlaps heavily with the DNC list above)
+mocked_aggregate_post_dedupe:
+  total: 12
+  candidates:
+    - { ref: "bullhorn:1001", name: "Alice Anderson", email: "alice.a@example.test", phone: "+447700900001" }   # DNC: email
+    - { ref: "bullhorn:1002", name: "Bob Brown", email: "bob.b@example.test", phone: "+447700900002" }          # DNC: email
+    - { ref: "bullhorn:1003", name: "Carol Chen", email: "carol.c@example.test", phone: "+447700900003" }       # DNC: phone
+    - { ref: "bullhorn:1004", name: "Dave Davis", email: "dave.d@example.test", phone: "+447700900004" }        # DNC: email
+    - { ref: "bullhorn:1005", name: "Eve Edwards", email: "eve.e@example.test", phone: "+447700900005" }        # DNC: phone
+    - { ref: "bullhorn:1006", name: "Frank Fisher", email: "frank.f@example.test", phone: "+447700900006" }     # DNC: name
+    - { ref: "reed-001", name: "Iris Ito", email: "iris.i@example.test" }                                       # DNC: email
+    - { ref: "cv-001", name: "Mia Martinez", email: "mia.m@example.test", phone: "+447700900020" }              # DNC: phone
+    - { ref: "cv-002", name: "Noah Ng", email: "noah.n@example.test", phone: "+447700900021" }                  # DNC: email
+    - { ref: "reed-004", name: "Karen Khan", email: "karen.k@example.test" }                                    # SURVIVES
+    - { ref: "reed-005", name: "Liam Lee", email: "liam.l@example.test" }                                       # SURVIVES
+    - { ref: "cv-004", name: "Olivia O'Brien", email: "olivia.o@example.test", phone: "+447700900022" }         # SURVIVES
+
+expected:
+  aggregate_dedupe:
+    pre_dedupe: 18                # same source distribution as 01-primary
+    post_dedupe: 12
+  dnc_filter:
+    dropped: 9                    # heavy bulk drop
+    kept: 3                       # only 3 survive
+    dropped_by_identifier_type:
+      email: 5                    # Alice + Bob + Dave + Iris + Noah
+      phone: 3                    # Carol + Eve + Mia
+      name: 1                     # Frank
+  rationale_generation:
+    rationales_generated: 3       # only on surviving candidates
+    voice_pass: 3
+  validate_gate_a:
+    g1_pass: false                # 3 < 5 (FLOOR VIOLATION post-DNC)
+    g2_pass: true                 # 3 surviving have contact methods
+    g3_pass: true
+    g4_pass: true
+    g5_pass: true                 # defence-in-depth re-check; Step 8 already filtered
+    g6_pass: true
+    g7_pass: true                 # 3 sources contributed (pre-DNC)
+    overall: FAIL                 # G1 alone forces fail
+  esc_codes_emitted:
+    - code: ESC_AGENT_OUTPUT_SHAPE
+      severity: warn
+      routing: operator_chat_id
+      payload_includes:
+        gate_a_failure: g1_count_below_floor_post_dnc
+        candidate_count_post_dnc: 3
+        required_min: 5
+        dnc_drops: 9
+        dnc_drop_breakdown: { email: 5, phone: 3, name: 1 }
+  # NOTE: ESC_DNC_FILTER_HIT NOT fired — per agent.md §6 + catalogue §2.10,
+  # that code is reserved for outbound send refusal; sourcing-time DNC drops
+  # log to exception list only. W4-polish backlog: add ESC_SOURCING_DNC_FILTER
+  # for the pre-outbound case (per agent.md §4 Step 8 note).
+  vault_artefact:
+    written: false                # Gate A floor violated → no vault write
+    partial_draft_path: "/tmp/sourcing-scout-migration-test-12345-partial.md"
+    partial_draft_diagnostic_section_includes:
+      - "9 candidates filtered against tenant DNC list (Step 8)"
+      - "Breakdown: 5 email matches, 3 phone matches, 1 name match"
+      - "3 candidates survived to Step 9 rationale generation"
+      - "Gate A G1 floor (5) violated by post-DNC count (3) — partial draft only"
+  operator_notification:
+    channel: telegram
+    chat_id: "operator-test-chat-id"
+    tier: yellow
+    summary: "Sourcing Scout: heavy DNC overlap (9/12 candidates filtered against tenant DNC list); only 3 survived; Gate A floor violated; partial draft at /tmp; review tenant DNC list curation OR broaden brief criteria"
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: brief_ingested
+    - phase: output
+      output_type: aggregate_dedupe
+      payload_contains: "post_dedupe:12"
+    - phase: output
+      output_type: dnc_filter
+      payload_contains: "dropped:9; kept:3"
+    - phase: output
+      output_type: rationale_generation
+      payload_contains: "candidates_ranked:3"
+    - phase: action
+      action_type: validate_gate_a_fail
+      payload_contains: "ESC_AGENT_OUTPUT_SHAPE; g1_count_below_floor_post_dnc:3"
+    - phase: action
+      action_type: scout_run_complete
+      payload_contains: "exit_code:1; gate_a:FAIL"
+operator_action_required: >
+  Bulk DNC overlap dropped 9 of 12 candidates. Operator should (a) review
+  the tenant DNC list curation — are these genuine do-not-contact entries
+  OR stale historic blocks that need pruning?, (b) broaden the brief
+  criteria to reach a wider candidate pool less likely to overlap with
+  established DNC entries, OR (c) accept the partial 3-candidate draft if
+  those 3 are high-quality matches. Recurring bulk-DNC events for the same
+  tenant indicate DNC list hygiene needs attention.

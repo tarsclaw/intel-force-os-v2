@@ -1,0 +1,235 @@
+# Sourcing Scout agent — tools.yaml (capability declarations)
+#
+# Status: Proposed (W5 Day-33 SKELETON; W9 build slice may add per-tenant
+#         overrides + cost ceilings + per-step authz).
+# Reading order: agent.md §1 (output contract) + §2 (invocation surface) +
+#         §4 (workflow + capability dependencies) first.
+#
+# Per ADR-003 agent-bundle pattern: tools.yaml declares every external
+# capability cycle.sh invokes + the autosend-policy action_type each
+# state-changing call emits. cortextOS bus uses this to authorise capability
+# invocation per agent (no capability declared here = bus refuses the call).
+#
+# Sourcing Scout has NO state-changing capabilities — pure read + report agent.
+# All write operations are vault file creation (not gated by autosend-policy).
+# The only action_type is sourcing_scout_cleanup (green; QUEUED for W9).
+#
+# v1.0 capability set (3 active sources per agent.md §"v1.0 readiness caveat"):
+# - @ifos/bullhorn read-only (passive-match query)
+# - @ifos/reed (TODO Phase 8 — package scaffold pending in this marathon /goal)
+# - @ifos/cv-library (TODO Phase 8 — package scaffold pending)
+# - LinkedIn vendor DEFERRED to v1.1+ (Proxycurl shut down 2025;
+#   vendor selection W8-9 — Lix / Phantombuster / Apify / Sales Navigator)
+
+version: "0.1"
+agent: sourcing-scout
+
+capabilities:
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Bullhorn ATS (R only; passive-match query per agent.md §4 Step 3)
+  # Reference: bullhorn-integration-path.md §4.1 A5 (Sourcing Scout READ-ONLY
+  # — no candidate/contractor writes; shortlist artefact is the output).
+  # Schema-clean post v0.4 supplement (LIVE on VPS 2026-06-03; commit a1bbcf6).
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: bullhorn_oauth
+    package: "@ifos/bullhorn"
+    purpose: "Bullhorn two-step OAuth refresh (Step A OAuth + Step B REST login per @ifos/bullhorn src/auth.ts); per-corporation_id Promise dedup + 401-force-refresh per cluster F R4 lesson"
+    action_type: bullhorn_oauth          # green tier; QUEUED for registration at W9
+    cycle_step: 2
+    secrets_required: [BULLHORN_CLIENT_ID, BULLHORN_CLIENT_SECRET]
+    rate_limit_hint: "per-corporation_id 600/min hard / 480/min soft"
+
+  - id: bullhorn_list_candidates
+    package: "@ifos/bullhorn"
+    purpose: "Passive-match query: status='active' + dateLastModified<90d (derived 'passive' per agent.md §4 Step 3; not a vertical-schema enum value); up to 30 hits per brief"
+    cycle_step: 3
+    state_changing: false
+
+  - id: bullhorn_get_candidate
+    package: "@ifos/bullhorn"
+    purpose: "Single-candidate hydrate for rationale generation context (Step 9)"
+    cycle_step: 9
+    state_changing: false
+
+  - id: bullhorn_get_brief
+    package: "@ifos/bullhorn"
+    purpose: "Brief entity hydrate when invoked via --brief-id (Step 1); v1.0 LIMITATION: @ifos/bullhorn v0.1.0 doesn't yet export getBrief — W9 build slice adds OR uses an alternative endpoint"
+    cycle_step: 1
+    state_changing: false
+    # TODO(W9): add getBrief to @ifos/bullhorn OR use the JobOrder endpoint
+    # directly via BullhornClient.request() — Brief = JobOrder in Bullhorn terms.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Reed.co.uk recruiter API (TODO Phase 8 — @ifos/reed package scaffold pending)
+  # Reference: agent.md §4 Step 5. v1.0 source #2; W6+ commercial signup
+  # required (per founder-api-signups-2026-06-03.md P2).
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: reed_oauth
+    package: "@ifos/reed"
+    purpose: "Reed.co.uk recruiter API auth refresh (TODO Phase 8 — verify model OAuth vs API-key via WebFetch reed.co.uk dev docs FIRST)"
+    action_type: reed_oauth      # green tier; QUEUED for registration at W9
+    cycle_step: 2
+    secrets_required: [REED_API_KEY]   # placeholder — actual secret name from Phase 8 verification
+    rate_limit_hint: "TBD per Phase 8 WebFetch reed.co.uk dev docs"
+    package_status: scaffold_pending_phase_8
+
+  - id: reed_search_candidates
+    package: "@ifos/reed"
+    purpose: "Reed candidate search by brief dimensions (location + salary band + role); up to 30 hits per brief (TODO Phase 8)"
+    cycle_step: 5
+    state_changing: false
+    package_status: scaffold_pending_phase_8
+
+  # ────────────────────────────────────────────────────────────────────────
+  # CV-Library API (TODO Phase 8 — @ifos/cv-library package scaffold pending)
+  # Reference: agent.md §4 Step 6. v1.0 source #3; W6+ commercial signup
+  # required (per founder-api-signups-2026-06-03.md P3).
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: cvlibrary_oauth
+    package: "@ifos/cv-library"
+    purpose: "CV-Library API auth refresh (TODO Phase 8 — verify model OAuth vs API-key via WebFetch cv-library.co.uk dev docs FIRST)"
+    action_type: cvlibrary_oauth   # green tier; QUEUED for registration at W9
+    cycle_step: 2
+    secrets_required: [CVLIBRARY_API_KEY]   # placeholder per Phase 8 verification
+    rate_limit_hint: "TBD per Phase 8 WebFetch cv-library.co.uk dev docs"
+    package_status: scaffold_pending_phase_8
+
+  - id: cvlibrary_search_candidates
+    package: "@ifos/cv-library"
+    purpose: "CV-Library candidate search by brief dimensions; up to 30 hits per brief (TODO Phase 8)"
+    cycle_step: 6
+    state_changing: false
+    package_status: scaffold_pending_phase_8
+
+  # ────────────────────────────────────────────────────────────────────────
+  # LinkedIn — NO-OP at v1.0
+  # Reference: agent.md §"v1.0 readiness caveat — LinkedIn deep-data vendor"
+  # lines 6-8. Proxycurl shut down 2025; NinjaPear doesn't carry LinkedIn
+  # data. v1.1+ vendor selection W8-9 (Lix / Phantombuster / Apify / Sales
+  # Navigator). No capability declaration at v1.0 — cycle.sh Step 4 is an
+  # explicit no-op audit row.
+  # ────────────────────────────────────────────────────────────────────────
+
+  # NOTE: linkedin_* capabilities deliberately NOT declared at v1.0. cycle.sh
+  # Step 4 emits "linkedin_search_skipped" audit row instead. v1.1+ supplement
+  # adds the chosen vendor's capability set when commercial signup + MCP
+  # package land.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Voice classifier (Step 9 per-candidate rationale voice scoring)
+  # Reference: agent.md §7; _shared/voice-loader.sh + hh_load_tone_rules.
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: voice_classifier
+    package: "@ifos/voice-classifier"   # W4-5 polish microservice (per agent.md §8 build deps)
+    purpose: "Score per-candidate rationale against tenant voice corpus (≥0.75 required by Gate A G4); ESC_VOICE_DRIFT below threshold after 3 retries; per-run only (aggregate _TENANT is canary cron territory per agent.md §7)"
+    cycle_step: 9
+    state_changing: false
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Operator notification (Telegram OR Brain UI in-app)
+  # Reference: agent.md §4 Step 11; per-invocation-source notification.
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: telegram_notify
+    package: "@ifos/telegram"
+    purpose: "Operator-channel Telegram notifications (NOT customer-facing; green tier) — Step 11 sourcing report completion notification when invoked via Telegram mode; Brain UI mode uses internal API instead"
+    action_type: operator_notify_telegram  # green tier; REGISTERED in autosend-policy.yaml
+    cycle_step: 11
+    state_changing: false
+    secrets_required: [TELEGRAM_BOT_TOKEN]
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Cleanup (cleanup.sh)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: sourcing_scout_cleanup
+    purpose: "Post-run cleanup (transient @ifos/{bullhorn,reed,cv-library} cache purge + /tmp draft purge)"
+    action_type: sourcing_scout_cleanup   # green tier; QUEUED for registration at W9
+    state_changing: false
+    cycle_step: 11
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Failure-modes table (per cluster Fbis pattern; ESC mapping per agent.md §6)
+# ──────────────────────────────────────────────────────────────────────────────
+
+failure_modes:
+
+  - condition: "@ifos/bullhorn OAuth refresh fails after 2 retries (cycle.sh Step 2)"
+    surface: "BullhornAuthError thrown by @ifos/bullhorn"
+    escalation: ESC_BULLHORN_AUTH    # blocking per catalogue §2.3 — but Sourcing-Scout-specific degraded mode = skip Bullhorn source + continue with Reed + CV-Library (NOT exit 1)
+
+  - condition: "@ifos/reed OAuth/API-key auth fails (cycle.sh Step 2)"
+    surface: "ReedAuthError (TODO Phase 8 — exact error class per package scaffold)"
+    escalation: ESC_REED_AUTH        # blocking per catalogue §2.7 — Sourcing-Scout degraded mode = cached Reed search only (effectively skip Reed if no warm cache)
+
+  - condition: "@ifos/cv-library OAuth/API-key auth fails (cycle.sh Step 2)"
+    surface: "CVLibraryAuthError (TODO Phase 8 — exact error class per package scaffold)"
+    escalation: ESC_CVLIBRARY_AUTH   # blocking per catalogue §2.7 — same degraded-mode pattern as Reed
+
+  - condition: "Multiple sources in degraded mode AND remaining live can't produce ≥5 candidates (cycle.sh Step 2 + Step 10)"
+    surface: "validate.sh G1 fail with ESC_AGENT_OUTPUT_SHAPE"
+    escalation: ESC_AGENT_OUTPUT_SHAPE   # warn; Gate A floor violated
+
+  - condition: "Bullhorn / Reed / CV-Library returns 429 (cycle.sh Steps 3/5/6)"
+    surface: "*RateLimitError thrown by per-package client"
+    escalation: ESC_RATE_LIMIT_HIT       # warn; operator_chat_id; payload.upstream identifies bullhorn / reed / cv-library
+
+  - condition: "LLM brief parse yields <3 key dimensions (cycle.sh Step 1)"
+    surface: "Brief decoder returns insufficient dimensions"
+    escalation: ESC_BRIEF_AMBIGUITY      # warn per catalogue §2.5; operator_chat_id
+
+  - condition: "Per-candidate rationale voice classifier <0.75 after 3 retries (cycle.sh Step 9)"
+    surface: "Candidate dropped from final list + flagged in exception list"
+    escalation: ESC_VOICE_DRIFT          # warn per catalogue lines 120-125; operator_chat_id
+
+  - condition: "PII detected outside firm boundary in any rationale (validate.sh G6)"
+    surface: "validate.sh exit 1 with G6 failure"
+    escalation: ESC_PII_LEAKAGE_RISK     # blocking per catalogue §2.5; operator + ifos_oncall_chat_id
+
+  - condition: "Candidate count not in [5, 15] OR missing contact method OR rationale <50 words OR DNC match OR no source contributed (validate.sh G1+G2+G3+G5+G7)"
+    surface: "validate.sh exit 1 with output-shape failure"
+    escalation: ESC_AGENT_OUTPUT_SHAPE   # warn per catalogue line 184; operator_chat_id
+
+  - condition: "Below 6-of-10 advance rate for 30 consecutive days (monthly aggregate)"
+    surface: "monthly metrics roll-up; consultant feedback Telegram path"
+    escalation: ESC_GATE_B_MISS          # warn per catalogue routing; operator_chat_id; likely ranking heuristic drift OR source-mix imbalance
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Action-type registration status (cross-reference autosend-policy.yaml)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Already REGISTERED in agents/_shared/autosend-policy.yaml:
+#   operator_notify_telegram        green
+#
+# QUEUED for registration at W9 build start:
+#   bullhorn_oauth                  green
+#   reed_oauth                      green
+#   cvlibrary_oauth                 green
+#   sourcing_scout_cleanup          green
+#
+# NOTE: Sourcing Scout has NO yellow- or orange- or red-tier action_types.
+# Pure read + report agent; outputs go to vault Markdown only. No autosend
+# of customer-facing comms; no Bullhorn writes. Per agent.md §6: "ESC_AUTOSEND_*
+# explicitly NOT used — no auto-send actions; pure read + report."
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Boundary check (per master brief §3 + review-mcp-connector.md §8)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# - No Composio / AgentMail references anywhere in this file.
+# - All packages declared are @ifos/* — no third-party adapters with policy
+#   semantics smuggled in via tools.yaml.
+# - Action types all map to autosend-policy.yaml tiers (or explicitly QUEUED
+#   above for W9 build-start registration).
+# - Capability ID set = @ifos/bullhorn READ subset per integration-path
+#   §4.1 A5 (Sourcing Scout READ-ONLY on Bullhorn; shortlist artefact is the
+#   output, NOT a Bullhorn candidate write) + @ifos/reed + @ifos/cv-library
+#   declared with package_status:scaffold_pending_phase_8 (Phase 8 of this
+#   marathon /goal scaffolds those packages).
+# - LinkedIn capabilities deliberately NOT declared at v1.0 per Proxycurl
+#   shutdown caveat; v1.1+ supplement adds when vendor selection lands.

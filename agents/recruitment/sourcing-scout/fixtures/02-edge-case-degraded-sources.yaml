@@ -1,0 +1,177 @@
+# Sourcing Scout fixture — 02-edge-case-degraded-sources
+#
+# Edge case. Tests the multi-source degraded-mode path per agent.md §4 Step 2
+# catalogue interpretation. When TWO sources are in degraded mode (Bullhorn
+# auth failed + Reed quota hit) and the remaining live source (CV-Library)
+# CAN'T produce ≥5 candidates alone, Gate A G1 (count [5, 15]) AND G7 (at
+# least one source contributed) BOTH compute — G7 passes (CV-Library did
+# contribute) but G1 fails (only 3 candidates), so the run produces a
+# partial report with explicit degradation notes + Gate A floor violated.
+#
+# This protects against silent "all-source-failure produces empty report"
+# behaviour — the degradation notes are mandatory at Step 2; Gate A G1
+# catches the under-floor case.
+#
+# Per agent.md §6: ESC_BULLHORN_AUTH is "blocking" in the catalogue but
+# Sourcing-Scout-specific interpretation (per agent.md §4 Step 2) = degraded
+# mode + continue with remaining sources (NOT exit 1 like Janitor).
+# ESC_RATE_LIMIT_HIT on Reed quota = warn-tier + degraded mode for that source.
+# ESC_AGENT_OUTPUT_SHAPE fires on the Gate A G1 floor violation; warn-tier.
+#
+# Status: Proposed (W5 Day-33 SKELETON).
+
+fixture_id: 02-edge-case-degraded-sources
+description: Bullhorn auth fail + Reed 429 → 2 sources degraded; CV-Library returns 3 candidates; Gate A G1 floor violated (3 < 5); partial report + ESC_AGENT_OUTPUT_SHAPE
+tenant_slug: migration-test
+agent: sourcing-scout
+expected_gate_a: FAIL   # G1 fails on candidate count floor
+expected_exit_code: 1   # warn-tier ESC but Gate A floor = exit 1 per agent.md §5
+
+invocation:
+  command: ifosctl sourcing-scout source
+  flags:
+    - --mode
+    - cli
+    - --tenant
+    - migration-test
+    - --description
+    - "Senior React Engineer, London, £100k"
+
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  firm_domains: "acme.test"
+  blocked_recipients: []
+
+# Mocked brief parse (Step 1; from --description free-text)
+mocked_brief_parsed:
+  key_dims_extracted: 4   # role + location + salary + (implicit role_type)
+  role: "Senior React Engineer"
+  location: "London"
+  salary_min: 100000
+
+# Mocked source auth refresh (Step 2; mixed outcomes)
+mocked_auth_refresh:
+  bullhorn: { state: "failed", esc: "ESC_BULLHORN_AUTH", severity: "blocking", degraded_mode: "skip_bullhorn_source" }
+  reed: { state: "fresh", esc: null }
+  cvlibrary: { state: "fresh", esc: null }
+
+# Step 3 NOT executed (Bullhorn skipped due to auth failure)
+mocked_bullhorn_passive_search: null
+
+# Step 4 NO-OP (v1.0 caveat; unchanged)
+
+# Step 5 Reed query - 429 quota hit; degraded mode = cached only; cold cache → 0 results
+mocked_reed_search:
+  status_code: 429
+  esc: "ESC_RATE_LIMIT_HIT"
+  payload_upstream: "reed"
+  degraded_mode: "cached_only"
+  cache_hits: 0
+  candidates: []
+
+# Step 6 CV-Library returns 3 candidates (below 5-floor when combined with 0 from other sources)
+mocked_cvlibrary_search:
+  total: 3
+  candidates:
+    - { cvlibrary_id: "cv-001", name: "Mia Martinez", email: "mia.m@example.test", phone: "+447700900020" }
+    - { cvlibrary_id: "cv-002", name: "Noah Ng", email: "noah.n@example.test", phone: "+447700900021" }
+    - { cvlibrary_id: "cv-003", name: "Olivia O'Brien", email: "olivia.o@example.test", phone: "+447700900022" }
+
+# Step 9 rationale generation runs on 3 candidates (all pass voice)
+mocked_rationale_generation:
+  candidates_with_voice_above_threshold: 3
+  candidates_voice_dropped: 0
+
+expected:
+  source_queries:
+    bullhorn: { queried: false, reason: "auth_failed_degraded_mode" }
+    linkedin: { queried: false, reason: "v1.0_no_op_per_proxycurl_shutdown" }
+    reed: { queried: true, returned: 0, reason: "429_quota_hit_cached_only_cold_cache" }
+    cvlibrary: { queried: true, returned: 3 }
+  aggregate_dedupe:
+    pre_dedupe: 3
+    post_dedupe: 3
+    cross_source_provenance: []   # only 1 live source contributed
+  dnc_filter:
+    dropped: 0
+    kept: 3
+  rationale_generation:
+    rationales_generated: 3
+    voice_pass: 3
+  validate_gate_a:
+    g1_pass: false               # 3 < 5 (FLOOR VIOLATION)
+    g2_pass: true                # all 3 have contact methods
+    g3_pass: true
+    g4_pass: true
+    g5_pass: true
+    g6_pass: true
+    g7_pass: true                # CV-Library DID contribute (1 source); G7 separate from G1
+    overall: FAIL                # G1 alone forces fail
+  esc_codes_emitted:
+    - code: ESC_BULLHORN_AUTH
+      severity: blocking
+      routing: [operator_chat_id, ifos_oncall_chat_id]
+      sourcing_scout_interpretation: degraded_mode_skip_source
+      payload_includes: { tenant: "migration-test", corporation_id: "9876" }
+    - code: ESC_RATE_LIMIT_HIT
+      severity: warn
+      routing: operator_chat_id
+      payload_includes: { upstream: "reed", brief_slug: "<derived-from-description>" }
+    - code: ESC_AGENT_OUTPUT_SHAPE
+      severity: warn
+      routing: operator_chat_id
+      payload_includes:
+        gate_a_failure: g1_count_below_floor
+        candidate_count: 3
+        required_min: 5
+        sources_degraded: ["bullhorn", "reed"]
+  vault_artefact:
+    written: false              # Gate A floor violated → no vault write
+    partial_draft_path: "/tmp/sourcing-scout-migration-test-<slug>-partial.md"
+    partial_draft_includes_degradation_notes: true
+  operator_notification:
+    channel: telegram
+    chat_id: "operator-test-chat-id"
+    tier: yellow                # Gate A failure → yellow not green
+    summary: "Sourcing Scout: 2 sources degraded (Bullhorn auth fail; Reed quota); only 3 candidates from CV-Library; below 5-floor; partial draft at /tmp; operator review required"
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: brief_ingested
+    - phase: output
+      output_type: auth_refresh_complete
+      payload_contains: "sources_active:1; degraded:bullhorn,reed"
+    - phase: action
+      action_type: validate_gate_a_fail   # Step 2 emits per ESC_BULLHORN_AUTH catalogue routing
+      payload_contains: "ESC_BULLHORN_AUTH; degraded_mode:skip_bullhorn_source"
+    - phase: output
+      output_type: linkedin_search_skipped
+    - phase: action
+      action_type: validate_gate_a_fail   # Step 5 emits per ESC_RATE_LIMIT_HIT
+      payload_contains: "ESC_RATE_LIMIT_HIT; upstream:reed; degraded_mode:cached_only"
+    - phase: output
+      output_type: cvlibrary_query
+      payload_contains: "candidates_returned:3"
+    - phase: output
+      output_type: aggregate_dedupe
+      payload_contains: "post_dedupe:3"
+    - phase: output
+      output_type: dnc_filter
+    - phase: output
+      output_type: rationale_generation
+      payload_contains: "candidates_ranked:3"
+    - phase: action
+      action_type: validate_gate_a_fail
+      payload_contains: "ESC_AGENT_OUTPUT_SHAPE; g1_count_below_floor:3"
+    - phase: action
+      action_type: scout_run_complete
+      payload_contains: "exit_code:1; gate_a:FAIL"
+operator_action_required: >
+  Two sources degraded simultaneously. Operator should (a) renew the Bullhorn
+  OAuth consent dance (auth failed at refresh; check refresh_token validity),
+  (b) check Reed quota usage + upgrade plan if running hot, (c) review the
+  partial draft at /tmp for the 3 CV-Library-only candidates and decide
+  whether to ship a partial sourcing list to the consultant OR re-run after
+  source recovery. If multiple-source-degraded happens repeatedly, escalate
+  to Sourcing Scout build-slice author for cache pre-warming OR retry strategy.

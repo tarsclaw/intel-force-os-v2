@@ -1,0 +1,169 @@
+# Sourcing Scout fixture — 01-primary (happy path)
+#
+# Tests the canonical flow per agent.md §3 + §4:
+#   cycle.sh mode=cli + --brief-id → @ifos/bullhorn getBrief returns
+#   "Senior React Engineer, London, £100k-£120k, hybrid" → context.sh
+#   resolves 3 sources active (Bullhorn + Reed + CV-Library) →
+#   Step 3 Bullhorn passive-match query returns 8 passive candidates →
+#   Step 4 LinkedIn NO-OP (v1.0 caveat) → Step 5 Reed search returns 6
+#   candidates → Step 6 CV-Library returns 4 candidates → Step 7 aggregate
+#   yields 18 pre-dedupe, 14 post-dedupe → Step 8 DNC filter drops 2 →
+#   Step 9 rationale generation produces 12 rationales all ≥50 words +
+#   voice score ≥0.75 → Step 10 Gate A G1-G7 all pass → vault Markdown
+#   report at /vault/migration-test/sourcing-scout-reports/<slug>-<ISO>.md →
+#   Step 11 Telegram notification to operator.
+#
+# Per agent.md §5: 12 candidates within [5, 15] range (G1 PASS); all have
+# working contact methods (G2 PASS); all rationales ≥50 words (G3 PASS);
+# voice scores ≥0.75 (G4 PASS); no DNC matches (G5 PASS); no PII (G6 PASS);
+# 3 sources contributed (G7 PASS).
+#
+# Status: Proposed (W5 Day-33 SKELETON; W9 build slice wires the real
+#         package calls + verifies fixture expectations against actual outputs).
+
+fixture_id: 01-primary
+description: Happy path — 3 sources active; 18 pre-dedupe → 14 post-dedupe → 12 after DNC + voice filter; Gate A all pass; vault report written
+tenant_slug: migration-test
+agent: sourcing-scout
+expected_gate_a: PASS
+expected_exit_code: 0
+
+invocation:
+  command: ifosctl sourcing-scout source
+  flags:
+    - --mode
+    - cli
+    - --tenant
+    - migration-test
+    - --brief-id
+    - "12345"
+
+# Tenant config (per context.sh hydration; v0.4 supplement LIVE on VPS allows
+# bullhorn_corporation_id top-level read; v0.3 allows blocked_recipients).
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  firm_domains: "acme.test"
+  blocked_recipients:
+    - "blocked.candidate@example.test"
+    - "+447700900099"
+
+# Mocked Bullhorn brief (Step 1 ingestion)
+mocked_bullhorn_brief:
+  id: 12345
+  title: "Senior React Engineer"
+  location: "London, UK"
+  salary_min: 100000
+  salary_max: 120000
+  role_type: "perm"
+  must_haves: ["React", "TypeScript", "5+ years experience"]
+  nice_to_haves: ["GraphQL", "AWS", "remote-friendly culture"]
+  deal_breakers: ["needs visa sponsorship"]
+  status: "open"
+
+# Mocked Bullhorn passive-match (Step 3; status='active' + dateLastModified<90d)
+mocked_bullhorn_passive_search:
+  total: 8
+  candidates:
+    - { bullhorn_id: 1001, name: "Alice Anderson", email: "alice.a@example.test", phone: "+447700900001", last_modified_days_ago: 120 }
+    - { bullhorn_id: 1002, name: "Bob Brown", email: "bob.b@example.test", phone: "+447700900002", last_modified_days_ago: 95 }
+    - { bullhorn_id: 1003, name: "Carol Chen", email: "carol.c@example.test", phone: "+447700900003", last_modified_days_ago: 180 }
+    - { bullhorn_id: 1004, name: "Dave Davis", email: "dave.d@example.test", phone: "+447700900004", last_modified_days_ago: 200 }
+    - { bullhorn_id: 1005, name: "Eve Edwards", email: "eve.e@example.test", phone: "+447700900005", last_modified_days_ago: 150 }
+    - { bullhorn_id: 1006, name: "Frank Fisher", email: "frank.f@example.test", phone: "+447700900006", last_modified_days_ago: 110 }
+    - { bullhorn_id: 1007, name: "Grace Green", email: "blocked.candidate@example.test", phone: "+447700900007", last_modified_days_ago: 105 }  # DNC hit
+    - { bullhorn_id: 1008, name: "Henry Hall", email: "henry.h@example.test", phone: "+447700900099", last_modified_days_ago: 130 }  # DNC hit (phone)
+
+# Mocked Reed search (Step 5; TODO Phase 8 — fixture pre-encodes expected shape)
+mocked_reed_search:
+  total: 6
+  candidates:
+    - { reed_id: "reed-001", name: "Iris Ito", email: "iris.i@example.test", linkedin_url: "https://linkedin.com/in/iris-ito" }
+    - { reed_id: "reed-002", name: "Jack Jones", email: "jack.j@example.test", linkedin_url: "https://linkedin.com/in/jack-jones" }
+    - { reed_id: "reed-003", name: "Alice Anderson", email: "alice.a@example.test", linkedin_url: "https://linkedin.com/in/alice-anderson" }  # cross-source dedup with bullhorn_id 1001
+    - { reed_id: "reed-004", name: "Karen Khan", email: "karen.k@example.test", linkedin_url: "https://linkedin.com/in/karen-khan" }
+    - { reed_id: "reed-005", name: "Liam Lee", email: "liam.l@example.test", linkedin_url: "https://linkedin.com/in/liam-lee" }
+    - { reed_id: "reed-006", name: "Bob Brown", email: "bob.b@example.test", linkedin_url: "https://linkedin.com/in/bob-brown" }  # cross-source dedup with bullhorn_id 1002
+
+# Mocked CV-Library search (Step 6; TODO Phase 8 — fixture pre-encodes expected shape)
+mocked_cvlibrary_search:
+  total: 4
+  candidates:
+    - { cvlibrary_id: "cv-001", name: "Mia Martinez", email: "mia.m@example.test", phone: "+447700900020" }
+    - { cvlibrary_id: "cv-002", name: "Noah Ng", email: "noah.n@example.test", phone: "+447700900021" }
+    - { cvlibrary_id: "cv-003", name: "Carol Chen", email: "carol.c@example.test", phone: "+447700900003" }  # cross-source dedup with bullhorn_id 1003
+    - { cvlibrary_id: "cv-004", name: "Olivia O'Brien", email: "olivia.o@example.test", phone: "+447700900022" }
+
+# Mocked LLM rationale generation (Step 9) — 12 candidates above voice threshold
+mocked_rationale_generation:
+  candidates_with_voice_above_threshold: 12
+  candidates_voice_dropped: 0
+  average_voice_score: 0.84
+
+# Expected behaviour
+expected:
+  brief_ingestion:
+    key_dims_extracted: 6   # role + location + salary + role_type + must_haves count + nice_to_haves count
+  source_queries:
+    bullhorn: { returned: 8, queried: true }
+    linkedin: { returned: 0, queried: false, reason: "v1.0_no_op_per_proxycurl_shutdown" }
+    reed: { returned: 6, queried: true }
+    cvlibrary: { returned: 4, queried: true }
+  aggregate_dedupe:
+    pre_dedupe: 18         # 8 + 6 + 4
+    post_dedupe: 14        # 4 cross-source matches removed (Alice/Bob/Carol surfaced twice)
+    cross_source_provenance:
+      - { name: "Alice Anderson", sources: ["bullhorn", "reed"] }
+      - { name: "Bob Brown", sources: ["bullhorn", "reed"] }
+      - { name: "Carol Chen", sources: ["bullhorn", "cvlibrary"] }
+  dnc_filter:
+    dropped: 2             # Grace Green (email match) + Henry Hall (phone match)
+    kept: 12               # 14 post-dedupe - 2 DNC = 12
+  rationale_generation:
+    rationales_generated: 12
+    voice_pass: 12
+    voice_drift_drops: 0
+  validate_gate_a:
+    g1_pass: true          # 12 in [5, 15]
+    g2_pass: true          # all have contact methods
+    g3_pass: true          # all ≥50 words
+    g4_pass: true          # all voice ≥0.75
+    g5_pass: true          # DNC already filtered Step 8
+    g6_pass: true          # no PII outside firm boundary
+    g7_pass: true          # 3 sources contributed
+    overall: PASS
+  vault_artefact:
+    written: true
+    path: "/vault/migration-test/sourcing-scout-reports/12345-2026-06-03.md"
+    sections_present: ["brief_context", "ranked_candidates", "source_breakdown", "diagnostic_exception_list"]
+    candidate_count: 12
+    exception_list_includes_dnc_drops: true   # 2 DNC drops noted in diagnostic section
+  operator_notification:
+    channel: telegram
+    chat_id: "operator-test-chat-id"
+    tier: green
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: brief_ingested
+    - phase: output
+      output_type: auth_refresh_complete
+    - phase: output
+      output_type: bullhorn_passive_query
+    - phase: output
+      output_type: linkedin_search_skipped
+      payload_contains: "v1.0_caveat_proxycurl_shutdown"
+    - phase: output
+      output_type: reed_query
+    - phase: output
+      output_type: cvlibrary_query
+    - phase: output
+      output_type: aggregate_dedupe
+    - phase: output
+      output_type: dnc_filter
+    - phase: output
+      output_type: rationale_generation
+    - phase: output
+      output_type: scout_report
+    - phase: action
+      action_type: scout_run_complete
