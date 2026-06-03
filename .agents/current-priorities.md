@@ -1,26 +1,30 @@
 # Current priorities
 
-**Week:** Week 4 — **CLOSED 2026-06-02 (Day 27).** W5 starts when Bullhorn dev-support reply lands (~2-5 business days from 2026-06-02 = by 2026-06-09) OR Q1 LOI with Jack lands (whichever first).
+**Week:** Week 5 — **Day 30 in progress 2026-06-03.** Days 28-30 shipped (Bullhorn MCP + WorkOS MCP + Granola MCP + v0.4 schema supplement); Days 31-34 ahead (Janitor + Scribe + Sourcing Scout agent bundles + Phase 7 close).
 
-**W4 deliverables shipped:**
-1. 3 MCP connectors scaffolded (xero/quickbooks/open-banking; 74+ vitest across the three; xero RATIFIED; QB + OB Proposed-with-disagreement-on-file per `codex-disagreement-2026-06-02-*` docs)
-2. Cash Conductor full agent-bundle at SKELETON layer (agent.md + cycle.sh + validate.sh + context.sh + cleanup.sh + tools.yaml + 3 fixtures; W7-8 build slice replaces TODOs with live impl)
-3. Concierge full agent-bundle at SKELETON layer (same shape; W10-13 build slice)
-4. `@ifos/autosend-bridge-telegram` package scaffold + consumer wiring on both CC + Concierge (23/23 vitest; injectable transport+decisions+clock; per D1-B founder decision)
-5. Codex ratification framework battle-tested across 13 rounds: 1 ratified + 5 proposed-with-disagreement-on-file; pattern codified as repeatable
-6. Bullhorn Sub-decision A RESOLVED (marketplace deferred to v1.1+; direct API per-tenant OAuth = v1.0 path; founder pivoted to dev-support route)
-7. Sourcing Scout v1.0 caveat for Proxycurl→NinjaPear shutdown (LinkedIn deep-data deferred to v1.1+; v1.0 = 3 active sources)
-8. Bridge product hygiene: `bullhorn_activity_log_write` action_type registered; 7 real bugs caught + fixed across the Codex arc
+**W5 shipped (Days 28-30):**
+1. **`@ifos/bullhorn` MCP scaffold** (Day 28; commit `ff0f7b6`) — two-step OAuth (Step A access_token + Step B BhRestToken) + per-corporation_id rate-limit 600/min + 401-force-refresh + didForceRefresh flag per cluster F R4. 29/29 vitest; tsup ESM build.
+2. **`@ifos/workos` MCP scaffold** (Day 29 Phase 2; commit `6dc5a4a`) — long-lived secret-key bearer (NO refresh dance) + 10 read capabilities across orgs/connections/directory-sync + per-org_id rate-limit 6000/min. 24/24 vitest.
+3. **`@ifos/granola` MCP wrapper scaffold** (Day 29 Phase 3; commit `1b657e6`) — vendor pivoted Fathom/Fireflies → Granola; OAuth 2.1 + PKCE + DCR; 6 capabilities mirroring official Granola MCP tools (3 all-plans + 2 Paid-only + account); `GranolaPlanTierInsufficientError` class; founder confirmed Business+/Paid tier. 33/33 vitest.
+4. **v0.4 schema supplement + migration** (Day 30 Phase 4; commit `a1bbcf6`) — 5 new tenant_adapters.config keys (`operator_telegram_chat_id`, `email_channel`, `workos_org_id`, `granola_workspace_id`, `bullhorn_corporation_id`). 16-key allowlist total. UP + DOWN migrations symmetric/atomic/idempotent.
+5. **Concierge context.sh TODO flip** (Day 30; commit `98ab8ce`) — Step 1 + Step 5 TODO(W10-13) markers updated to reflect v0.4 supplement landed (canonical SELECT path now available; env-var fallback retained for fixtures + local-dev).
+6. **D1-B decision doc update** (Day 30; commit `cb891ee`) — both Path A (reuse `approval_routing`) and Path B (top-level `operator_telegram_chat_id`) now schema-clean post-v0.4. Path A still recommended for new tenants.
+7. **W5 plan-doc fix-forward** (Day 30; commit `116b913`) — vendor pivot acknowledged; 6 actual Granola tools enumerated; free/paid plan tier shape corrected; granola_workspace_id substituted for workos_directory_id throughout.
 
-**W5 readiness (verified 2026-06-02 W4 polish smoke):**
-- ✅ Tree clean; 134/134 vitest across 6 MCP packages; 6/6 typecheck CLEAN; shellcheck CLEAN; 9/9 YAML parse; 0 boundary violations
+**W5 remaining (Days 31-34):**
+- 🟡 **Day 31 Phase 5a — Janitor bundle** (cycle.sh + validate.sh + context.sh + cleanup.sh + tools.yaml + 3 fixtures; mirror CC + Concierge pattern; tools.yaml now schema-clean for `bullhorn_corporation_id` post-v0.4)
+- 🟡 **Day 32 Phase 5b — Scribe bundle** (polling-driven from Granola per 5-min cron; tools.yaml @ifos/granola read capabilities; @ifos/bullhorn write)
+- 🟡 **Day 33 Phase 6 — Sourcing Scout bundle** (Step 4 LinkedIn = NO-OP per v1.0 caveat)
+- 🟡 **Day 34 Phase 7 — Close** (smoke + cluster F-tris manifest + decision-log + RISK-REGISTER)
+- ⏸ Founder tenancy-audit gate (run `bash scripts/run-tenancy-audit.sh` after v0.4 supplement applied via wrapper script — see "Action board" #14 below)
+
+**W5 readiness (carried from W4 close 2026-06-02):**
+- ✅ Tree clean; 220/220 vitest across 8 MCP packages (134 from W4 + 29 bullhorn + 24 workos + 33 granola); typecheck CLEAN on all 8; shellcheck CLEAN; YAML + SQL parse-checks pass; 0 boundary violations
 - ✅ Disagreement docs in tree; build progress unblocked
-- ✅ Decision-log + risk register + Sourcing Scout caveat + Bullhorn-path RESOLVED row all caught up
-- ⏸ Tenancy audit deferred to founder (needs ifos_app Postgres password; non-blocking — W4 polish edits were additive-only on schema-touching surfaces; bash scripts/run-tenancy-audit.sh when you have the password)
-- ⏸ Bullhorn dev-support reply pending (2-5 days; **W5 plan unblocked** — Janitor + Scribe + Sourcing Scout bundles scaffold against public Bullhorn docs at bullhorn.github.io; live integration tests deferred to dev-support reply)
-- ⏸ Q1 LOI with Jack pending (gates Trigger 1 fire 2026-06-03)
+- ⏸ Bullhorn dev-support reply pending (~by 2026-06-09; **W5 unblocked** — bundles scaffold against public docs; live integration tests deferred)
+- ⏸ Q1 LOI with Jack pending (Trigger 1 fired 2026-06-03; founder closes the LOI conversation directly)
 - ✅ Email infra DONE 2026-06-02 (action board items 11 + 12)
-- 🟢 **W5 execution plan: see `docs/operations/goal-week-5-execution-plan.md`** — Bullhorn-independent scaffolding-first approach; 3 remaining v1.0 agent bundles + @ifos/bullhorn MCP + WorkOS v0.4 schema work, all landable without live Bullhorn
+- 🟢 **W5 execution plan: see `docs/operations/goal-week-5-execution-plan.md`** (fix-forward landed 2026-06-03)
 
 ## Active founder action board (2026-06-01)
 
@@ -36,7 +40,8 @@
 | 6 | Bullhorn chase (post email-fix) | 🟢 **PIVOTED 2026-06-02** — marketplace form route abandoned (requires ≥2 live customers; not justified at ≤3-pilot scale; ~$5-25k/yr); Sub-decision A RESOLVED (marketplace deferred to v1.1+; direct API per-tenant OAuth = v1.0). Founder submitted dev-support enquiry at `developer.bullhorn.com` 2026-06-02 for Sub-decision B (OAuth technical details). Awaiting 2-5 business-day reply (by ~2026-06-09). |
 | 7 | Q1 LOI (Jack) | ⏸ Jack lane (on track per founder 2026-06-01); Trigger 1 fires 2026-06-03 |
 | 8 | ~~Proxycurl signup~~ | ❌ **DEFERRED to v1.1+ (2026-06-02)** — Proxycurl shut down 2025 (LinkedIn lawsuit; nubela.co/blog/goodbye-proxycurl/); NinjaPear successor doesn't carry LinkedIn data. v1.0 Sourcing Scout operates against 3 sources (Bullhorn passive-match + Reed + CV-Library), not 4. LinkedIn-vendor selection deferred to W8-9 build slice (candidates: Lix / Phantombuster / Apify / Sales Navigator). Risk 14 in RISK-REGISTER. |
-| 9 | Fathom OR Fireflies signup | Deferrable — W6 Scribe gate |
+| 9 | ~~Fathom OR Fireflies signup~~ → Granola Business+/Paid workspace + browser OAuth consent | 🟢 **Plan tier CONFIRMED 2026-06-03** (Business OR Enterprise); browser PKCE consent dance still pending for test workspace — W6 Scribe gate |
+| 14 | Tenancy audit re-run after v0.4 supplement applied | ⏸ **Pending 2026-06-03** — run `bash scripts/run-v0.4-migration-as-postgres.sh` (analogue to v0.3 wrapper landed 2026-05-31; W6 author wires) THEN `bash scripts/run-tenancy-audit.sh`; expect 12/12 invariants pass (T1-T12 + new v0.4 allowlist trigger) |
 | 10 | Xero developer account | Deferrable — gates live Cash Conductor test (fixture-first proceeds) |
 | 11 | Email infra: external → M365 test + DKIM + DMARC | ✅ **DONE 2026-06-02** — founder confirmed |
 | 12 | Secondary email channel (gmail backup) | ✅ **DONE 2026-06-02** — founder confirmed |
@@ -47,7 +52,7 @@
 |---|---|---|
 | Trigger 1 (Q1 LOI) | 2026-06-03 (2 days) | Jack lane (on track) |
 | Trigger 2 (DIAGNOSTIC-NO-RENDER-W3) | 2026-06-14 (13 days) | ✅ **CLOSED** — production-shape live render confirmed |
-| Trigger 3 (JANITOR-BULLHORN-AUTH-W5) | ~2026-06-08 (7 days) | Blocked on Bullhorn A+B chase (item 6) |
+| Trigger 3 (JANITOR-BULLHORN-AUTH-W5) | ~2026-06-08 (5 days) | Sub-decision A RESOLVED 2026-06-02; Sub-decision B pending Bullhorn dev-support reply (item 6) |
 
 ## W4 backlog (actionable, not historical)
 
