@@ -1,0 +1,168 @@
+# Scribe fixture — 99-voice-drift-blocked
+#
+# Adversarial. Tests the voice classifier hard-Gate-A-failure path per
+# agent.md §3 line 111. When the tacit-note narrative voice score is <0.75
+# after 3 retries, Step 6 marks the note as "needs consultant review" +
+# validate.sh G3 fails + cycle.sh skips Steps 8+9 (NO Bullhorn write).
+# The vault tacit-note artefact IS written (so the operator can see what
+# was attempted) but it carries a frontmatter flag indicating manual review
+# required. Per agent.md §3 line 111: "the note is NOT attached to Bullhorn".
+#
+# This protects against off-voice notes contaminating the consultant's
+# Bullhorn record — the voice classifier is the canary for tenant-specific
+# style violations that would erode trust over time.
+#
+# Per agent.md §6: ESC_VOICE_DRIFT is warn-tier (operator_chat_id). NOT
+# blocking — cycle.sh continues to the next meeting in poll-sweep mode.
+# Aggregate ESC_VOICE_DRIFT_TENANT is fired by the canary cron when ≥N
+# rows in 7d window per the same tenant (per catalogue §2.5); Scribe does
+# NOT fire _TENANT directly (per agent.md §7).
+#
+# Status: Proposed (W5 Day-32 SKELETON).
+
+fixture_id: 99-voice-drift-blocked
+description: Voice classifier <0.75 after 3 retries → ESC_VOICE_DRIFT warn + Bullhorn writes skipped (Steps 8+9) + vault note flagged "needs consultant review"
+tenant_slug: migration-test
+agent: scribe
+expected_gate_a: FAIL   # G3 fails on voice score
+expected_exit_code: 0   # warn-tier ESC; cycle.sh continues to next meeting in poll-sweep
+
+invocation:
+  command: ifosctl scribe poll-sweep
+  flags:
+    - --mode
+    - poll-sweep
+    - --tenant
+    - migration-test
+
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  granola_workspace_id: "ws-acme-12345"
+  firm_domains: "acme.test"
+
+mocked_granola_account_info:
+  workspace_id: "ws-acme-12345"
+  workspace_name: "Acme Workspace"
+  plan_tier: "paid"
+  user_email: "founder@acme.test"
+  transcripts_enabled: true
+  folders_enabled: true
+
+# Single meeting with transcript; field extraction succeeds; voice classifier fails.
+mocked_granola_list_meetings:
+  - id: "meeting-099"
+    title: "Briefing call — placement check-in"
+    start_time: "2026-06-03T16:00:00Z"
+    end_time: "2026-06-03T16:30:00Z"
+    duration_minutes: 30
+    attendees:
+      - "founder@acme.test"
+      - "carol.coder@example.test"
+    notes_markdown: ""
+    has_transcript: true
+    created_at: "2026-06-03T16:30:30Z"
+    updated_at: "2026-06-03T16:31:00Z"
+
+mocked_granola_transcript:
+  meeting_id: "meeting-099"
+  language: "en"
+  duration_seconds: 1800
+  generated_at: "2026-06-03T16:31:00Z"
+  segments:
+    - { start_seconds: 0,    end_seconds: 10, speaker: "founder@acme.test",      text: "Hi Carol, how's the first week going?" }
+    - { start_seconds: 10,   end_seconds: 30, speaker: "carol.coder@example.test", text: "Going well. Manager is supportive. Team culture is great." }
+    - { start_seconds: 30,   end_seconds: 60, speaker: "carol.coder@example.test", text: "Bit overwhelmed by the codebase size but learning fast." }
+
+mocked_bullhorn:
+  candidate_match:
+    - bullhorn_id: 3003
+      firstName: "Carol"
+      lastName: "Coder"
+      email: "carol.coder@example.test"
+      match_confidence: 0.95
+  placement_match:
+    - bullhorn_id: 8001
+      candidate_id: 3003
+      status: "active"
+
+# Field extraction succeeds — 3 fields ≥0.6 (passes Gate A G2)
+mocked_field_extraction:
+  - { field_name: "placement_status",       value: "active",          confidence: 0.92 }
+  - { field_name: "satisfaction_signal",    value: "positive",        confidence: 0.85 }
+  - { field_name: "week_1_status_vault_path", value: "/vault/migration-test/scribe-notes/meeting-099-2026-06-03.md", confidence: 0.95 }
+
+# Voice classifier fails — score below 0.75 after 3 retries (KEY DIFFERENCE)
+mocked_tacit_note:
+  vault_path: "/vault/migration-test/scribe-notes/meeting-099-2026-06-03.md"
+  body_sha256: "voice789drift000..."
+  voice_score_attempts:
+    - 0.62   # retry 1
+    - 0.58   # retry 2
+    - 0.61   # retry 3 — all below 0.75
+  voice_score_final: 0.61      # max of attempts; FAILS G3
+  narrative_word_count: 250
+  needs_consultant_review: true   # frontmatter flag added per agent.md §3 line 111
+
+expected:
+  granola_poll:
+    meetings_found: 1
+    meetings_with_transcripts: 1
+    plan_tier_resolved: "paid"
+  field_extraction:
+    fields_above_threshold: 3   # G2 passes
+  voice_classification:
+    final_score: 0.61
+    retries: 3
+    classifier_pass: false      # G3 FAILS (after 3 retries)
+  validate_gate_a:
+    g1_pass: true
+    g2_pass: true               # ≥3 fields ≥0.6
+    g3_pass: false              # voice <0.75
+    g4_pass: true
+    g5_pass: true
+    g6_pass: true
+    g7_pass: true
+    overall: FAIL               # one failure → overall fail
+  bullhorn_writes: []           # NO writes; Steps 8+9 SKIPPED per agent.md §3 line 111
+  vault_artefact:
+    written: true               # vault file IS written (for operator review)
+    frontmatter_flag: "needs_consultant_review: true"
+    path: "/vault/migration-test/scribe-notes/meeting-099-2026-06-03.md"
+  esc_codes_emitted:
+    - code: ESC_VOICE_DRIFT
+      severity: warn
+      routing: operator_chat_id
+      payload_includes:
+        call_id: "meeting-099"
+        voice_score_attempts: [0.62, 0.58, 0.61]
+        threshold: 0.75
+        decision: "skip_bullhorn_writes; vault_held_for_review"
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: granola_meetings_polled
+    - phase: output
+      output_type: transcript_fetched
+    - phase: output
+      output_type: entity_resolved
+    - phase: output
+      output_type: fields_extracted
+      payload_contains: "fields_above_threshold:3"
+    - phase: output
+      output_type: tacit_note_rendered
+      payload_contains: "voice_score:0.61; needs_consultant_review:true"
+    - phase: action
+      action_type: validate_gate_a_fail
+      payload_contains: "ESC_VOICE_DRIFT; G3_fail; voice_score:0.61"
+    - phase: action
+      action_type: scribe_run_complete
+      payload_contains: "elapsed_seconds:STUB; sla_class:STUB; bullhorn_writes_skipped:voice_drift"
+operator_action_required: >
+  Tacit-note for meeting-099 held in vault flagged "needs consultant review".
+  Consultant should (a) review the draft narrative, (b) decide whether to
+  manually attach a re-written version to Bullhorn, (c) update tone_rules or
+  voice_corpus if the classifier is rejecting legitimate consultant voice
+  (drift in the OTHER direction). The 3-retry threshold catches transient
+  classifier noise; persistent rejection across multiple meetings indicates
+  voice corpus needs re-seeding for this tenant.

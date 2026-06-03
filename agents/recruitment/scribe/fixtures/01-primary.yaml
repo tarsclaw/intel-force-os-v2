@@ -1,0 +1,162 @@
+# Scribe fixture — 01-primary (happy path)
+#
+# Tests the canonical flow per agent.md §3 + §4 + Day-29 Granola pivot:
+#   cycle.sh mode=poll-sweep → @ifos/granola listMeetings since last_poll
+#   returns 1 new meeting with has_transcript=true on Paid workspace →
+#   getTranscript returns transcript with 4 participants → Step 4 entity
+#   inference resolves to a Candidate entity with confidence 0.92 →
+#   Step 5 LLM extraction yields 4 fields all ≥0.6 confidence (passes
+#   Gate A G2) → Step 6 voice classifier scores 0.82 (passes G3) → vault
+#   tacit-note written → Step 7 validate.sh G1-G7 all pass → Step 8
+#   @ifos/bullhorn updateCandidate (yellow tier bullhorn_scribe_field_write)
+#   → Step 9 createNote attaches the vault tacit-note (yellow tier
+#   bullhorn_note_append_summary) → Step 10 elapsed_seconds=240 (well under
+#   5-min Gate B SLA) → exit 0.
+#
+# Per agent.md §5: all Gate A G1-G7 checks pass. SLA elapsed=240s (4 min) is
+# under the 5-min Gate B target + well under the 30-min ESC_SCRIBE_SLA_MISS
+# alerting threshold.
+#
+# Status: Proposed (W5 Day-32 SKELETON; W6 build slice wires the real
+#         package calls + verifies fixture expectations against actual outputs).
+
+fixture_id: 01-primary
+description: Happy path — Paid workspace; 1 meeting with transcript; 4 fields extracted; voice 0.82; Bullhorn updateCandidate + createNote; SLA 4 min
+tenant_slug: migration-test
+agent: scribe
+expected_gate_a: PASS
+expected_exit_code: 0
+
+invocation:
+  command: ifosctl scribe poll-sweep
+  flags:
+    - --mode
+    - poll-sweep
+    - --tenant
+    - migration-test
+
+# Tenant config (per context.sh hydration; v0.4 supplement LIVE on VPS allows
+# bullhorn_corporation_id + granola_workspace_id top-level reads).
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  granola_workspace_id: "ws-acme-12345"
+  firm_domains: "acme.test"
+
+# Mocked Granola account info (pre-cached at context.sh Step 3)
+mocked_granola_account_info:
+  workspace_id: "ws-acme-12345"
+  workspace_name: "Acme Workspace"
+  plan_tier: "paid"             # founder 2026-06-03 confirmed Business+
+  user_email: "founder@acme.test"
+  transcripts_enabled: true
+  folders_enabled: true
+
+# Mocked Granola listMeetings (Step 1 poll-sweep discovery)
+mocked_granola_list_meetings:
+  - id: "meeting-001"
+    title: "Discovery call — Jane Doe (Senior Engineer candidate)"
+    start_time: "2026-06-03T09:00:00Z"
+    end_time: "2026-06-03T09:45:00Z"
+    duration_minutes: 45
+    folder_id: null
+    attendees:
+      - "founder@acme.test"
+      - "jane.doe@example.test"
+    notes_markdown: "# Discovery call notes\n- Jane interested in Senior Engineer role\n- Notice period 8 weeks"
+    has_transcript: true
+    created_at: "2026-06-03T09:45:30Z"
+    updated_at: "2026-06-03T09:46:00Z"
+
+# Mocked Granola getTranscript for meeting-001 (Step 3)
+mocked_granola_transcript:
+  meeting_id: "meeting-001"
+  language: "en"
+  duration_seconds: 2700
+  generated_at: "2026-06-03T09:46:00Z"
+  segments:
+    - { start_seconds: 0.0,  end_seconds: 5.2,  speaker: "founder@acme.test", text: "Hi Jane, thanks for taking the call." }
+    - { start_seconds: 5.2,  end_seconds: 12.3, speaker: "jane.doe@example.test", text: "Happy to be here. I'm based in Manchester." }
+    - { start_seconds: 12.3, end_seconds: 25.0, speaker: "jane.doe@example.test", text: "Currently a Senior Backend Engineer at MyCo Ltd. 8 weeks notice." }
+    - { start_seconds: 25.0, end_seconds: 45.0, speaker: "jane.doe@example.test", text: "Salary expectation around £85k to £95k." }
+
+# Mocked Bullhorn participant lookup (Step 4 entity resolution)
+mocked_bullhorn:
+  candidate_match:
+    - bullhorn_id: 1001
+      firstName: "Jane"
+      lastName: "Doe"
+      email: "jane.doe@example.test"
+      match_confidence: 0.92
+
+# Mocked LLM field extraction (Step 5)
+mocked_field_extraction:
+  - { field_name: "location",                 value: "Manchester, UK",        confidence: 0.91 }
+  - { field_name: "current_role",             value: "Senior Backend Engineer", confidence: 0.94 }
+  - { field_name: "notice_period_weeks",      value: 8,                       confidence: 0.88 }
+  - { field_name: "salary_expectation_min",   value: 85000,                   confidence: 0.82 }
+  - { field_name: "salary_expectation_max",   value: 95000,                   confidence: 0.82 }
+  # confidence threshold 0.6; 5 ≥0.6 → passes Gate A G2 (≥3 required)
+
+# Mocked tacit-note voice classifier (Step 6)
+mocked_tacit_note:
+  vault_path: "/vault/migration-test/scribe-notes/meeting-001-2026-06-03.md"
+  body_sha256: "abc123def456..."
+  voice_score: 0.82            # passes Gate A G3 (≥0.75 required)
+  narrative_word_count: 215    # well under 800 cap per G7
+
+# Expected behaviour
+expected:
+  granola_poll:
+    meetings_found: 1
+    meetings_with_transcripts: 1
+    plan_tier_resolved: "paid"
+  entity_resolution:
+    entity_type: "candidate"
+    bullhorn_id: 1001
+    confidence: 0.92
+  field_extraction:
+    fields_above_threshold: 5   # all 5 ≥0.6
+    fields_below_threshold: 0
+  voice_classification:
+    voice_score: 0.82
+    classifier_pass: true       # ≥0.75
+  bullhorn_writes:
+    - action_type: bullhorn_scribe_field_write
+      tier: yellow
+      payload_includes:
+        entity_type: "candidate"
+        bullhorn_id: 1001
+        fields_written: 5
+    - action_type: bullhorn_note_append_summary
+      tier: yellow
+      payload_includes:
+        entity_type: "candidate"
+        bullhorn_id: 1001
+        vault_path: "/vault/migration-test/scribe-notes/meeting-001-2026-06-03.md"
+  sla_metric:
+    elapsed_seconds: 240        # 4 min — well under 5-min Gate B target
+    sla_class: "under_5_min"
+    esc_fired: false            # no ESC_SCRIBE_SLA_MISS (30-min threshold)
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: granola_meetings_polled
+    - phase: output
+      output_type: bullhorn_auth_refresh
+    - phase: output
+      output_type: transcript_fetched
+    - phase: output
+      output_type: entity_resolved
+    - phase: output
+      output_type: fields_extracted
+    - phase: output
+      output_type: tacit_note_rendered
+    - phase: output
+      output_type: fields_validated
+    - phase: action
+      action_type: bullhorn_scribe_field_write
+    - phase: action
+      action_type: bullhorn_note_append_summary
+    - phase: action
+      action_type: scribe_run_complete

@@ -1,0 +1,164 @@
+# Scribe fixture — 02-edge-case-paid-only
+#
+# Edge case. Tests the Granola Paid-plan pre-guard — if the workspace's
+# plan_tier resolves to 'free' (or if CTX_GRANOLA_PLAN_TIER='free' is set
+# at fixture load), Scribe's cycle.sh Step 3 (getTranscript) MUST NOT hit
+# the wire. @ifos/granola's per-call PAID_PLAN_TOOLS pre-guard throws
+# GranolaPlanTierInsufficientError before any HTTP round-trip; Scribe maps
+# this to ESC_GRANOLA_PLAN_TIER warn-tier + degrades to notes-only ingest
+# (uses meeting.notes_markdown from listMeetings result rather than transcript).
+#
+# Per agent.md §1 the contract requires ≥3 structured-field extractions —
+# notes-only ingest may still satisfy this from the notes_markdown text,
+# OR may fall under the threshold + fire ESC_FIELD_EXTRACTION_LOW_CONFIDENCE.
+# This fixture covers the upper happy case (notes_markdown is rich enough
+# to extract 3 fields).
+#
+# Per @ifos/granola PAID_PLAN_TOOLS the gated tools are list_meeting_folders
+# + get_meeting_transcript. Scribe doesn't use list_meeting_folders. This
+# fixture only exercises get_meeting_transcript blocking.
+#
+# Status: Proposed (W5 Day-32 SKELETON).
+
+fixture_id: 02-edge-case-paid-only
+description: Granola Free workspace → getTranscript pre-guarded → ESC_GRANOLA_PLAN_TIER → degrade to notes-only ingest → 3 fields extracted from notes_markdown
+tenant_slug: migration-test
+agent: scribe
+expected_gate_a: PASS   # notes-only ingest still satisfies ≥3 fields
+expected_exit_code: 0   # warn-tier ESC; cycle.sh completes degraded mode
+
+invocation:
+  command: ifosctl scribe poll-sweep
+  flags:
+    - --mode
+    - poll-sweep
+    - --tenant
+    - migration-test
+
+tenant_config:
+  bullhorn_corporation_id: "9876"
+  granola_workspace_id: "ws-startup-99999"
+  firm_domains: "startup.test"
+
+# Force Free tier in this fixture's account info (context.sh pre-cache resolves
+# plan_tier='free' from getAccountInfo response).
+mocked_granola_account_info:
+  workspace_id: "ws-startup-99999"
+  workspace_name: "Startup Workspace"
+  plan_tier: "free"             # KEY DIFFERENCE — Free plan
+  user_email: "founder@startup.test"
+  transcripts_enabled: false    # mirrors Free tier
+  folders_enabled: false
+
+# Meeting has_transcript:true reported by Granola (transcript exists on
+# Granola's side) but PAID-only access blocks Scribe from fetching it.
+mocked_granola_list_meetings:
+  - id: "meeting-002"
+    title: "Catchup — Bob Builder (Frontend dev)"
+    start_time: "2026-06-03T14:00:00Z"
+    end_time: "2026-06-03T14:30:00Z"
+    duration_minutes: 30
+    folder_id: null
+    attendees:
+      - "founder@startup.test"
+      - "bob.builder@example.test"
+    notes_markdown: |
+      # Catchup notes — Bob Builder
+      - Bob based in London, currently Senior Frontend Engineer at OldCo
+      - Notice period: 4 weeks
+      - Salary expectation: £70k-£80k
+      - Available for interview week of June 16
+    has_transcript: true        # exists upstream but Scribe can't fetch on Free
+    created_at: "2026-06-03T14:30:30Z"
+    updated_at: "2026-06-03T14:31:00Z"
+
+# No transcript fetched (Scribe skipped Step 3 via pre-guard)
+mocked_granola_transcript: null
+
+# Bullhorn lookup still proceeds (Step 4 uses participant emails from meeting metadata)
+mocked_bullhorn:
+  candidate_match:
+    - bullhorn_id: 2002
+      firstName: "Bob"
+      lastName: "Builder"
+      email: "bob.builder@example.test"
+      match_confidence: 0.88
+
+# Field extraction runs against notes_markdown (degraded source; lower confidence)
+mocked_field_extraction:
+  - { field_name: "location",                 value: "London, UK",                  confidence: 0.78 }
+  - { field_name: "current_role",             value: "Senior Frontend Engineer",   confidence: 0.83 }
+  - { field_name: "notice_period_weeks",      value: 4,                            confidence: 0.85 }
+  - { field_name: "salary_expectation_min",   value: 70000,                        confidence: 0.71 }
+  - { field_name: "salary_expectation_max",   value: 80000,                        confidence: 0.71 }
+  # 5 ≥0.6 → passes Gate A G2; confidences lower than transcript-based extraction
+
+mocked_tacit_note:
+  vault_path: "/vault/migration-test/scribe-notes/meeting-002-2026-06-03.md"
+  body_sha256: "def789ghi012..."
+  voice_score: 0.78             # passes Gate A G3 (still ≥0.75)
+  narrative_word_count: 180     # under 800 cap
+  source_disclaimer: "notes_only_ingest_free_plan_workspace"   # narrative includes a disclaimer that transcript was unavailable
+
+expected:
+  granola_poll:
+    meetings_found: 1
+    meetings_with_transcripts: 0   # has_transcript:true upstream but Scribe couldn't fetch (plan-tier block)
+    plan_tier_resolved: "free"
+  transcript_fetch_skipped:
+    reason: "GranolaPlanTierInsufficientError pre-guard (plan_tier_hint='free')"
+    esc_fired: ESC_GRANOLA_PLAN_TIER
+    severity: warn
+  field_extraction:
+    fields_above_threshold: 5
+    source: "notes_markdown_degraded"   # notes_only ingest mode
+  voice_classification:
+    voice_score: 0.78
+    classifier_pass: true
+  bullhorn_writes:
+    - action_type: bullhorn_scribe_field_write
+      tier: yellow
+      payload_includes:
+        entity_type: "candidate"
+        bullhorn_id: 2002
+        fields_written: 5
+        ingest_mode: "notes_only_degraded"
+    - action_type: bullhorn_note_append_summary
+      tier: yellow
+      payload_includes:
+        entity_type: "candidate"
+        bullhorn_id: 2002
+        vault_path: "/vault/migration-test/scribe-notes/meeting-002-2026-06-03.md"
+        source_disclaimer: "transcript_unavailable_free_plan_workspace"
+  esc_codes_emitted:
+    - code: ESC_GRANOLA_PLAN_TIER
+      severity: warn
+      routing: operator_chat_id
+      payload_includes:
+        workspace_id: "ws-startup-99999"
+        attempted_tool: "get_meeting_transcript"
+        required_tier: "paid"
+        actual_tier: "free"
+        degradation: "notes_only_ingest"
+  audit_rows_emitted:
+    - phase: trigger
+      action_type: session_start
+    - phase: output
+      output_type: granola_meetings_polled
+      payload_contains: "meetings_with_transcripts:0; plan_tier:free"
+    - phase: action
+      action_type: validate_gate_a_fail   # records the pre-guard rejection (not a Gate A failure; SUCCESS-path guard)
+      payload_contains: "ESC_GRANOLA_PLAN_TIER; degradation:notes_only_ingest"
+    - phase: action
+      action_type: bullhorn_scribe_field_write
+    - phase: action
+      action_type: bullhorn_note_append_summary
+    - phase: action
+      action_type: scribe_run_complete
+operator_action_required: >
+  Tenant's Granola workspace is on Free plan; transcripts unavailable.
+  Operator should either (a) upgrade the workspace to Business+ for full
+  transcript ingest, OR (b) accept notes-only ingest mode (lower extraction
+  confidence; relies on Granola's notes_markdown). v0.4 supplement does NOT
+  expose a granola_plan_tier override key — runtime resolution via
+  getAccountInfo() is the single source of truth (avoids mirror-drift).
