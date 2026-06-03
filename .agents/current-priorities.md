@@ -1,30 +1,36 @@
 # Current priorities
 
-**Week:** Week 5 — **Day 30 in progress 2026-06-03.** Days 28-30 shipped (Bullhorn MCP + WorkOS MCP + Granola MCP + v0.4 schema supplement); Days 31-34 ahead (Janitor + Scribe + Sourcing Scout agent bundles + Phase 7 close).
+**Week:** Week 5 — **CLOSED 2026-06-03 Day-34.** All 7 phases shipped per `docs/operations/goal-week-5-execution-plan.md` §2; v1.0 agent-bundle layer complete at scaffold tier; W6+ build slice replaces SKELETON TODOs with live wiring once external dependencies land (Bullhorn dev-support reply + Reed/CV-Library commercial signups + Granola browser OAuth dance).
 
-**W5 shipped (Days 28-30):**
-1. **`@ifos/bullhorn` MCP scaffold** (Day 28; commit `ff0f7b6`) — two-step OAuth (Step A access_token + Step B BhRestToken) + per-corporation_id rate-limit 600/min + 401-force-refresh + didForceRefresh flag per cluster F R4. 29/29 vitest; tsup ESM build.
-2. **`@ifos/workos` MCP scaffold** (Day 29 Phase 2; commit `6dc5a4a`) — long-lived secret-key bearer (NO refresh dance) + 10 read capabilities across orgs/connections/directory-sync + per-org_id rate-limit 6000/min. 24/24 vitest.
-3. **`@ifos/granola` MCP wrapper scaffold** (Day 29 Phase 3; commit `1b657e6`) — vendor pivoted Fathom/Fireflies → Granola; OAuth 2.1 + PKCE + DCR; 6 capabilities mirroring official Granola MCP tools (3 all-plans + 2 Paid-only + account); `GranolaPlanTierInsufficientError` class; founder confirmed Business+/Paid tier. 33/33 vitest.
-4. **v0.4 schema supplement + migration** (Day 30 Phase 4; commit `a1bbcf6`) — 5 new tenant_adapters.config keys (`operator_telegram_chat_id`, `email_channel`, `workos_org_id`, `granola_workspace_id`, `bullhorn_corporation_id`). 16-key allowlist total. UP + DOWN migrations symmetric/atomic/idempotent.
-5. **Concierge context.sh TODO flip** (Day 30; commit `98ab8ce`) — Step 1 + Step 5 TODO(W10-13) markers updated to reflect v0.4 supplement landed (canonical SELECT path now available; env-var fallback retained for fixtures + local-dev).
-6. **D1-B decision doc update** (Day 30; commit `cb891ee`) — both Path A (reuse `approval_routing`) and Path B (top-level `operator_telegram_chat_id`) now schema-clean post-v0.4. Path A still recommended for new tenants.
-7. **W5 plan-doc fix-forward** (Day 30; commit `116b913`) — vendor pivot acknowledged; 6 actual Granola tools enumerated; free/paid plan tier shape corrected; granola_workspace_id substituted for workos_directory_id throughout.
+**W5 deliverables (Days 28-34; 7 phases shipped):**
+1. **`@ifos/bullhorn` MCP scaffold** (Day 28; commit `ff0f7b6`) — two-step OAuth + per-corporation_id rate-limit + 401-force-refresh + didForceRefresh per cluster F R4. 29/29 vitest.
+2. **`@ifos/workos` MCP scaffold** (Day 29 Phase 2; commit `6dc5a4a`) — long-lived secret-key bearer + 10 read caps + per-org_id rate-limit. 24/24 vitest.
+3. **`@ifos/granola` MCP wrapper** (Day 29 Phase 3; commit `1b657e6`) — vendor pivoted Fathom/Fireflies → Granola; OAuth 2.1 PKCE+DCR; 6 official tools; `GranolaPlanTierInsufficientError`. 33/33 vitest.
+4. **v0.4 schema supplement + migration** (Day 30 Phase 4; commit `a1bbcf6`) — 5 new tenant_adapters.config keys; 16-key allowlist; UP + DOWN symmetric; **LIVE on VPS** post peer-auth migration apply (founder ran 2026-06-03; 6/6 trigger acceptance tests passed).
+5. **Concierge context.sh TODO flip** (Day 30; commit `98ab8ce`); **D1-B decision doc update** (commit `cb891ee`); **W5 plan-doc fix-forward** (commit `116b913`).
+6. **Granola + v0.4 founder playbook** (Day 30; commit `d947aa5`) + **v0.4 migration wrapper script** (`run-v0.4-migration-as-postgres.sh`).
+7. **Day 31 Phase 5a — Janitor bundle** (6 atomic commits `1efe9a6`→`d5692ea`) — cycle.sh 12-step nightly cron + validate.sh G1-G7 + context.sh + cleanup.sh + tools.yaml (3 yellow-tier writes REGISTERED) + 3 fixtures + agent.md Reading-discipline note.
+8. **Day 32 Phase 5b — Scribe bundle** (6 atomic commits `e6028e6`→`5f9ffc1`) — cycle.sh 10-step (vendor delta: webhook → polling per Day-29 Granola pivot) + validate.sh + dual Bullhorn+Granola context.sh + cleanup.sh + tools.yaml (16 caps) + 3 fixtures + agent.md Reading-discipline note.
+9. **Day 33 Phase 6 — Sourcing Scout bundle** (6 atomic commits `4e62d06`→`acb6d09`) — cycle.sh 11-step (LinkedIn NO-OP per Proxycurl shutdown) + validate.sh G1-G7 + multi-source context.sh + cleanup.sh + tools.yaml (12 caps; reed_* + cvlibrary_* declared scaffold-pending Phase 8) + 3 fixtures + agent.md Reading-discipline note.
+10. **Day 34 Phase 7 — W5 close** (this update + cluster F-tris manifest + decision-log + RISK-REGISTER).
 
-**W5 remaining (Days 31-34):**
-- 🟡 **Day 31 Phase 5a — Janitor bundle** (cycle.sh + validate.sh + context.sh + cleanup.sh + tools.yaml + 3 fixtures; mirror CC + Concierge pattern; tools.yaml now schema-clean for `bullhorn_corporation_id` post-v0.4)
-- 🟡 **Day 32 Phase 5b — Scribe bundle** (polling-driven from Granola per 5-min cron; tools.yaml @ifos/granola read capabilities; @ifos/bullhorn write)
-- 🟡 **Day 33 Phase 6 — Sourcing Scout bundle** (Step 4 LinkedIn = NO-OP per v1.0 caveat)
-- 🟡 **Day 34 Phase 7 — Close** (smoke + cluster F-tris manifest + decision-log + RISK-REGISTER)
-- ⏸ Founder tenancy-audit gate (run `bash scripts/run-tenancy-audit.sh` after v0.4 supplement applied via wrapper script — see "Action board" #14 below)
+**Smoke state at W5 close:**
+- Tree clean (0 uncommitted tracked changes); 33+ atomic commits across W5
+- shellcheck CLEAN on all 20 .sh files across 5 v1.0 agent bundles (CC + Concierge + Janitor + Scribe + Sourcing Scout)
+- YAML parse OK on all 20 yaml files (5 tools.yaml + 15 fixtures)
+- typecheck CLEAN on all 11 workspace packages
+- **vitest: 259/260 green (99.6%)** across 11 packages. ⚠ **1 pre-existing red in `@ifos/diagnostic-generator` `tests/generate.test.ts` "composes a §12 conversation opener that anchors to a real signal"** — LLM non-determinism: the test's fake firm name "Test Anchor Firm" triggers the LLM's legitimate disclaimer pattern ("> Before I go further...") which doesn't match the test's `/Hi.*?Test Anchor Firm|Hi —/` regex. Last touched 2026-06-01 commit `2688b6a`; pre-existing flake outside W5 scope; deferred to a future fix (3 paths: relax test regex, mock LLM, use a real firm name).
+- 0 Composio/AgentMail boundary violations across all 5 agent bundles
 
-**W5 readiness (carried from W4 close 2026-06-02):**
-- ✅ Tree clean; 220/220 vitest across 8 MCP packages (134 from W4 + 29 bullhorn + 24 workos + 33 granola); typecheck CLEAN on all 8; shellcheck CLEAN; YAML + SQL parse-checks pass; 0 boundary violations
-- ✅ Disagreement docs in tree; build progress unblocked
-- ⏸ Bullhorn dev-support reply pending (~by 2026-06-09; **W5 unblocked** — bundles scaffold against public docs; live integration tests deferred)
-- ⏸ Q1 LOI with Jack pending (Trigger 1 fired 2026-06-03; founder closes the LOI conversation directly)
-- ✅ Email infra DONE 2026-06-02 (action board items 11 + 12)
-- 🟢 **W5 execution plan: see `docs/operations/goal-week-5-execution-plan.md`** (fix-forward landed 2026-06-03)
+**W6+ deferred (founder gates):**
+- ⏸ Bullhorn dev-support reply (~by 2026-06-09) → unblocks live Bullhorn integration tests
+- ⏸ Q1 LOI with Jack — Trigger 1 fired 2026-06-03; founder confirms "on track" (founder closes LOI directly)
+- ⏸ Reed + CV-Library commercial signups (per founder-api-signups-2026-06-03.md P2+P3) → unblocks Sourcing Scout live source #2 + #3
+- ⏸ Xero + QuickBooks + TrueLayer developer signups → unblocks Cash Conductor W7-8 live work
+- ⏸ Granola browser OAuth dance (requires Claude Code restart) → unblocks Scribe live transcript tests
+- ⏸ WorkOS staging key → unblocks v1.1+ admin agent
+- ⏸ Cluster F-tris Codex ratification trigger (founder-gated; manifest entry added at this commit)
+- 🟢 **W6 execution plan: see `docs/operations/goal-week-6-execution-plan.md`** (drafted Phase 9 of this marathon)
 
 ## Active founder action board (2026-06-01)
 

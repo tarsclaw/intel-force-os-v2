@@ -125,6 +125,36 @@ agents/recruitment/concierge/agent.md|agent-bundle"
 # (e.g. migration rollback re-ratification noted in priorities backlog).
 CLUSTERS[G]="docs/decisions/2026-05-31-d1-founder-decision.md|architecture-decision"
 
+# Cluster F-tris — W5 v1.0 agent-bundle full ratifications + W5 MCP scaffolds +
+# v0.4 schema supplement. All landed in the W5 marathon /goal across Days 28-34
+# (commits ff0f7b6 → acb6d09). Adds the 3 remaining v1.0 agent-bundles
+# (Janitor + Scribe + Sourcing Scout — each with 6 atomic commits per bundle
+# at SKELETON tier) + 3 new MCP packages (@ifos/bullhorn + @ifos/workos +
+# @ifos/granola) + v0.4 schema supplement (LIVE on VPS 2026-06-03).
+#
+# Founder-triggered execution; expect partial-ratification per the F + Fbis +
+# G precedent (5 of 6 artefacts ended at "Proposed-with-disagreement-on-file"
+# per `docs/decisions/codex-disagreement-2026-06-02-fbis-g-scaffold-runtime-drift.md`).
+# Re-trigger condition for partial-ratification: W6+ build slice naturally
+# reconciles agent.md ↔ code drift when both touched in same workflow.
+#
+# Per goal-week-5-execution-plan.md §7 + Reading-discipline note pattern:
+# vendor + package deltas explicitly documented in each agent.md
+# Reading-discipline note (Scribe webhook→polling per Granola pivot; Sourcing
+# Scout 4→3 sources per Proxycurl shutdown; Sourcing Scout reed/cvlibrary
+# package_status:scaffold_pending_phase_8 — Phase 8 of the marathon /goal).
+#
+# Run order: AFTER cluster Fbis lands. Per master brief §10.5 Codex round-trip
+# ≤2 ceiling: if Round 1 → REJECT with substantive findings, Round 2 → close
+# OR drop to disagreement doc; no infinite-round retries.
+CLUSTERS[F-tris]="packages/mcp-connectors/bullhorn|mcp-connector
+packages/mcp-connectors/workos|mcp-connector
+packages/mcp-connectors/granola|mcp-connector
+agents/recruitment/janitor/agent.md|agent-bundle
+agents/recruitment/scribe/agent.md|agent-bundle
+agents/recruitment/sourcing-scout/agent.md|agent-bundle
+docs/verticals/recruitment/vertical-schema.v0.4-supplement.yaml|schema-change"
+
 PASS_COUNT=0
 FAIL_COUNT=0
 declare -a FAILED_ARTEFACTS=()
@@ -154,12 +184,13 @@ Examples:
   $0 --cluster F      # W4 Track-1 MCP connectors (xero + quickbooks + open-banking)
   $0 --cluster Fbis   # Cash Conductor full bundle ratification (run AFTER F)
   $0 --cluster G      # Architecture decisions accumulated since cluster A (D1-B et al.)
+  $0 --cluster F-tris # W5 MCP scaffolds (bullhorn/workos/granola) + 3 v1.0 agent bundles + v0.4 schema
 EOF
   exit 2
 fi
 
 if [[ "$1" == "--list-clusters" ]]; then
-  for cluster in A B C D E F Fbis G; do
+  for cluster in A B C D E F Fbis G F-tris; do
     printf '\n\033[1mCluster %s:\033[0m\n' "${cluster}"
     printf '%s\n' "${CLUSTERS[${cluster}]}" | awk -F'|' '{ printf "  %s  [%s]\n", $1, $2 }'
   done
