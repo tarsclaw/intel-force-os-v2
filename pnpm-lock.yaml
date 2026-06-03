@@ -143,6 +143,24 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.41)
 
+  packages/mcp-connectors/workos:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.41
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(postcss@8.5.15)(tsx@4.22.3)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.3
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.41)
+
   packages/mcp-connectors/xero:
     devDependencies:
       '@types/node':

@@ -1,0 +1,25 @@
+{
+  "name": "@ifos/workos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IFOS WorkOS MCP connector — long-lived secret-key bearer auth + organizations/connections/directory-sync read endpoints + per-org_id rate-limit + typed errors. Used by tenant onboarding + admin SSO surfaces. WorkOS AuthKit per docs/build-brief/00-MASTER-BRIEF.md §5.3 line 401 is the v1.0 auth substrate; this package wraps the org/connection/directory-sync read surface that v1.0 admin flows need. SCIM provisioning + audit-log are deferred to v1.1+.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=20.0.0" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
