@@ -1,0 +1,25 @@
+{
+  "name": "@ifos/reed",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IFOS Reed.co.uk recruiter MCP connector — HTTP Basic auth with API key + Recruiter API surface (post jobs + search candidates + retrieve applications). Used by Sourcing Scout (W9) for source #2 in the 3-source v1.0 candidate pool. Reed Recruiter API auth verified 2026-06-03 via WebFetch reed.co.uk/developers/jobseeker (HTTP Basic with API key as username, empty password); recruiter endpoints inferred from same auth pattern.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=20.0.0" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
