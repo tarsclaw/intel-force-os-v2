@@ -77,16 +77,35 @@ W6 partial because Sourcing Scout's W9 build slice per master brief §8.2 line 5
 
 Each phase is per-artefact atomic commits + commits referenceable from this doc.
 
-### Phase 1 — Day 35 (2026-06-04): @ifos/granola + @ifos/bullhorn live tests
+### Phase 1a — Day 35 (originally 2026-06-04; slipped to Day 36 2026-06-05): @ifos/bullhorn live tests
 
-**Founder gate:** Bullhorn developer-account signup DONE + Granola browser OAuth dance DONE (founder confirms; per founder-api-signups-2026-06-03.md P1 + P7 reply patterns).
+**Re-scope note (2026-06-05):** Phase 1 originally bundled Bullhorn + Granola live tests. Split into 1a (Bullhorn; this section) + 1b (Granola; below) per Day 36 morning analysis when the new session surfaced two genuine blockers on the Granola side: (1) `StreamableHTTPClientTransport` binding still TODO(W5-live) — the `@ifos/granola` v0.1.0 package is `GranolaTransport`-interface-only; (2) founder's Granola workspace returns 0 meetings — needs ≥1 recorded meeting before `getMeeting`/`getTranscript` live tests have data to exercise. Bullhorn is unblocked + load-bearing for downstream Scribe/Janitor/Concierge live wiring; ships first.
 
-**Build:**
-- `@ifos/bullhorn`: add `MCP_LIVE_TESTS=1` test block per cluster F R3 honest-signal pattern; OAuth bootstrap CLI helper (one-time founder dance); per-corp token bundle saved to vault path
-- `@ifos/granola`: add `MCP_LIVE_TESTS=1` block; live token loaded from Claude-Code-MCP-captured path OR IFOS-side OAuth dance (verify which works)
-- Live test suites: ≥6 Bullhorn capability tests + ≥4 Granola capability tests against actual upstream
+**Founder gate:** Bullhorn developer-account signup DONE + 6 Bullhorn vars populated in `~/.ifos-local-vault/dev-sandbox/_secrets.env` (verified via `bash scripts/fill-dev-sandbox-secrets.sh` + `awk -F= ...` re-check pattern; never `cat` the secrets file per memory feedback-never-cat-secrets-files).
 
-**Commits (2 atomic):** `feat(mcp/bullhorn): MCP_LIVE_TESTS block + OAuth bootstrap helper` + `feat(mcp/granola): MCP_LIVE_TESTS block + token loader`
+**Build (~3h):**
+- `@ifos/bullhorn`: add `MCP_LIVE_TESTS=1` test block per cluster F R3 honest-signal pattern; ≥6 capability live tests against real sandbox (refreshTokens Step A + Step B + getCandidate + listCandidates + updateCandidate + createNote + getNote)
+- `scripts/bootstrap-bullhorn-oauth.sh`: one-time founder dance; captures access+refresh tokens; atomic write to `~/.ifos-local-vault/dev-sandbox/bullhorn-tokens.json` mode 0600
+- README §Live tests section with run instructions + env-var list
+
+**Commit (1 atomic):** `feat(mcp/bullhorn): MCP_LIVE_TESTS block + OAuth bootstrap helper`
+
+### Phase 1b — Day 37 (estimated 2026-06-06): @ifos/granola transport implementation + live tests
+
+**Re-scope note (2026-06-05):** scope is significantly bigger than original Phase 1 estimate. Three sub-deliverables, not "token loader":
+1. **Transport implementation** — pull in `@modelcontextprotocol/sdk` as a dep; wire `StreamableHTTPClientTransport` into `GranolaClient`'s default transport; update fixture tests so existing 33 stay green
+2. **OAuth bootstrap helper** — IFOS-side OAuth 2.1 PKCE dance (Granola's Claude-Code-MCP-captured token at `~/.claude.json` is in an undocumented format and scoped to Claude-Code-process-lifetime; not what `@ifos/granola` reads). Helper writes to `~/.ifos-local-vault/<tenant>/granola-tokens-<workspace_id>.json` per the package's expected vault path
+3. **Live test suite** — ≥4 capability tests against `mcp.granola.ai/mcp` (listMeetings + getMeeting + getTranscript Paid-only + getAccountInfo); requires founder to have recorded ≥1 meeting in workspace
+
+**Founder gates:** Granola browser OAuth via Claude Code MCP done (for verification only — actual token capture is via Phase 1b's own bootstrap helper); ≥1 meeting recorded in founder's Business+ workspace; Granola creds populated in `_secrets.env` (or no creds needed if PKCE flow + DCR handle everything client-side)
+
+**Build (~6-8h):**
+- `@ifos/granola/src/transport-http.ts`: `StreamableHTTPClientTransport` wrapper implementing `GranolaTransport` interface; default export from `GranolaClient` when no explicit transport injected
+- `scripts/bootstrap-granola-oauth.sh`: OAuth 2.1 PKCE dance; local callback server; atomic vault write
+- `@ifos/granola/tests/live.test.ts`: gated by `MCP_LIVE_TESTS=1`; ≥4 capability tests
+- README §Live tests section + transport documentation
+
+**Commits (2-3 atomic):** `feat(mcp/granola): StreamableHTTPClientTransport implementation` + `feat(mcp/granola): OAuth bootstrap helper` + `feat(mcp/granola): MCP_LIVE_TESTS block`
 
 ### Phase 2 — Day 36 (2026-06-05): Scribe live wiring (half-day)
 
