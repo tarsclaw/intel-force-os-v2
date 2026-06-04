@@ -1,6 +1,8 @@
 # Current priorities
 
-**Week:** Week 5 — **CLOSED 2026-06-03 Day-34.** All 7 phases shipped per `docs/operations/goal-week-5-execution-plan.md` §2; v1.0 agent-bundle layer complete at scaffold tier; W6+ build slice replaces SKELETON TODOs with live wiring once external dependencies land (Bullhorn dev-support reply + Reed/CV-Library commercial signups + Granola browser OAuth dance).
+**Week:** Week 6 — **Day 35 starting 2026-06-04.** W5 CLOSED 2026-06-03 (all 7 phases per `docs/operations/goal-week-5-execution-plan.md` §2; see retrospective at `docs/operations/session-retrospective-2026-06-03.md`). W6 transitions SKELETON → LIVE per `docs/operations/goal-week-6-execution-plan.md`. Day 35 = Phase 1: Bullhorn + Granola live tests against dev sandboxes (founder provisioned creds at `~/.ifos-local-vault/dev-sandbox/_secrets.env` 2026-06-04; Granola requires Claude Code restart + `/mcp` → granola → Authenticate against founder's Business+ workspace).
+
+**Path A discipline note (2026-06-04 incident; preserved as lesson):** during _secrets.env template generation, Claude `cat`'d the existing `~/.ifos-local-vault/migration-test/_secrets.env` to inspect format — surfacing 2 live keys (ANTHROPIC + COMPANIES_HOUSE) into chat transcript. Founder rotated both. Memory `feedback-never-cat-secrets-files` written to prevent recurrence. Process: never `cat`/`Read`/`head` paths matching `*_secrets*` / `*.env` / `*token*` / `*credential*` — use `awk -F= '{print $1}'` for var names only.
 
 **W5 deliverables (Days 28-34; 7 phases shipped):**
 1. **`@ifos/bullhorn` MCP scaffold** (Day 28; commit `ff0f7b6`) — two-step OAuth + per-corporation_id rate-limit + 401-force-refresh + didForceRefresh per cluster F R4. 29/29 vitest.
