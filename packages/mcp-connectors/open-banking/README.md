@@ -186,7 +186,38 @@ pnpm test
 
 **Fixture-first** per `review-mcp-connector.md` §6. The unit suite uses shape-pinned JSON fixtures under `fixtures/`.
 
-**Live tests are deferred** to the first TrueLayer dev signup — no `MCP_LIVE_TESTS`-gated `describe.skipIf(!LIVE)` block exists yet (honest-signal — review-mcp-connector §10 "Pre-build connector with `MCP_LIVE_TESTS` not yet wired: acceptable IF README marks the live tests as 'wired at first commercial signup'"). The live-test scaffold will land in the same commit as the first sandbox credentials per the W4 Track-1 /goal §1 commercial-gate; the fixture-first suite below is fully sufficient for the W4 ratification pass.
+### Live tests (`MCP_LIVE_TESTS=1`)
+
+`tests/live.test.ts` exercises the **real TrueLayer sandbox API** against the Mock Bank. It is a `describe.skipIf(!MCP_LIVE_TESTS)` block — under the normal `pnpm test` fixture run it is **skipped** (never a no-op pass; the fixture passed-count stays honest at 32). It runs only via:
+
+```bash
+pnpm --filter @ifos/open-banking test:live
+```
+
+which sources `~/.ifos-local-vault/dev-sandbox/_secrets.env` (Path A — values read via `process.env`, never inlined) and sets `MCP_LIVE_TESTS=1`.
+
+**One-time bootstrap (founder, browser consent required):**
+
+```bash
+# Prereq: register http://localhost:3100/callback as a redirect URI in the TrueLayer console
+bash packages/mcp-connectors/open-banking/scripts/bootstrap-ob-oauth.sh
+```
+
+This runs the PSD2 consent + OAuth authorization-code dance (browser → pick **Mock Bank** → log in with the mock creds shown → localhost callback), exchanges the code, lists the linked account, then writes:
+- `~/.ifos-local-vault/dev-sandbox/ob-tokens.json` (mode 0600; `OpenBankingTokens` shape, incl. `consent_expires_at_ms` = now + 90d)
+- `~/.ifos-local-vault/dev-sandbox/ob-account.json` (mode 0600; `{connection_id}` — the TrueLayer `account_id`, read by the live suite)
+
+The helper prints only HTTP statuses, the output path, `token_type`, and expiry — never a token, code, secret, or account_id.
+
+**Live test coverage (≥3):**
+
+| Test | Capability | Asserts |
+|---|---|---|
+| `refreshTokens rotates the access_token` | `open_banking_truelayer_oauth` | rotated `access_token` non-empty; new `expires_at_ms` in the future; PSD2 `consent_expires_at_ms` preserved (not extended on refresh) |
+| `listTransactionsSince returns provider-agnostic transactions` | `open_banking_list_transactions` | array shape; each has `transaction_id`, numeric `amount`, `currency`, `posted_at` |
+| `getAccountBalance returns available/current/currency` | `open_banking_get_account_balance` | numeric `available` + `current`; non-empty `currency`; `fetched_at` present |
+
+Required env (provided by `test:live` from `_secrets.env`): `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`.
 
 Test counts:
 - `tests/scaffold.test.ts`: 5 (public surface, exports, full error hierarchy with NotImplementedError)
@@ -195,7 +226,7 @@ Test counts:
 - `tests/auth.test.ts`: 8 (load missing, round-trip, shouldRefresh, refresh success + consent_expires preserved, 401 + no-token-leak, **blocking-consent refuses refresh**, concurrent dedup, Plaid-UK NotImplementedError)
 - `tests/capabilities.test.ts`: 7 (TrueLayer transactions + balance from fixtures; Plaid UK NotImplementedError for both; **listTransactionsSince 429 retry-exhaust, getAccountBalance 500 retry-exhaust, 401-forces-refresh-then-retry** — all 3 added per Codex F-R2 #2 + #3)
 
-**Total: 31 vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1).
+**Total: 32 fixture vitest** (measured by `vitest run`; target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1) **+ 3 live tests** in `tests/live.test.ts` (skipped unless `MCP_LIVE_TESTS=1`; see §Live tests above).
 
 ---
 
