@@ -96,7 +96,7 @@ import base64, hashlib, http.server, json, os, secrets, sys, threading, time, ur
 AUTHORIZE = "https://login.xero.com/identity/connect/authorize"
 TOKEN     = "https://identity.xero.com/connect/token"
 CONNS     = "https://api.xero.com/connections"
-SCOPE     = "offline_access accounting.transactions accounting.contacts.read"
+SCOPE     = os.environ.get("IFOS_XERO_SCOPE", "offline_access accounting.transactions accounting.contacts.read")
 
 client_id     = os.environ["XERO_CLIENT_ID"]
 client_secret = os.environ["XERO_CLIENT_SECRET"]
@@ -110,6 +110,9 @@ verifier  = b64url(secrets.token_bytes(32))
 challenge = b64url(hashlib.sha256(verifier.encode("ascii")).digest())
 state     = b64url(secrets.token_bytes(16))
 
+# Xero reads the scope param strictly: spaces MUST be %20, not + (it treats a
+# literal + as part of the scope token -> invalid_scope). Force percent-encoding
+# of spaces via quote_via=quote (urlencode defaults to quote_plus -> '+').
 authorize_url = AUTHORIZE + "?" + urllib.parse.urlencode({
     "response_type": "code",
     "client_id": client_id,
@@ -118,7 +121,7 @@ authorize_url = AUTHORIZE + "?" + urllib.parse.urlencode({
     "state": state,
     "code_challenge": challenge,
     "code_challenge_method": "S256",
-})
+}, quote_via=urllib.parse.quote)
 
 captured = {}
 class Handler(http.server.BaseHTTPRequestHandler):

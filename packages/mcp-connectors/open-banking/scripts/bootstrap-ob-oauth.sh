@@ -108,6 +108,8 @@ redirect_uri  = f"http://localhost:{port}/callback"
 def b64url(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
 state = b64url(secrets.token_bytes(16))
 
+# Encode spaces in scope as %20 (quote), not + (quote_plus default) — OAuth
+# providers that read the scope param strictly otherwise see a malformed token.
 authorize_url = AUTH_DIALOG + "?" + urllib.parse.urlencode({
     "response_type": "code",
     "client_id": client_id,
@@ -115,7 +117,7 @@ authorize_url = AUTH_DIALOG + "?" + urllib.parse.urlencode({
     "redirect_uri": redirect_uri,
     "providers": providers,
     "state": state,
-})
+}, quote_via=urllib.parse.quote)
 
 captured = {}
 class Handler(http.server.BaseHTTPRequestHandler):
