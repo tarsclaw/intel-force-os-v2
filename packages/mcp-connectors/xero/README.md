@@ -146,7 +146,38 @@ pnpm test
 
 **Fixture-first** per `review-mcp-connector.md` §6. The unit suite uses shape-pinned JSON fixtures under `fixtures/`.
 
-**Live tests are deferred** to the first commercial Xero signup — no `MCP_LIVE_TESTS`-gated `describe.skipIf(!LIVE)` block exists yet (honest-signal per review-mcp-connector §10 "Pre-build connector with `MCP_LIVE_TESTS` not yet wired: acceptable IF README marks the live tests as 'wired at first commercial signup'"). The live-test scaffold lands in the same commit as the first sandbox credentials per the W4 Track-1 /goal §1 commercial-gate.
+### Live tests (`MCP_LIVE_TESTS=1`)
+
+`tests/live.test.ts` exercises the **real Xero API** against the Demo Company sandbox. It is a `describe.skipIf(!MCP_LIVE_TESTS)` block — under the normal `pnpm test` fixture run it is **skipped** (never a no-op pass; the fixture passed-count stays honest at 28). It runs only via:
+
+```bash
+pnpm --filter @ifos/xero test:live
+```
+
+which sources `~/.ifos-local-vault/dev-sandbox/_secrets.env` (Path A — values read via `process.env`, never inlined) and sets `MCP_LIVE_TESTS=1`.
+
+**One-time bootstrap (founder, browser consent required):**
+
+```bash
+# Prereq: register http://localhost:3100/callback as a redirect URI in the Xero app
+bash packages/mcp-connectors/xero/scripts/bootstrap-xero-oauth.sh
+```
+
+This runs the OAuth 2.0 + PKCE authorization-code dance (browser → "Allow access" → localhost callback), then writes:
+- `~/.ifos-local-vault/dev-sandbox/xero-tokens.json` (mode 0600; `XeroTokens` shape)
+- `~/.ifos-local-vault/dev-sandbox/xero-tenant.json` (mode 0600; `{tenant_id, tenant_name}` — non-secret, read by the live suite to resolve the Xero connection)
+
+The helper prints only HTTP statuses, the output path, `token_type`, expiry, and the tenant **name** — never a token, code, secret, or the raw tenant UUID.
+
+**Live test coverage (≥3):**
+
+| Test | Capability | Asserts |
+|---|---|---|
+| `refreshTokens rotates the access_token` | `xero_oauth` | rotated `access_token` is a non-empty string; new `expires_at_ms` is in the future |
+| `listOpenInvoices returns AUTHORISED/SUBMITTED invoices` | `xero_list_open_invoices` | array shape; each has `InvoiceID`, `AmountDue > 0`, status in {AUTHORISED, SUBMITTED} |
+| `getInvoice fetches a single invoice by InvoiceID` | `xero_get_invoice` | returned invoice's `InvoiceID` matches the probed id |
+
+Required env (provided by `test:live` from `_secrets.env`): `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_DEMO_COMPANY_ORG_ID` (optional; selects the matching org from `/connections`).
 
 Test counts:
 - `tests/scaffold.test.ts`: 5 (public surface, exports, error hierarchy)
@@ -154,7 +185,7 @@ Test counts:
 - `tests/auth.test.ts`: 7 (load missing, round-trip, shouldRefresh, refresh success, 401 + no-token-leak, concurrent dedup, etc.)
 - `tests/capabilities.test.ts`: 9 (list/get invoice happy + 404, list/write payment happy + 400, **listOpenInvoices 429 retry-exhaust, listPayments 500 retry-exhaust, 401-forces-refresh-then-retry** — all 3 added per Codex F-R1/F-R2)
 
-**Total: 28 vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1).
+**Total: 28 fixture vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1) **+ 3 live tests** in `tests/live.test.ts` (skipped unless `MCP_LIVE_TESTS=1`; see §Live tests above).
 
 ---
 
