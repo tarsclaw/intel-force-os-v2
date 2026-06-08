@@ -12,6 +12,7 @@
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:live": "set -a; . \"${IFOS_SECRETS_FILE:-$HOME/.ifos-local-vault/dev-sandbox/_secrets.env}\"; set +a; MCP_LIVE_TESTS=1 vitest run tests/live.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {},

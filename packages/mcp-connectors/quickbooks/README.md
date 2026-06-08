@@ -165,7 +165,34 @@ pnpm test
 
 **Fixture-first** per `review-mcp-connector.md` §6. The unit suite uses shape-pinned JSON fixtures under `fixtures/`.
 
-**Live tests are deferred** to the first commercial QB sandbox signup — no `MCP_LIVE_TESTS`-gated `describe.skipIf(!LIVE)` block exists yet (honest-signal per review-mcp-connector §10 "Pre-build connector with `MCP_LIVE_TESTS` not yet wired: acceptable IF README marks the live tests as 'wired at first commercial signup'"). The live-test scaffold lands in the same commit as the first sandbox credentials.
+### Live tests (`MCP_LIVE_TESTS=1`)
+
+`tests/live.test.ts` exercises the **real QuickBooks Online sandbox API**. It is a `describe.skipIf(!MCP_LIVE_TESTS)` block — under the normal `pnpm test` fixture run it is **skipped** (never a no-op pass; the fixture passed-count stays honest at 26). It runs only via:
+
+```bash
+pnpm --filter @ifos/quickbooks test:live
+```
+
+which sources `~/.ifos-local-vault/dev-sandbox/_secrets.env` (Path A — values read via `process.env`, never inlined) and sets `MCP_LIVE_TESTS=1`.
+
+**One-time bootstrap (founder, browser consent required):**
+
+```bash
+# Prereq: add http://localhost:3100/callback as a redirect URI in the Intuit app
+bash packages/mcp-connectors/quickbooks/scripts/bootstrap-qb-oauth.sh
+```
+
+This runs the OAuth 2.0 authorization-code dance (browser → "Connect" → localhost callback; Intuit returns `realmId` on the callback and the helper verifies it against `QB_SANDBOX_REALM_ID`), then writes `~/.ifos-local-vault/dev-sandbox/qb-tokens.json` (mode 0600; `QbTokens` shape, including `refresh_token_expires_at_ms`). The helper prints only HTTP statuses, the output path, `token_type`, and expiry — never a token, code, secret, or realmId.
+
+**Live test coverage (≥3):**
+
+| Test | Capability | Asserts |
+|---|---|---|
+| `refreshTokens rotates the access_token` | `quickbooks_oauth` | rotated `access_token` non-empty; new access + refresh `*_at_ms` are in the future |
+| `listOpenInvoices returns invoices with Balance > 0` | `quickbooks_list_open_invoices` | array shape; each has `Id` and `Balance > 0` |
+| `getInvoice fetches a single invoice by Id` | `quickbooks_get_invoice` | returned invoice's `Id` matches the probed id |
+
+Required env (provided by `test:live` from `_secrets.env`): `QB_CLIENT_ID`, `QB_CLIENT_SECRET`, `QB_SANDBOX_REALM_ID`.
 
 Test counts:
 - `tests/scaffold.test.ts`: 5 (public surface, exports, error hierarchy)
@@ -173,7 +200,7 @@ Test counts:
 - `tests/auth.test.ts`: 7 (load missing, round-trip, shouldRefresh, refreshTokenNearExpiry, refresh success, 401 + no-token-leak, concurrent dedup)
 - `tests/capabilities.test.ts`: 9 (list/get invoice happy + 404, list/write payment happy + 400, **listOpenInvoices 429 retry-exhaust, listPayments 500 retry-exhaust, 401-forces-refresh-then-retry** — all 3 added per Codex F-R1/F-R2)
 
-**Total: 26 vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1).
+**Total: 26 fixture vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1) **+ 3 live tests** in `tests/live.test.ts` (skipped unless `MCP_LIVE_TESTS=1`; see §Live tests above).
 
 ---
 
