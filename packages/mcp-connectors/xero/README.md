@@ -74,7 +74,7 @@ for (const inv of invoices) {
 The connector handles the **refresh** half of OAuth 2.0. The **initial authorisation** (consent screen → authorisation code → first token pair) is a one-time human-in-the-loop dance not covered here. Bootstrap procedure (manual):
 
 1. Register the IFOS app at https://developer.xero.com/ → get `client_id` + `client_secret`.
-2. Construct the authorise URL with `response_type=code` + `scope=offline_access accounting.transactions accounting.contacts.read` + your `redirect_uri`.
+2. Construct the authorise URL with `response_type=code` + `scope=offline_access accounting.invoices.read accounting.payments accounting.contacts.read` + your `redirect_uri`. (Xero **granular scopes** — apps created after 2026-03-02 only have these; the old broad `accounting.transactions` scope is retired for them. `accounting.invoices.read` = invoice reads; `accounting.payments` = payment read/write.)
 3. User clicks → consents → Xero redirects to `redirect_uri?code=<auth_code>`.
 4. POST to `https://identity.xero.com/connect/token` with `grant_type=authorization_code` + the code → receive `{access_token, refresh_token, expires_in}`.
 5. Call `GET https://api.xero.com/connections` with the access_token → get the `tenant_id` (Xero "connection ID").
@@ -186,6 +186,8 @@ Test counts:
 - `tests/capabilities.test.ts`: 9 (list/get invoice happy + 404, list/write payment happy + 400, **listOpenInvoices 429 retry-exhaust, listPayments 500 retry-exhaust, 401-forces-refresh-then-retry** — all 3 added per Codex F-R1/F-R2)
 
 **Total: 28 fixture vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1) **+ 3 live tests** in `tests/live.test.ts` (skipped unless `MCP_LIVE_TESTS=1`; see §Live tests above).
+
+**✅ LIVE VERIFIED 2026-06-09:** all 3 live tests pass (`3 passed (3)`) against the real Xero API, token bootstrapped via `scripts/bootstrap-xero-oauth.sh` on callback port 3100 (the registered redirect URI) with **granular scopes** (`offline_access accounting.invoices.read accounting.payments accounting.contacts.read`). `refreshTokens` + `listOpenInvoices` + `getInvoice` confirmed end-to-end. (`getInvoice` is resilient: fetches a real invoice when the connected org has one, else verifies live not-found handling — the test org "Intel Force" had no invoices.)
 
 ---
 

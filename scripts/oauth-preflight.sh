@@ -105,8 +105,8 @@ run_xero() {
   echo "Xero:"
   creds_set XERO_CLIENT_ID XERO_CLIENT_SECRET || true
   probe_authorize "https://login.xero.com/identity/connect/authorize" \
-    "p['scope']='offline_access accounting.transactions accounting.contacts.read'" XERO_CLIENT_ID
-  note "Manual (not browserless-detectable): the Xero app MUST be a Web app (Auth Code), NOT a Custom Connection."
+    "p['scope']='offline_access accounting.invoices.read accounting.payments accounting.contacts.read'" XERO_CLIENT_ID
+  note "Xero apps created after 2026-03-02 use granular scopes (accounting.invoices.read etc.); the old broad accounting.transactions scope is retired for them."
   echo ""
 }
 run_qb() {

@@ -99,7 +99,11 @@ import base64, hashlib, http.server, json, os, secrets, sys, threading, time, ur
 AUTHORIZE = "https://login.xero.com/identity/connect/authorize"
 TOKEN     = "https://identity.xero.com/connect/token"
 CONNS     = "https://api.xero.com/connections"
-SCOPE     = os.environ.get("IFOS_XERO_SCOPE", "offline_access accounting.transactions accounting.contacts.read")
+# Xero granular scopes (apps created after 2026-03-02 only have these; the old
+# broad accounting.transactions scope is retired for new apps). invoices.read =
+# listOpenInvoices/getInvoice; payments = listPayments + writePaymentReceived;
+# contacts.read = invoice contact sub-objects. Override with IFOS_XERO_SCOPE.
+SCOPE     = os.environ.get("IFOS_XERO_SCOPE", "offline_access accounting.invoices.read accounting.payments accounting.contacts.read")
 
 client_id     = os.environ["XERO_CLIENT_ID"]
 client_secret = os.environ["XERO_CLIENT_SECRET"]
