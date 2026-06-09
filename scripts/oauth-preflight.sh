@@ -92,7 +92,12 @@ print('${base}?'+urllib.parse.urlencode(p, quote_via=urllib.parse.quote))
   elif printf '%s' "${body}" | grep -qiE 'error=invalid_client|"?error"?[:=][[:space:]]*"?(unauthorized_client|invalid_client|invalid_request)|invalid redirect_uri|redirect_uri.{0,20}(mismatch|not.{0,5}registered|invalid)'; then
     bad "authorize → redirect_uri/client error — register EXACTLY ${REDIRECT}, verify the client_id"
   else
-    ok "authorize → ${code:-?}; redirect_uri + client accepted (provider showed login/consent)"
+    ok "authorize → ${code:-?}; client_id recognised, scope accepted, login/consent shown"
+    note "  ⚠ this does NOT prove the redirect URI is registered for the CALLBACK. Some"
+    note "    providers (Intuit) accept the authorize request but reject the redirect at the"
+    note "    final step ('redirect_uri ... is invalid') — that is only catchable in-browser."
+    note "    So: still register http://localhost:3100/callback EXACTLY under the SAME key set"
+    note "    (e.g. Intuit Development tab) as the client_id you put in _secrets.env."
   fi
 }
 
