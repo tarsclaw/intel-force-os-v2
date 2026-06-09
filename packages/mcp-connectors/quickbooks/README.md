@@ -202,6 +202,8 @@ Test counts:
 
 **Total: 26 fixture vitest** (target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1) **+ 3 live tests** in `tests/live.test.ts` (skipped unless `MCP_LIVE_TESTS=1`; see §Live tests above).
 
+**✅ LIVE VERIFIED 2026-06-09:** all 3 live tests pass (`3 passed (3)`) against the real QuickBooks Online sandbox, token bootstrapped via `scripts/bootstrap-qb-oauth.sh` on callback port 3000 (the registered redirect URI, added under the app's Development keys). `refreshTokens` + `listOpenInvoices` + `getInvoice` confirmed end-to-end.
+
 ---
 
 ## Build
