@@ -67,6 +67,20 @@ source "${_SHARED_DIR}/hook-helpers.sh"
 # shellcheck source=/dev/null
 source "${_SHARED_DIR}/voice-loader.sh"
 
+# Connector CLI base + provider creds (Path A: source secrets into env, never
+# cat them). Used by the Open Banking token-age probe below + cycle.sh Step 1.
+_CC_CONN_BASE="${IFOS_REPO_ROOT:+${IFOS_REPO_ROOT}/packages/mcp-connectors}"
+if [[ -z "${_CC_CONN_BASE}" || ! -d "${_CC_CONN_BASE}" ]]; then
+  _CC_CONN_BASE="${_SHARED_DIR}/../../packages/mcp-connectors"
+fi
+_CC_SECRETS="${IFOS_SECRETS_FILE:-${HOME}/.ifos-local-vault/dev-sandbox/_secrets.env}"
+if [[ -f "${_CC_SECRETS}" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "${_CC_SECRETS}"
+  set +a
+fi
+
 # ────────────────────────────────────────────────────────────────────────
 # Hydrate tenant config (accounting provider + Open Banking provider)
 # Reference: agent.md §2 invocation surface — per-tenant via
@@ -113,14 +127,23 @@ export CTX_RECENT_EDITS_COUNT
 # Reference: agent.md §6 ESC_OPEN_BANKING_TOKEN_AGING staged severity.
 # ────────────────────────────────────────────────────────────────────────
 
+# W7 LIVE: probe PSD2 token-age stage via the @ifos/open-banking CLI bin
+# (node dist/cli.js token-stage → {stage, days_until_consent_expiry}).
 CTX_OPEN_BANKING_TOKEN_STAGE="${CTX_OPEN_BANKING_TOKEN_STAGE:-unknown}"
+_OB_CLI="${_CC_CONN_BASE}/open-banking/dist/cli.js"
+if [[ -f "${_OB_CLI}" ]]; then
+  CTX_OPEN_BANKING_TOKEN_STAGE="$(node "${_OB_CLI}" token-stage 2>/dev/null \
+    | jq -r '.stage // "unknown"' 2>/dev/null || echo unknown)"
+fi
 export CTX_OPEN_BANKING_TOKEN_STAGE
-# TODO(W7-8): node -e "import('@ifos/open-banking').then(ob => {
-#   const tokens = await ob.loadTokens(config);
-#   const report = ob.getTokenAgeStage(tokens);
-#   console.log(report.stage);
-# })"
-# If stage === 'blocking': emit ESC_OPEN_BANKING_TOKEN_AGING blocking + exit 1.
+# Blocking stage (≤7d to PSD2 consent expiry): operator must re-authorise
+# before any bank read; emit ESC + exit 1 per agent.md §6 staged severity.
+if [[ "${CTX_OPEN_BANKING_TOKEN_STAGE}" == "blocking" ]]; then
+  autosend_escalate "ESC_OPEN_BANKING_TOKEN_AGING" "agent=cash-conductor" \
+    "tenant=${CTX_TENANT_SLUG}" "stage=blocking"
+  printf '[cash-conductor context.sh] OB token in blocking stage — re-consent required\n' >&2
+  exit 1
+fi
 
 # ────────────────────────────────────────────────────────────────────────
 # Last chase position state (per-invoice; from cash_conductor_invoices)
