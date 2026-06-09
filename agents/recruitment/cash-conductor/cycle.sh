@@ -597,9 +597,24 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *11* ]]; then
-  # TODO(W7-8): webhook-driven; UPDATE cash_conductor_invoices SET ...
-  # hh_decision_output "cash_conductor_chase_sent_recorded" "invoice:<id>" "position:<N>; sent_at:<ISO>"
-  :
+  # W7 LIVE (webhook-driven): after Concierge transports an approved chase it webhooks
+  # back invoice+position; CC records the state mutation. The Concierge chase_sent
+  # webhook lands in the W10-13 build slice; until then (drafts-only) nothing triggers
+  # this, so the mutation is wired + tested but inert unless the signal is present.
+  if [[ -n "${CC_CHASE_SENT_INVOICE:-}" && -n "${CC_CHASE_SENT_POSITION:-}" && -n "${IFOS_DB_URL:-}" ]] \
+       && command -v psql >/dev/null 2>&1; then
+    psql "${IFOS_DB_URL}" -q -v ON_ERROR_STOP=1 --set=tenant="${CTX_TENANT_SLUG}" \
+      --set=inv="${CC_CHASE_SENT_INVOICE}" --set=pos="${CC_CHASE_SENT_POSITION}" <<'SQL'
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+UPDATE cash_conductor_invoices
+SET last_chase_position = :'pos'::int, last_chase_sent_at = now()
+WHERE invoice_id = :'inv';
+COMMIT;
+SQL
+    hh_decision_output "cash_conductor_chase_sent_recorded" "invoice:${CC_CHASE_SENT_INVOICE}" \
+      "position:${CC_CHASE_SENT_POSITION}; sent_at:$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  fi
 fi
 
 # ────────────────────────────────────────────────────────────────────────
@@ -609,9 +624,32 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *12* ]]; then
-  # TODO(W7-8): re-query Step 5 for paid-since detection; ESC_AUTOSEND_RACE
-  # hh_decision_output "chase_cancellation_check" "invoice:<id>" "cancelled:<bool>"
-  :
+  # W7 LIVE (webhook mode only): re-query each in-flight chase draft's invoice. If it
+  # was paid since the draft (amount_due now ≤ 0), cancel the chase (do NOT send) →
+  # ESC_AUTOSEND_RACE. Guards the paid-since-draft-but-before-send race (agent.md §4 Step 12).
+  if [[ -n "${CC_VALIDATED:-}" && -s "${CC_VALIDATED}" && -n "${IFOS_DB_URL:-}" ]] \
+       && command -v psql >/dev/null 2>&1; then
+    while IFS='|' read -r _rc_id _rc_pos _rc_path; do
+      [[ -z "${_rc_id}" ]] && continue
+      _rc_due="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 \
+        --set=tenant="${CTX_TENANT_SLUG}" --set=inv="${_rc_id}" <<'SQL' 2>/dev/null
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+SELECT (amount_total - amount_paid)::text FROM cash_conductor_invoices WHERE invoice_id = :'inv' LIMIT 1;
+COMMIT;
+SQL
+)"
+      _rc_due="$(printf '%s' "${_rc_due}" | grep -E '^-?[0-9.]+$' | head -1)"
+      if [[ -n "${_rc_due}" ]] && awk -v d="${_rc_due}" 'BEGIN{exit !(d<=0)}'; then
+        autosend_escalate "ESC_AUTOSEND_RACE" "agent=cash-conductor" \
+          "tenant=${CTX_TENANT_SLUG}" "invoice=${_rc_id}"
+        hh_decision_output "chase_cancellation_check" "invoice:${_rc_id}" \
+          "cancelled:true; reason:paid_since_draft"
+      else
+        hh_decision_output "chase_cancellation_check" "invoice:${_rc_id}" "cancelled:false"
+      fi
+    done < "${CC_VALIDATED}"
+  fi
 fi
 
 # ────────────────────────────────────────────────────────────────────────
