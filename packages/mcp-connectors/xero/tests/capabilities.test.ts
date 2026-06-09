@@ -11,6 +11,7 @@ import { saveTokens, _resetInflightForTest } from "../src/auth.js";
 import { reset as resetRateLimit } from "../src/rate-limit.js";
 import { listOpenInvoices, getInvoice } from "../src/invoices.js";
 import {
+  buildPaymentWriteRequest,
   listPayments,
   writePaymentReceived,
 } from "../src/payments.js";
@@ -129,6 +130,30 @@ describe("xero capabilities — payments", () => {
     expect(payments.length).toBe(1);
     expect(payments[0]?.Amount).toBe(2000);
     expect(payments[0]?.PaymentType).toBe("ACCRECPAYMENT");
+  });
+
+  it("buildPaymentWriteRequest: maps CLI args → Xero write request (reference omitted when absent)", () => {
+    const withRef = buildPaymentWriteRequest({
+      invoice: "0000aaaa-1111-2222-3333-444455556666",
+      amount: 1200.0,
+      date: "2026-05-22",
+      account: "090",
+      reference: "BACS-2026-05-22-002",
+    });
+    expect(withRef).toEqual({
+      Invoice: { InvoiceID: "0000aaaa-1111-2222-3333-444455556666" },
+      Account: { Code: "090" },
+      Date: "2026-05-22",
+      Amount: 1200.0,
+      Reference: "BACS-2026-05-22-002",
+    });
+    const noRef = buildPaymentWriteRequest({
+      invoice: "inv-1",
+      amount: 50,
+      date: "2026-05-22",
+      account: "090",
+    });
+    expect("Reference" in noRef).toBe(false);
   });
 
   it("writePaymentReceived: success path returns created payment", async () => {

@@ -51,6 +51,37 @@ export async function listPayments(
   return payments;
 }
 
+/** CLI `write-payment` args → Xero write-request mapping input. */
+export interface PaymentWriteCliArgs {
+  /** Xero InvoiceID (GUID) the payment is applied to. */
+  invoice: string;
+  /** Payment amount (must equal the bank-deposit amount for Stage 1-2 matches). */
+  amount: number;
+  /** ISO yyyy-MM-dd payment date. */
+  date: string;
+  /** Xero bank GL account Code the deposit lands in (Xero requires Account on every payment). */
+  account: string;
+  /** Optional payment reference (e.g. the bank transaction id). */
+  reference?: string;
+}
+
+/**
+ * Pure map: CLI args → XeroPaymentWriteRequest. Factored out of cli.ts so the
+ * arg→payload mapping is unit-testable without a live client (Cash Conductor
+ * §4 Step 6 reconciliation write).
+ */
+export function buildPaymentWriteRequest(
+  args: PaymentWriteCliArgs,
+): XeroPaymentWriteRequest {
+  return {
+    Invoice: { InvoiceID: args.invoice },
+    Account: { Code: args.account },
+    Date: args.date,
+    Amount: args.amount,
+    ...(args.reference ? { Reference: args.reference } : {}),
+  };
+}
+
 /**
  * Write a payment received against an invoice. State-changing — emits
  * action_type='accounting_reconciliation_write' (yellow tier per
