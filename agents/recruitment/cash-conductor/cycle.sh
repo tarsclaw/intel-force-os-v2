@@ -45,6 +45,7 @@ if [[ -z "${CTX_TENANT_SLUG:-}" ]]; then
   exit 2
 fi
 : "${CTX_AGENT_NAME:=cash-conductor}"
+export CTX_AGENT_NAME CTX_AGENT_DIR CTX_TENANT_SLUG   # inherited by validate.sh subprocess (Step 9)
 
 # Resolve _shared/ helpers (rendered location OR repo source-tree fallback —
 # 4-candidate chain copied from agents/recruitment/diagnostic/validate.sh per
@@ -468,8 +469,33 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *9* ]]; then
-  # TODO(W7-8): per draft → bash validate.sh <draft_path>; exit on fail.
-  :
+  # W7 LIVE: run Gate A (validate.sh) on each generated draft. Passed drafts are
+  # recorded to a run-scoped file consumed by Step 10; failed drafts already had
+  # their ESC row emitted by validate.sh and are NOT queued (the draft stays in
+  # the vault for operator review).
+  CC_VALIDATED="$(mktemp -t cc-validated-XXXXXX 2>/dev/null || echo "/tmp/cc-validated-$$")"
+  export CC_VALIDATED
+  : > "${CC_VALIDATED}"
+  _cc_validate="${CTX_AGENT_DIR}/validate.sh"
+  [[ -f "${_cc_validate}" ]] || _cc_validate="${IFOS_REPO_ROOT:-}/agents/recruitment/cash-conductor/validate.sh"
+  _cc_drafts_base="${CC_DRAFTS_DIR:-${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${CTX_TENANT_SLUG}/cash-conductor-drafts}"
+  _cc_passed=0; _cc_failed=0
+  if [[ -n "${CC_CHASE_CANDIDATES:-}" && -s "${CC_CHASE_CANDIDATES}" && -f "${_cc_validate}" ]]; then
+    while IFS='|' read -r _ci_id _ci_num _ci_amt _ci_days _ci_pos _ci_contact _ci_email; do
+      [[ -z "${_ci_id}" ]] && continue
+      _cc_dpath="${_cc_drafts_base}/cc-${_ci_id}-p${_ci_pos}.md"
+      [[ -f "${_cc_dpath}" ]] || continue
+      if bash "${_cc_validate}" "${_cc_dpath}" >/dev/null 2>&1; then
+        _cc_passed=$((_cc_passed + 1))
+        printf '%s\n' "${_ci_id}|${_ci_pos}|${_cc_dpath}" >> "${CC_VALIDATED}"
+        hh_decision_output "chase_draft_validated" "invoice:${_ci_id}" "passed; position:${_ci_pos}"
+      else
+        _cc_failed=$((_cc_failed + 1))   # validate.sh already emitted the ESC row
+      fi
+    done < "${CC_CHASE_CANDIDATES}"
+  fi
+  hh_decision_output "chase_validation_pass" "tenant:${CTX_TENANT_SLUG}" \
+    "passed:${_cc_passed}; failed:${_cc_failed}"
 fi
 
 # ────────────────────────────────────────────────────────────────────────
@@ -482,12 +508,18 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *10* ]]; then
-  # Always emit the YELLOW-tier internal-draft row first — this is the audit
-  # record that the draft exists in vault regardless of whether the orange
-  # send-approval path fires.
-  # TODO(W7-8): per draft iteration:
-  #   hh_decision_action "xero_reminder_draft_internal" "invoice:${INVOICE_ID}" \
-  #     "${PAYLOAD_HASH}" "vault_path:${DRAFT_PATH}; position:${CHASE_POSITION}"
+  # W7 LIVE: emit the YELLOW-tier internal-draft action row per VALIDATED draft —
+  # the audit record that the draft exists in vault, independent of the orange
+  # send path. autosend-policy.yaml: xero_reminder_draft_internal = yellow.
+  if [[ -n "${CC_VALIDATED:-}" && -s "${CC_VALIDATED}" ]]; then
+    while IFS='|' read -r _vi_id _vi_pos _vi_path; do
+      [[ -z "${_vi_id}" ]] && continue
+      _vi_hash="$(shasum -a 256 "${_vi_path}" 2>/dev/null | cut -c1-16)"
+      [[ -z "${_vi_hash}" ]] && _vi_hash="${_vi_id}"
+      hh_decision_action "xero_reminder_draft_internal" "invoice:${_vi_id}" "${_vi_hash}" \
+        "vault_path:${_vi_path}; position:${_vi_pos}" || true
+    done < "${CC_VALIDATED}"
+  fi
 
   if [[ -d "${IFOS_REPO_ROOT:-}/packages/utilities/autosend-bridge-telegram/dist" ]]; then
     # Bridge package PRESENT — route each draft through the D1-B Telegram shim.

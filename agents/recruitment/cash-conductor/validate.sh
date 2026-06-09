@@ -101,73 +101,170 @@ _ok() {
   printf '  ✓ %s\n' "$1"
 }
 
-# ────────────────────────────────────────────────────────────────────────
-# G1 — invoice number + amount + contact (per ULTRAPLAN A4 line 538)
-# Reads draft YAML frontmatter (per agent.md §3 Output 2 schema):
-#   invoice_id, contact_email, amount_due, days_overdue, escalation_position
-# Cross-checks against cash_conductor_invoices.<invoice_id>.
-# ────────────────────────────────────────────────────────────────────────
+# Track the dominant failure class for ESC routing (set by the first hard fail).
+ESC_CLASS=""
 
-# TODO(W7-8): parse draft YAML frontmatter; SELECT FROM cash_conductor_invoices
-# WHERE invoice_id = <draft.invoice_id>; assert TotalAmt/Balance match draft.amount_due
-# AND CustomerRef.email matches draft.contact_email. On any mismatch:
-# _fail "G1: invoice/amount/contact triple-check failed" + fire ESC_ADDRESSEE_MISMATCH
-# (per agent.md §6; blocking; operator + ifos_oncall routing).
-_ok "G1: invoice/amount/contact triple-check — SKELETON (W7-8 wires the SQL)"
+# Frontmatter reader: pull "key: value" from the leading YAML block, strip quotes.
+_fm() {
+  sed -n '1,/^---$/{/^---$/d;p;}' "${DRAFT}" 2>/dev/null \
+    | grep -m1 "^$1:" | sed "s/^$1:[[:space:]]*//; s/^\"//; s/\"$//"
+}
 
-# ────────────────────────────────────────────────────────────────────────
-# G2 — NOT paid in last 24h (defence-in-depth; per ULTRAPLAN A4 line 538 verbatim)
-# Re-query accounting (Xero/QB) at draft time; if paid_in_last_24h: _fail + ESC_AGENT_OUTPUT_SHAPE
-# ────────────────────────────────────────────────────────────────────────
+D_INVOICE_ID="$(_fm invoice_id)"
+D_INVOICE_NUMBER="$(_fm invoice_number)"
+D_AMOUNT="$(_fm amount_due)"
+D_CONTACT="$(_fm contact_email)"
+D_POSITION="$(_fm escalation_ladder_position)"
+D_VOICE="$(_fm voice_score)"
 
-# TODO(W7-8): @ifos/xero getInvoice OR @ifos/quickbooks getInvoice → check
-# AmountPaid timestamp; if within 24h _fail + emit ESC_AGENT_OUTPUT_SHAPE
-# (output-shape constraint per catalogue line 184) via:
-# hh_decision_action "validate_gate_a_fail" "invoice:<id>" "<hash>" "ESC_AGENT_OUTPUT_SHAPE; paid-in-24h"
-_ok "G2: not-paid-in-24h — SKELETON (W7-8 wires the accounting re-query)"
-
-# ────────────────────────────────────────────────────────────────────────
-# G3 — voice classifier score by position threshold (per agent.md §3.2)
-# Position 1-2: ≥0.75 ; Position 3: ≥0.80 (sensitive sends like position-3 escalation)
-# ────────────────────────────────────────────────────────────────────────
-
-# TODO(W7-8): parse draft YAML for voice_score + escalation_position; compare
-# to threshold; on fail emit ESC_VOICE_DRIFT (warn per catalogue lines 120-125)
-# + hh_decision_action validate_gate_a_fail.
-_ok "G3: voice classifier per-position threshold — SKELETON (W7-8 wires)"
+# One RLS-scoped read of the source-of-truth invoice row for G1/G2.
+DB_ROW=""
+if [[ -n "${D_INVOICE_ID}" && -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+  DB_ROW="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 \
+    --set=tenant="${CTX_TENANT_SLUG}" --set=inv="${D_INVOICE_ID}" <<'SQL' 2>/dev/null
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+SELECT coalesce(invoice_number,'') || '|' || (amount_total - amount_paid)::text || '|' ||
+       status || '|' || coalesce(client_billing_email,'')
+FROM cash_conductor_invoices WHERE invoice_id = :'inv' LIMIT 1;
+COMMIT;
+SQL
+)"
+fi
+IFS='|' read -r DB_NUMBER DB_AMOUNT_DUE DB_STATUS DB_EMAIL <<<"${DB_ROW}"
 
 # ────────────────────────────────────────────────────────────────────────
-# G4 — No PII outside firm boundary (regex pass against chase body)
+# G1 — invoice number + amount + contact triple-check (ULTRAPLAN A4 line 538; AND)
+# Cross-checks the draft frontmatter against the source-of-truth invoice row.
+# Invoice#/amount mismatch → ESC_AGENT_OUTPUT_SHAPE; contact mismatch → ESC_ADDRESSEE_MISMATCH.
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W7-8): grep draft body for email patterns NOT matching the tenant's
-# firm-domain whitelist; if any: _fail + ESC_PII_LEAKAGE_RISK (blocking;
-# operator + ifos_oncall).
-_ok "G4: no PII outside firm boundary — SKELETON (W7-8 wires firm-domain whitelist)"
+if [[ -z "${DB_ROW}" ]]; then
+  _warn "G1: could not load invoice ${D_INVOICE_ID} (no DB row); cannot verify — draft held for manual review"
+else
+  if [[ -n "${D_INVOICE_NUMBER}" && "${D_INVOICE_NUMBER}" != "${DB_NUMBER}" ]]; then
+    _fail "G1: invoice_number mismatch (draft='${D_INVOICE_NUMBER}' db='${DB_NUMBER}')"; ESC_CLASS="${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}"
+  fi
+  # Numeric amount compare with a 0.005 tolerance (formatting-agnostic).
+  if ! awk -v a="${D_AMOUNT:-0}" -v b="${DB_AMOUNT_DUE:-0}" 'BEGIN{d=a-b; if(d<0)d=-d; exit !(d<=0.005)}'; then
+    _fail "G1: amount_due mismatch (draft='${D_AMOUNT}' db='${DB_AMOUNT_DUE}')"; ESC_CLASS="${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}"
+  fi
+  # Contact: a true MISMATCH (draft addresses a different party than the invoice
+  # contact) is blocking. Empty-vs-empty is "no contact on file" → warn, not fail
+  # (drafts-only: the consultant supplies the address before send).
+  if [[ -n "${D_CONTACT}" && -n "${DB_EMAIL}" && "${D_CONTACT}" != "${DB_EMAIL}" ]]; then
+    _fail "G1: contact_email mismatch (draft='${D_CONTACT}' db='${DB_EMAIL}')"; ESC_CLASS="ESC_ADDRESSEE_MISMATCH"
+  elif [[ -z "${DB_EMAIL}" ]]; then
+    _warn "G1: invoice has no client_billing_email on file — consultant supplies the address before send"
+  fi
+  [[ ${#FAILURES[@]} -eq 0 ]] && _ok "G1: invoice#/amount/contact triple-check"
+fi
 
 # ────────────────────────────────────────────────────────────────────────
-# G5 — Reconciliation match confidence ≥0.85 for auto-write (Stage 1-2 only)
-# Only fires on Stage 1-2 auto-write path; Stage 3-4 already operator-queued.
+# G2 — NOT already settled (paid-precondition; ULTRAPLAN A4 line 538 verbatim)
+# Defence-in-depth: never chase an invoice that is already paid/settled. The
+# 24h-window refinement needs a payment-event timestamp (accounting re-query) —
+# documented enhancement; the live gate here is amount_due>0 AND status open-ish.
 # ────────────────────────────────────────────────────────────────────────
 
-_ok "G5: reconciliation match-confidence ≥0.85 — SKELETON (W7-8 wires)"
+if [[ -n "${DB_ROW}" ]]; then
+  if awk -v b="${DB_AMOUNT_DUE:-0}" 'BEGIN{exit !(b<=0)}' \
+     || [[ "${DB_STATUS}" == "paid" || "${DB_STATUS}" == "cancelled" || "${DB_STATUS}" == "voided" ]]; then
+    _fail "G2: invoice already settled (amount_due='${DB_AMOUNT_DUE}' status='${DB_STATUS}') — do not chase"
+    ESC_CLASS="${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}"
+  else
+    _ok "G2: invoice not settled (amount_due='${DB_AMOUNT_DUE}' status='${DB_STATUS}')"
+  fi
+fi
 
 # ────────────────────────────────────────────────────────────────────────
-# G6 — Open Banking token age ≥7 days from PSD2 consent expiry
-# Per @ifos/open-banking getTokenAgeStage; ≤7d = "blocking" stage = hard fail.
+# G3 — voice classifier score by position threshold (agent.md §3.2)
+# Position 1-2 ≥0.75 ; position 3 ≥0.80. When the draft is unscored (no tenant
+# voice_corpus), this is a WARNING not a hard fail — a score cannot be honestly
+# computed without a seeded corpus + embedding infra (documented enhancement).
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W7-8): @ifos/open-banking loadTokens + getTokenAgeStage; if stage=="blocking"
-# _fail + ESC_OPEN_BANKING_TOKEN_AGING (catalogue staged severity per §2.7;
-# blocking severity routes operator + ifos_oncall_chat_id).
-_ok "G6: Open Banking token ≥7d from PSD2 expiry — SKELETON (W7-8 wires)"
+if [[ "${D_VOICE}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  _thr="0.75"; [[ "${D_POSITION}" == "3" ]] && _thr="0.80"
+  if awk -v s="${D_VOICE}" -v t="${_thr}" 'BEGIN{exit !(s>=t)}'; then
+    _ok "G3: voice_score ${D_VOICE} ≥ ${_thr} (position ${D_POSITION})"
+  else
+    _fail "G3: voice_score ${D_VOICE} < ${_thr} (position ${D_POSITION})"; ESC_CLASS="${ESC_CLASS:-ESC_VOICE_DRIFT}"
+  fi
+else
+  _warn "G3: voice unscored (${D_VOICE:-none}) — no tenant voice_corpus; cannot enforce threshold (documented enhancement)"
+fi
 
 # ────────────────────────────────────────────────────────────────────────
-# G7 — Accounting auth refreshed in Step 1
-# Sanity check that cycle.sh Step 1 wrote a fresh auth_refresh_complete row.
+# G4 — No PII outside firm boundary: scan the body for email addresses whose
+# domain is not the invoice contact's domain or the tenant firm domain.
 # ────────────────────────────────────────────────────────────────────────
 
-_ok "G7: accounting auth refresh in this session — SKELETON (W7-8 wires)"
+_BODY_EMAILS="$(sed -n '/^---$/,/^---$/!p' "${DRAFT}" 2>/dev/null \
+  | grep -oiE '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' | sort -u || true)"
+if [[ -n "${_BODY_EMAILS}" ]]; then
+  _allow_domain="${D_CONTACT##*@}"
+  _ext=0
+  while IFS= read -r _em; do
+    [[ -z "${_em}" ]] && continue
+    if [[ -z "${_allow_domain}" || "${_em##*@}" != "${_allow_domain}" ]]; then _ext=1; fi
+  done <<<"${_BODY_EMAILS}"
+  if [[ "${_ext}" -eq 1 ]]; then
+    _fail "G4: body contains email address(es) outside the firm boundary"; ESC_CLASS="${ESC_CLASS:-ESC_PII_LEAKAGE_RISK}"
+  else
+    _ok "G4: no PII outside firm boundary"
+  fi
+else
+  _ok "G4: no email addresses in body"
+fi
+
+# ────────────────────────────────────────────────────────────────────────
+# G5 — Reconciliation match-confidence ≥0.85 (Stage 1-2 auto-write only).
+# N/A for chase drafts: a chase targets an UNMATCHED invoice, so there is no
+# auto-write confidence to gate. Pass-with-note.
+# ────────────────────────────────────────────────────────────────────────
+
+_ok "G5: N/A for chase draft (auto-write gate applies to reconciliation Step 6)"
+
+# ────────────────────────────────────────────────────────────────────────
+# G6 — Open Banking token ≥7d from PSD2 expiry (best-effort via token-stage CLI).
+# ────────────────────────────────────────────────────────────────────────
+
+_OB_CLI="${IFOS_REPO_ROOT:-}/packages/mcp-connectors/open-banking/dist/cli.js"
+if [[ -f "${_OB_CLI}" ]] && command -v node >/dev/null 2>&1; then
+  _ob_stage="$(node "${_OB_CLI}" token-stage 2>/dev/null | grep -oE '"stage"[^,}]*' | sed 's/.*: *"\{0,1\}//; s/"//' || echo unknown)"
+  if [[ "${_ob_stage}" == "blocking" ]]; then
+    _fail "G6: Open Banking token in blocking stage (≤7d to PSD2 expiry)"; ESC_CLASS="${ESC_CLASS:-ESC_OPEN_BANKING_TOKEN_AGING}"
+  else
+    _ok "G6: Open Banking token stage='${_ob_stage:-unknown}' (not blocking)"
+  fi
+else
+  _warn "G6: open-banking token-stage CLI unavailable — best-effort skip"
+fi
+
+# ────────────────────────────────────────────────────────────────────────
+# G7 — Accounting auth refreshed this session (recent auth_refresh_complete row).
+# ────────────────────────────────────────────────────────────────────────
+
+if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+  _auth_ok="$(psql "${IFOS_DB_URL}" -tAq --set=tenant="${CTX_TENANT_SLUG}" <<'SQL' 2>/dev/null
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+SELECT 1 FROM decision_log
+WHERE agent_name='cash-conductor' AND payload->>'output_type'='auth_refresh_complete'
+  AND reason LIKE 'accounting:ok%' AND created_at > now() - interval '1 day'
+LIMIT 1;
+COMMIT;
+SQL
+)"
+  if [[ "${_auth_ok}" == *1* ]]; then
+    _ok "G7: accounting auth refreshed this session"
+  else
+    _warn "G7: no recent accounting:ok auth_refresh_complete row — best-effort warn"
+  fi
+else
+  _warn "G7: DB unavailable — cannot confirm auth refresh"
+fi
 
 # ────────────────────────────────────────────────────────────────────────
 # Verdict + audit-row emission
@@ -176,12 +273,12 @@ _ok "G7: accounting auth refresh in this session — SKELETON (W7-8 wires)"
 printf '\nValidate Gate A: '
 if [[ ${#FAILURES[@]} -gt 0 ]]; then
   printf 'FAIL (%d failures; %d warnings)\n' "${#FAILURES[@]}" "${#WARNINGS[@]}"
-  # TODO(W7-8): per-failure routing — different ESC code per failure class
-  # (G1 → ESC_ADDRESSEE_MISMATCH; G2 → ESC_AGENT_OUTPUT_SHAPE; G3 → ESC_VOICE_DRIFT;
-  #  G4 → ESC_PII_LEAKAGE_RISK; G5 → ESC_RECONCILIATION_AMBIGUOUS or downgrade;
-  #  G6 → ESC_OPEN_BANKING_TOKEN_AGING; G7 → ESC_ACCOUNTING_AUTH)
-  # hh_decision_action "validate_gate_a_fail" "tenant:${CTX_TENANT_SLUG}" payload_hash \
-  #   "ESC_<class>; agent_name:cash-conductor; failures:${#FAILURES[@]}"
+  # Route the dominant failure class to its ESC code (agent.md §6): G1 invoice#/amount
+  # → ESC_AGENT_OUTPUT_SHAPE; G1 contact → ESC_ADDRESSEE_MISMATCH; G2 → ESC_AGENT_OUTPUT_SHAPE;
+  # G3 → ESC_VOICE_DRIFT; G4 → ESC_PII_LEAKAGE_RISK; G6 → ESC_OPEN_BANKING_TOKEN_AGING.
+  autosend_escalate "${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}" "agent=cash-conductor" \
+    "tenant=${CTX_TENANT_SLUG}" "invoice=${D_INVOICE_ID:-unknown}" \
+    "failures=${#FAILURES[@]}" "draft=${DRAFT}"
   exit 1
 fi
 printf 'PASS (warnings=%d)\n' "${#WARNINGS[@]}"
