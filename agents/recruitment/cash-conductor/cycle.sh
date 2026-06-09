@@ -376,9 +376,45 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *7* ]]; then
-  # TODO(W7-8): SELECT overdue invoices; determine chase position 1-4 per §3.2;
-  #             if position=4 → hh_decision_output "chase_position_4_operator_review" + STOP
-  hh_decision_output "chase_pass_complete" "tenant:${CTX_TENANT_SLUG}" "STUB candidates"
+  # W7 LIVE: scan overdue, unmatched, still-owing invoices and compute the next
+  # chase ladder position (§3.2) via the reusable RLS-scoped sql/chase-scan.sql
+  # (shared with scripts/run-chase-scan-test.sh). Draftable candidates (pos 1-3)
+  # are written to a run-scoped temp file consumed by Steps 8-10; position 4 →
+  # operator review (no auto-draft, per agent.md §3.2 kill-switch).
+  CC_CHASE_CANDIDATES="$(mktemp -t cc-chase-XXXXXX 2>/dev/null || echo "/tmp/cc-chase-$$")"
+  export CC_CHASE_CANDIDATES
+  : > "${CC_CHASE_CANDIDATES}"
+  _cc_p1=0; _cc_p2=0; _cc_p3=0; _cc_p4=0
+  _cc_chase_sql="${CTX_AGENT_DIR}/sql/chase-scan.sql"
+  [[ -f "${_cc_chase_sql}" ]] || _cc_chase_sql="${IFOS_REPO_ROOT:-}/agents/recruitment/cash-conductor/sql/chase-scan.sql"
+  if [[ -n "${IFOS_DB_URL:-}" && -f "${_cc_chase_sql}" ]] && command -v psql >/dev/null 2>&1; then
+    _cc_scan_out="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 --set=tenant="${CTX_TENANT_SLUG}" <<SQL
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+\\i $(printf '%s' "${_cc_chase_sql}")
+COMMIT;
+SQL
+)" || _cc_scan_out=""
+    while IFS='|' read -r _ci_id _ci_num _ci_amt _ci_days _ci_pos _ci_contact _ci_email; do
+      [[ -z "${_ci_id}" ]] && continue
+      case "${_ci_pos}" in
+        4)
+          _cc_p4=$((_cc_p4 + 1))
+          hh_decision_output "chase_position_4_operator_review" "invoice:${_ci_id}" \
+            "age_days:${_ci_days}; prior_chases:3" ;;
+        1|2|3)
+          printf '%s\n' "${_ci_id}|${_ci_num}|${_ci_amt}|${_ci_days}|${_ci_pos}|${_ci_contact}|${_ci_email}" \
+            >> "${CC_CHASE_CANDIDATES}"
+          case "${_ci_pos}" in
+            1) _cc_p1=$((_cc_p1 + 1)) ;;
+            2) _cc_p2=$((_cc_p2 + 1)) ;;
+            3) _cc_p3=$((_cc_p3 + 1)) ;;
+          esac ;;
+      esac
+    done <<<"${_cc_scan_out}"
+  fi
+  hh_decision_output "chase_pass_complete" "tenant:${CTX_TENANT_SLUG}" \
+    "pos1:${_cc_p1}; pos2:${_cc_p2}; pos3:${_cc_p3}; pos4_operator:${_cc_p4}"
 fi
 
 # ────────────────────────────────────────────────────────────────────────
