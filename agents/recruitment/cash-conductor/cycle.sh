@@ -99,7 +99,10 @@ hh_decision_trigger "session_start" "cash-conductor mode=${MODE}"
 # connector CLI bins (node dist/cli.js refresh). Path A: creds sourced into env
 # from the tenant/sandbox _secrets.env (never cat'd); the CLIs read process.env +
 # on-disk token bundles and print JSON {ok,...} — never a token value.
+# Defensive defaults (context.sh exports these in the harness; cycle.sh must not
+# crash under set -u if run standalone — mirrors the v1.0 single-provider default).
 : "${CTX_ACCOUNTING_PROVIDER:=xero}"
+: "${CTX_OPEN_BANKING_PROVIDER:=truelayer}"
 _CC_CONN_BASE="${IFOS_REPO_ROOT:+${IFOS_REPO_ROOT}/packages/mcp-connectors}"
 if [[ -z "${_CC_CONN_BASE}" || ! -d "${_CC_CONN_BASE}" ]]; then
   _CC_CONN_BASE="${_SHARED_DIR}/../../packages/mcp-connectors"
@@ -169,10 +172,43 @@ hh_decision_output "mode_routed" "tenant:${CTX_TENANT_SLUG}" \
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *3* ]]; then
-  # TODO(W7-8): @ifos/open-banking listTransactionsSince(since=last_ingested_at)
-  #             → normalise → INSERT INTO cash_conductor_transactions
+  # W7 LIVE: OB list-transactions since the last ingested posted_at → bulk INSERT
+  # into cash_conductor_transactions under RLS (jsonb_to_recordset; ON CONFLICT on
+  # the (tenant,provider,transaction_id) unique key makes re-ingest idempotent).
+  # OB returns the provider-agnostic normalised shape, so no per-provider mapping.
+  _cc_tx_count=0
+  _cc_since="n/a"
+  _ob_cli="${_CC_CONN_BASE:-}/open-banking/dist/cli.js"
+  if [[ -n "${IFOS_DB_URL:-}" && -f "${_ob_cli}" ]] && command -v psql >/dev/null 2>&1; then
+    _cc_since="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 \
+      -c "BEGIN; SET LOCAL app.current_tenant='${CTX_TENANT_SLUG}'; SELECT coalesce(to_char(max(posted_at),'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),'') FROM cash_conductor_transactions WHERE bank_provider='${CTX_OPEN_BANKING_PROVIDER}'; COMMIT;" \
+      2>/dev/null | grep -vE '^$' | head -1 || true)"
+    if [[ -z "${_cc_since}" ]]; then
+      _cc_since="$(date -u -v-89d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '89 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+    fi
+    _cc_tx_json="$(node "${_ob_cli}" list-transactions --since "${_cc_since}" 2>/dev/null || echo '[]')"
+    if [[ "$(printf '%s' "${_cc_tx_json}" | jq -e 'type=="array"' 2>/dev/null)" == "true" ]]; then
+      _cc_tx_count="$(printf '%s' "${_cc_tx_json}" | jq 'length')"
+      if [[ "${_cc_tx_count}" -gt 0 ]]; then
+        psql "${IFOS_DB_URL}" -q -v ON_ERROR_STOP=1 \
+          --set=tenant="${CTX_TENANT_SLUG}" --set=prov="${CTX_OPEN_BANKING_PROVIDER}" --set=js="${_cc_tx_json}" <<'SQL'
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+INSERT INTO cash_conductor_transactions
+  (tenant_slug, transaction_id, posted_at, amount, currency, payee_name_raw, description, bank_provider, raw_payload)
+SELECT :'tenant', t.transaction_id, t.posted_at, t.amount, coalesce(t.currency,'GBP'),
+       coalesce(t.reference, t.description), t.description, :'prov', t.raw_provider_payload
+FROM jsonb_to_recordset(:'js'::jsonb)
+  AS t(transaction_id text, posted_at timestamptz, amount numeric, currency text,
+       description text, reference text, raw_provider_payload jsonb)
+ON CONFLICT (tenant_slug, bank_provider, transaction_id) DO NOTHING;
+COMMIT;
+SQL
+      fi
+    fi
+  fi
   hh_decision_output "transactions_ingested" "tenant:${CTX_TENANT_SLUG}" \
-    "STUB rows since=STUB"
+    "${_cc_tx_count} rows since=${_cc_since} provider=${CTX_OPEN_BANKING_PROVIDER}"
 fi
 
 # ────────────────────────────────────────────────────────────────────────
