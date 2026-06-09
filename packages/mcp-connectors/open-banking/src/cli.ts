@@ -26,7 +26,9 @@ import {
   loadTokens,
   refreshTokens,
   getTokenAgeStage,
+  listTransactionsSince,
 } from "./index.js";
+import { OpenBankingClient } from "./client.js";
 import type { OpenBankingConfig } from "./index.js";
 
 function fail(error: string): never {
@@ -97,7 +99,19 @@ async function main(): Promise<void> {
     return;
   }
 
-  fail(`unknown command '${command ?? ""}' (use: refresh | token-stage)`);
+  if (command === "list-transactions") {
+    const i = process.argv.indexOf("--since");
+    const since =
+      i > -1 && process.argv[i + 1]
+        ? (process.argv[i + 1] as string)
+        : new Date(Date.now() - 89 * 24 * 60 * 60 * 1000).toISOString();
+    const client = new OpenBankingClient({ config });
+    const txns = await listTransactionsSince(client, config, { since, no_cache: true });
+    process.stdout.write(JSON.stringify(txns) + "\n");
+    return;
+  }
+
+  fail(`unknown command '${command ?? ""}' (use: refresh | token-stage | list-transactions --since <ISO>)`);
 }
 
 main().catch((e: unknown) => fail(e instanceof Error ? e.message : String(e)));
