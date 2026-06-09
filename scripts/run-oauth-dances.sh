@@ -98,7 +98,8 @@ run_one() {
   echo "  running ${filter} test:live …"
   if pnpm --filter "${filter}" test:live >/tmp/ifos-live-"${key}".log 2>&1; then
     local n
-    n=$(grep -oE '[0-9]+ passed' /tmp/ifos-live-"${key}".log | head -1)
+    # Grab the *Tests* line count, not the *Test Files* line.
+    n=$(grep -E '^[[:space:]]*Tests' /tmp/ifos-live-"${key}".log | grep -oE '[0-9]+ passed' | head -1 || true)
     echo "  → test:live GREEN (${n:-passed})"
     summary+=("${key}: LIVE GREEN (${n:-passed})")
   else
