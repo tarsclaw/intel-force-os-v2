@@ -95,10 +95,57 @@ hh_decision_trigger "session_start" "cash-conductor mode=${MODE}"
 #             @ifos/open-banking refreshTokens (with getTokenAgeStage check).
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W7-8): replace this STUB with actual provider refresh calls. Skeleton
-# emits the audit row shape that the full implementation will preserve.
+# W7 LIVE: refresh accounting (xero|quickbooks) + Open Banking tokens via the
+# connector CLI bins (node dist/cli.js refresh). Path A: creds sourced into env
+# from the tenant/sandbox _secrets.env (never cat'd); the CLIs read process.env +
+# on-disk token bundles and print JSON {ok,...} — never a token value.
+: "${CTX_ACCOUNTING_PROVIDER:=xero}"
+_CC_CONN_BASE="${IFOS_REPO_ROOT:+${IFOS_REPO_ROOT}/packages/mcp-connectors}"
+if [[ -z "${_CC_CONN_BASE}" || ! -d "${_CC_CONN_BASE}" ]]; then
+  _CC_CONN_BASE="${_SHARED_DIR}/../../packages/mcp-connectors"
+fi
+_CC_SECRETS="${IFOS_SECRETS_FILE:-${HOME}/.ifos-local-vault/dev-sandbox/_secrets.env}"
+if [[ -f "${_CC_SECRETS}" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "${_CC_SECRETS}"
+  set +a
+fi
+
+# Refresh one connector via its CLI; echoes "ok" | "fail" (never aborts the run).
+_cc_refresh() {
+  local cli="${_CC_CONN_BASE}/$1/dist/cli.js" out
+  [[ -f "${cli}" ]] || { echo "fail"; return 0; }
+  if out=$(node "${cli}" refresh 2>/dev/null) \
+       && [[ "$(printf '%s' "${out}" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
+}
+
+_cc_acct_status="$(_cc_refresh "${CTX_ACCOUNTING_PROVIDER}")"
+_cc_ob_status="$(_cc_refresh "open-banking")"
+_cc_ob_stage="unknown"
+if [[ -f "${_CC_CONN_BASE}/open-banking/dist/cli.js" ]]; then
+  _cc_ob_stage="$(node "${_CC_CONN_BASE}/open-banking/dist/cli.js" token-stage 2>/dev/null \
+                  | jq -r '.stage // "unknown"' 2>/dev/null || echo unknown)"
+fi
+
 hh_decision_output "auth_refresh_complete" "tenant:${CTX_TENANT_SLUG}" \
-  "accounting:STUB; open_banking:STUB; token_aging_stage:STUB"
+  "accounting:${_cc_acct_status}; open_banking:${_cc_ob_status}; token_aging_stage:${_cc_ob_stage}"
+
+# ESC routing per agent.md §4 Step 1 / §6.
+if [[ "${_cc_acct_status}" != "ok" ]]; then
+  autosend_escalate "ESC_ACCOUNTING_AUTH" "agent=cash-conductor" \
+    "tenant=${CTX_TENANT_SLUG}" "provider=${CTX_ACCOUNTING_PROVIDER}"
+fi
+if [[ "${_cc_ob_status}" != "ok" ]]; then
+  autosend_escalate "ESC_OPEN_BANKING_AUTH" "agent=cash-conductor" "tenant=${CTX_TENANT_SLUG}"
+elif [[ "${_cc_ob_stage}" == "blocking" ]]; then
+  autosend_escalate "ESC_OPEN_BANKING_TOKEN_AGING" "agent=cash-conductor" \
+    "tenant=${CTX_TENANT_SLUG}" "stage=blocking"
+fi
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 2 — Event router (mode-dependent)
