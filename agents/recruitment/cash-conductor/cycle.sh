@@ -659,13 +659,46 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *13* ]]; then
-  # TODO(W7-8): SELECT decision_log + cash tables for 7-day window; compute
-  # DSO; assemble Markdown; write to /vault/<tenant>/cash-conductor-reports/
+  # W7 LIVE: assemble the §3 Output 3 6-section cash-flow report from the reusable
+  # RLS-scoped sql/weekly-report-metrics.sql, compute DSO (Gate B), write to vault.
   REPORT_PATH="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${CTX_TENANT_SLUG}/cash-conductor-reports/weekly-$(date -u +%Y-%m-%d).md"
   mkdir -p "$(dirname "${REPORT_PATH}")" 2>/dev/null || true
-  printf '# Weekly cash-flow report — STUB\n\nTODO(W7-8): full §3 Output 3 6-section report.\n' > "${REPORT_PATH}" 2>/dev/null || true
+  chmod 0700 "$(dirname "${REPORT_PATH}")" 2>/dev/null || true
+  _cc_metrics_sql="${CTX_AGENT_DIR}/sql/weekly-report-metrics.sql"
+  [[ -f "${_cc_metrics_sql}" ]] || _cc_metrics_sql="${IFOS_REPO_ROOT:-}/agents/recruitment/cash-conductor/sql/weekly-report-metrics.sql"
+  METRICS=""
+  if [[ -n "${IFOS_DB_URL:-}" && -f "${_cc_metrics_sql}" ]] && command -v psql >/dev/null 2>&1; then
+    METRICS="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 --set=tenant="${CTX_TENANT_SLUG}" <<SQL
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+\\i $(printf '%s' "${_cc_metrics_sql}")
+COMMIT;
+SQL
+)" || METRICS=""
+  fi
+  _m() { printf '%s\n' "${METRICS}" | grep -m1 "^$1|" | cut -d'|' -f2; }
+  _cc_ar="$(_m ar_open)"; _cc_ar="${_cc_ar:-0}"
+  _cc_credit="$(_m total_credit)"; _cc_credit="${_cc_credit:-0}"
+  _cc_dso="$(awk -v ar="${_cc_ar}" -v c="${_cc_credit}" 'BEGIN{ if(c+0>0) printf "%.1f",(ar/c)*30; else printf "n/a" }')"
+  _cc_open="$(_m open_count)"; _cc_open="${_cc_open:-0}"
+  {
+    printf '# Weekly cash-flow report — %s\n\n' "$(date -u +%Y-%m-%d)"
+    printf '_Tenant: %s · generated %sZ · Cash Conductor §3 Output 3_\n\n' "${CTX_TENANT_SLUG}" "$(date -u +%Y-%m-%dT%H:%M:%S)"
+    printf '## 1. Week summary\n\n- Invoices issued (7d): %s\n- Invoices paid (to date): %s\n- Open invoices: %s\n- Receipts received (7d): £%s\n- New chase drafts (this run): %s\n\n' \
+      "$(_m issued_7d)" "$(_m paid_count)" "${_cc_open}" "$(_m receipts_7d)" "${_cc_drafts_made:-0}"
+    printf '## 2. DSO trend (Gate B)\n\n- AR outstanding: £%s\n- Total credit extended: £%s\n- **DSO (snapshot): %s days**\n- Month-0 baseline: _pending onboarding capture_ (Gate B target = baseline − 12 days)\n\n' \
+      "${_cc_ar}" "${_cc_credit}" "${_cc_dso}"
+    printf '## 3. Aged debtors\n\n| Bucket | Outstanding |\n|---|---|\n| 0–30 days | £%s |\n| 31–60 days | £%s |\n| 61–90 days | £%s |\n| 90+ days | £%s |\n\n' \
+      "$(_m bucket_0_30)" "$(_m bucket_31_60)" "$(_m bucket_61_90)" "$(_m bucket_90_plus)"
+    printf '## 4. Chase pipeline\n\n- Position 1 sent: %s\n- Position 2 sent: %s\n- Position 3 sent: %s\n- Drafts generated this run: %s (drafts-only mode — manual consultant pickup until autosend-bridge live)\n\n' \
+      "$(_m chase_pos1)" "$(_m chase_pos2)" "$(_m chase_pos3)" "${_cc_drafts_made:-0}"
+    printf '## 5. Cash-flow forecast (4 weeks)\n\n- Outstanding due in next 28 days: £%s\n\n' "$(_m forecast_4w)"
+    printf '## 6. Exception list\n\n- Unmatched bank receipts (review queue): %s\n- Ambiguous matches: %s\n' \
+      "$(_m unmatched_count)" "$(_m ambiguous_count)"
+  } > "${REPORT_PATH}" 2>/dev/null || true
+  chmod 0600 "${REPORT_PATH}" 2>/dev/null || true
   hh_decision_output "weekly_report" "${REPORT_PATH}" \
-    "dso_delta_days:STUB; sections:STUB"
+    "dso_days:${_cc_dso}; sections:6; ar_open:${_cc_ar}; open_invoices:${_cc_open}"
 fi
 
 # ────────────────────────────────────────────────────────────────────────
