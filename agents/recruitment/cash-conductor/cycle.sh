@@ -263,10 +263,38 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *5* ]]; then
-  # TODO(W7-8): match algorithm per agent.md §3 stages 1-5. SQL JOIN against
-  #             cash_conductor_invoices + cash_conductor_transactions.
+  # W7 LIVE: run the 5-stage match (agent.md §3 Output 1) as one RLS-scoped
+  # statement. The reusable SQL lives at sql/reconciliation-match.sql (shared
+  # with scripts/run-reconciliation-recon-test.sh) and contains no transaction
+  # control / tenant literal — we wrap it here. It UPDATEs match_status /
+  # match_confidence / matched_invoice_id / match_dimensions over unmatched,
+  # positive-amount transactions and returns "s12|s3|s4|s5|ambiguous" counts.
+  _cc_s12=0; _cc_s3=0; _cc_s4=0; _cc_s5=0; _cc_amb=0
+  _cc_recon_sql="${CTX_AGENT_DIR}/sql/reconciliation-match.sql"
+  [[ -f "${_cc_recon_sql}" ]] || _cc_recon_sql="${IFOS_REPO_ROOT:-}/agents/recruitment/cash-conductor/sql/reconciliation-match.sql"
+  if [[ -n "${IFOS_DB_URL:-}" && -f "${_cc_recon_sql}" ]] && command -v psql >/dev/null 2>&1; then
+    _cc_recon_out="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 --set=tenant="${CTX_TENANT_SLUG}" <<SQL
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+\\i $(printf '%s' "${_cc_recon_sql}")
+COMMIT;
+SQL
+)" || _cc_recon_out=""
+    # Last non-empty line is the count tuple (psql -tAq emits only the SELECT).
+    _cc_recon_row="$(printf '%s\n' "${_cc_recon_out}" | grep -E '^[0-9]+\|[0-9]+\|[0-9]+\|[0-9]+\|[0-9]+$' | tail -1)"
+    if [[ -n "${_cc_recon_row}" ]]; then
+      IFS='|' read -r _cc_s12 _cc_s3 _cc_s4 _cc_s5 _cc_amb <<<"${_cc_recon_row}"
+    fi
+  fi
   hh_decision_output "reconciliation_pass" "tenant:${CTX_TENANT_SLUG}" \
-    "stage1_2:STUB; stage3:STUB; stage4:STUB; stage5:STUB"
+    "stage1_2:${_cc_s12}; stage3:${_cc_s3}; stage4:${_cc_s4}; stage5:${_cc_s5}; ambiguous:${_cc_amb}"
+
+  # Stage 4 / multi-candidate matches are written as match_status='ambiguous'
+  # (agent.md §4 Step 5 + §6 ESC_RECONCILIATION_AMBIGUOUS, catalogue §2.10).
+  if [[ "${_cc_amb}" =~ ^[0-9]+$ && "${_cc_amb}" -gt 0 ]]; then
+    autosend_escalate "ESC_RECONCILIATION_AMBIGUOUS" "agent=cash-conductor" \
+      "tenant=${CTX_TENANT_SLUG}" "ambiguous_count=${_cc_amb}"
+  fi
 fi
 
 # ────────────────────────────────────────────────────────────────────────
