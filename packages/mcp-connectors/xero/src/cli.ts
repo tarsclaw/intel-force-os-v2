@@ -18,7 +18,8 @@
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { loadTokens, refreshTokens } from "./index.js";
+import { loadTokens, refreshTokens, listOpenInvoices } from "./index.js";
+import { XeroClient } from "./client.js";
 import type { XeroOAuthConfig } from "./index.js";
 
 function fail(error: string): never {
@@ -66,7 +67,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  fail(`unknown command '${command ?? ""}' (use: refresh)`);
+  if (command === "list-open-invoices") {
+    const client = new XeroClient({ config });
+    const invoices = await listOpenInvoices(client, { no_cache: true });
+    process.stdout.write(JSON.stringify(invoices) + "\n");
+    return;
+  }
+
+  fail(`unknown command '${command ?? ""}' (use: refresh | list-open-invoices)`);
 }
 
 main().catch((e: unknown) => fail(e instanceof Error ? e.message : String(e)));
