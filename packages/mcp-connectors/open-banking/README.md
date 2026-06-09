@@ -228,6 +228,8 @@ Test counts:
 
 **Total: 32 fixture vitest** (measured by `vitest run`; target was ≥15 per `review-mcp-connector.md` §6 + the W4 Track-1 /goal §1) **+ 3 live tests** in `tests/live.test.ts` (skipped unless `MCP_LIVE_TESTS=1`; see §Live tests above).
 
+**✅ LIVE VERIFIED 2026-06-09:** all 3 live tests pass (`3 passed (3)`) against the real TrueLayer sandbox Mock Bank, token bootstrapped via `scripts/bootstrap-ob-oauth.sh` on callback port 3000 (the registered redirect URI). `refreshTokens` + `listTransactionsSince` + `getAccountBalance` confirmed end-to-end.
+
 ---
 
 ## Build
