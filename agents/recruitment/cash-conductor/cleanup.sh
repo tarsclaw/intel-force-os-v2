@@ -80,17 +80,22 @@ export XERO_CACHE_DIR="${IFOS_XERO_CACHE_DIR:-${HOME}/.ifos-cache/xero}"
 export QB_CACHE_DIR="${IFOS_QB_CACHE_DIR:-${HOME}/.ifos-cache/quickbooks}"
 export OB_CACHE_DIR="${IFOS_OPEN_BANKING_CACHE_DIR:-${HOME}/.ifos-cache/open-banking}"
 
-# TODO(W7-8): replace these STUB counts with actual find -delete invocations
-# that prune > 24h entries. Skeleton emits zero so the audit row shape is
-# preserved for the build-slice author.
-XERO_PURGED=0
-QB_PURGED=0
-OB_PURGED=0
-# When ready, replace with the real purge logic:
-#   if [[ -d "${XERO_CACHE_DIR}" ]]; then
-#     XERO_PURGED=$(find "${XERO_CACHE_DIR}" -type f -mtime +1 -delete -print 2>/dev/null | wc -l | tr -d ' ')
-#   fi
-#   (same for QB_CACHE_DIR + OB_CACHE_DIR)
+# W7 LIVE: prune transient HTTP cache entries older than 24h per provider. Token
+# files live elsewhere (vault) and are never touched here (see header).
+_cc_purge_dir() {
+  local dir="$1"
+  [[ -d "${dir}" ]] || { echo 0; return 0; }
+  find "${dir}" -type f -mtime +1 -delete -print 2>/dev/null | wc -l | tr -d ' '
+}
+XERO_PURGED="$(_cc_purge_dir "${XERO_CACHE_DIR}")"
+QB_PURGED="$(_cc_purge_dir "${QB_CACHE_DIR}")"
+OB_PURGED="$(_cc_purge_dir "${OB_CACHE_DIR}")"
+
+# Purge this run's scoped temp files (chase candidates + validated list written by
+# cycle.sh Steps 7/9). Best-effort; they are /tmp scratch, not audit artefacts.
+for _tmp in "${CC_CHASE_CANDIDATES:-}" "${CC_VALIDATED:-}"; do
+  [[ -n "${_tmp}" && -f "${_tmp}" ]] && rm -f "${_tmp}" 2>/dev/null || true
+done
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 2 — Optional: emit ESC_RATE_LIMIT_HIT if any cache shows
@@ -108,10 +113,10 @@ TOTAL_PURGED=$((XERO_PURGED + QB_PURGED + OB_PURGED))
 # autosend-policy.yaml (currently QUEUED per tools.yaml status table), switch
 # from hh_decision_output to hh_decision_action for proper tier classification.
 hh_decision_output "cash_conductor_cleanup" "tenant:${CTX_TENANT_SLUG}" \
-  "xero_cache_purged:${XERO_PURGED}; qb_cache_purged:${QB_PURGED}; ob_cache_purged:${OB_PURGED}; total:${TOTAL_PURGED}; mode:SKELETON"
+  "xero_cache_purged:${XERO_PURGED}; qb_cache_purged:${QB_PURGED}; ob_cache_purged:${OB_PURGED}; total:${TOTAL_PURGED}"
 
 # Operator-readable trace
-printf '[cash-conductor cleanup.sh] tenant=%s purged total=%d (xero=%d qb=%d ob=%d) mode=SKELETON\n' \
+printf '[cash-conductor cleanup.sh] tenant=%s purged total=%d (xero=%d qb=%d ob=%d)\n' \
   "${CTX_TENANT_SLUG}" "${TOTAL_PURGED}" "${XERO_PURGED}" "${QB_PURGED}" "${OB_PURGED}"
 
 exit 0

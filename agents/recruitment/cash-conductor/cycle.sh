@@ -710,7 +710,23 @@ fi
 # TODO(W7-8): UPDATE tenant_adapters SET config = jsonb_set(config, '{cash_conductor_last_run}', '"<ISO>"')
 
 if [[ "${STEPS_TO_RUN}" == *13* ]]; then REPORT_RAN="true"; else REPORT_RAN="false"; fi
-hh_decision_action "cash_conductor_run_complete" "session:${CTX_TENANT_SLUG}" "stub-hash" \
-  "mode:${MODE}; matches:STUB; chases:STUB; report:${REPORT_RAN}"
+
+# W7 LIVE: stamp tenant_adapters.config.cash_conductor_last_run (validated key per
+# the v0.3/v0.4 trigger). Best-effort — a missing tenant_adapters row is a no-op.
+if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+  psql "${IFOS_DB_URL}" -q -v ON_ERROR_STOP=1 --set=tenant="${CTX_TENANT_SLUG}" <<'SQL' 2>/dev/null || true
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+UPDATE tenant_adapters
+SET config = jsonb_set(coalesce(config, '{}'::jsonb), '{cash_conductor_last_run}', to_jsonb(now()::text))
+WHERE tenant_slug = :'tenant';
+COMMIT;
+SQL
+fi
+
+_cc_run_hash="$(printf '%s' "${CTX_TENANT_SLUG}|${MODE}|$(date -u +%s)" | shasum -a 256 2>/dev/null | cut -c1-16)"
+[[ -z "${_cc_run_hash}" ]] && _cc_run_hash="run-${MODE}"
+hh_decision_action "cash_conductor_run_complete" "session:${CTX_TENANT_SLUG}" "${_cc_run_hash}" \
+  "mode:${MODE}; matches:${_cc_s12:-0}; chases:${_cc_drafts_made:-0}; report:${REPORT_RAN}" || true
 
 exit 0
