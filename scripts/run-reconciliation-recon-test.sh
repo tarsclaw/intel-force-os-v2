@@ -65,6 +65,21 @@ FROM cash_conductor_transactions
 WHERE transaction_id IN ('T1','T2','T3','T4','T5','T6')
 ORDER BY transaction_id;
 
+-- Step 6 (P3c) write-queue idempotency: matched + not-yet-written are the
+-- write candidates. Marking one written (simulating a successful payment write)
+-- must drop it from a re-scan — the double-pay guard.
+SELECT 'STEP6A|' || coalesce(string_agg(transaction_id, ',' ORDER BY transaction_id),'')
+FROM cash_conductor_transactions
+WHERE match_status='matched' AND reconciliation_written_at IS NULL;
+
+UPDATE cash_conductor_transactions
+SET reconciliation_written_at=now(), accounting_payment_id='PMT-TEST-1'
+WHERE transaction_id='T1';
+
+SELECT 'STEP6B|' || coalesce(string_agg(transaction_id, ',' ORDER BY transaction_id),'')
+FROM cash_conductor_transactions
+WHERE match_status='matched' AND reconciliation_written_at IS NULL;
+
 ROLLBACK;
 SQL
 )"
@@ -104,9 +119,24 @@ else
   fails=$((fails + 1))
 fi
 
+# Step 6 write-queue idempotency assertions.
+assert_line() {  # <label> <expected-after-prefix>
+  local got
+  got="$(printf '%s\n' "${RAW_OUT}" | grep -E "^$1\|" | head -1)"
+  got="${got#"$1"|}"
+  if [[ "${got}" == "$2" ]]; then
+    _ok "$1: ${got:-<empty>}"
+  else
+    _fail "$1: got '${got}' want '$2'"
+    fails=$((fails + 1))
+  fi
+}
+assert_line "STEP6A" "T1,T2"   # both matched txns are write candidates
+assert_line "STEP6B" "T2"      # after T1 marked written, only T2 remains (no double-pay)
+
 printf '\n'
 if [[ "${fails}" -eq 0 ]]; then
-  _ok "all reconciliation match assertions passed (6 stages + counts)"
+  _ok "all reconciliation assertions passed (6 stages + counts + Step 6 idempotency)"
   exit 0
 fi
 _fail "${fails} assertion(s) failed"

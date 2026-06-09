@@ -304,10 +304,69 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *6* ]]; then
-  # TODO(W7-8): per-match: accounting.writePaymentReceived(...) → emit per write
-  # hh_decision_action "accounting_reconciliation_write" "invoice:<id>" payload_hash payload_preview
-  # On failure: ESC_ACCOUNTING_WRITE_FAIL via hh_decision_action validate_gate_a_fail
-  :
+  # W7 LIVE: write Stage 1-2 matches (match_status='matched', conf ≥0.85) to the
+  # accounting system via the provider write-payment CLI. Idempotent: only
+  # not-yet-written rows are selected (reconciliation_written_at IS NULL, v0.5
+  # schema), and on success the row is stamped with the returned payment id so a
+  # re-run never double-pays. Stage 3 (unmatched/review) + Stage 4/ambiguous are
+  # NOT auto-written. STATE-CHANGING on the tenant's books — yellow tier.
+  _cc_acct_cli="${_CC_CONN_BASE:-}/${CTX_ACCOUNTING_PROVIDER}/dist/cli.js"
+  if [[ -n "${IFOS_DB_URL:-}" && -f "${_cc_acct_cli}" ]] && command -v psql >/dev/null 2>&1; then
+    _cc_writeq="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 \
+      --set=tenant="${CTX_TENANT_SLUG}" --set=prov="${CTX_ACCOUNTING_PROVIDER}" <<'SQL'
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+SELECT t.transaction_id || '|' || t.matched_invoice_id || '|' || t.amount::text || '|' ||
+       to_char(t.posted_at, 'YYYY-MM-DD') || '|' || coalesce(i.client_contact_id, '') || '|' ||
+       coalesce(t.match_confidence::text, '')
+FROM cash_conductor_transactions t
+JOIN cash_conductor_invoices i
+  ON i.invoice_id = t.matched_invoice_id AND i.accounting_provider = :'prov'
+WHERE t.match_status = 'matched' AND t.reconciliation_written_at IS NULL;
+COMMIT;
+SQL
+)"
+    while IFS='|' read -r _cc_txn _cc_inv _cc_amt _cc_date _cc_cust _cc_conf; do
+      [[ -z "${_cc_txn}" ]] && continue
+      case "${CTX_ACCOUNTING_PROVIDER}" in
+        xero)
+          _cc_wp_args=(write-payment --invoice "${_cc_inv}" --amount "${_cc_amt}"
+            --date "${_cc_date}" --account "${XERO_PAYMENT_ACCOUNT_CODE:-}" --reference "${_cc_txn}") ;;
+        quickbooks)
+          _cc_wp_args=(write-payment --invoice "${_cc_inv}" --amount "${_cc_amt}"
+            --date "${_cc_date}" --customer "${_cc_cust}" --reference "${_cc_txn}") ;;
+        *)
+          autosend_escalate "ESC_ACCOUNTING_WRITE_FAIL" "agent=cash-conductor" \
+            "tenant=${CTX_TENANT_SLUG}" "invoice=${_cc_inv}" \
+            "reason=unsupported_provider:${CTX_ACCOUNTING_PROVIDER}"
+          continue ;;
+      esac
+      if _cc_wp_out=$(node "${_cc_acct_cli}" "${_cc_wp_args[@]}" 2>/dev/null) \
+           && [[ "$(printf '%s' "${_cc_wp_out}" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
+        _cc_pid="$(printf '%s' "${_cc_wp_out}" | jq -r '.payment_id // ""')"
+        _cc_phash="$(printf '%s' "${_cc_inv}|${_cc_amt}|${_cc_pid}" | shasum -a 256 2>/dev/null | cut -c1-16)"
+        [[ -z "${_cc_phash}" ]] && _cc_phash="${_cc_txn}"
+        # Yellow-tier action row (autosend-policy.yaml accounting_reconciliation_write).
+        hh_decision_action "accounting_reconciliation_write" "invoice:${_cc_inv}" "${_cc_phash}" \
+          "txn:${_cc_txn}; amount:${_cc_amt}; payment_id:${_cc_pid}; confidence:${_cc_conf}" || true
+        # Stamp written (idempotency guard repeated in the UPDATE predicate).
+        psql "${IFOS_DB_URL}" -q -v ON_ERROR_STOP=1 \
+          --set=tenant="${CTX_TENANT_SLUG}" --set=txn="${_cc_txn}" --set=pid="${_cc_pid}" <<'SQL'
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+UPDATE cash_conductor_transactions
+SET reconciliation_written_at = now(), accounting_payment_id = :'pid'
+WHERE transaction_id = :'txn' AND match_status = 'matched' AND reconciliation_written_at IS NULL;
+COMMIT;
+SQL
+      else
+        _cc_wperr="$(printf '%s' "${_cc_wp_out:-}" | jq -r '.error // "write_failed"' 2>/dev/null || echo write_failed)"
+        autosend_escalate "ESC_ACCOUNTING_WRITE_FAIL" "agent=cash-conductor" \
+          "tenant=${CTX_TENANT_SLUG}" "invoice=${_cc_inv}" \
+          "provider=${CTX_ACCOUNTING_PROVIDER}" "error=${_cc_wperr}"
+      fi
+    done <<<"${_cc_writeq}"
+  fi
 fi
 
 # ────────────────────────────────────────────────────────────────────────
