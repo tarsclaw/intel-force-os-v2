@@ -87,10 +87,22 @@ fi
 # tenant_adapters.config; defaults to xero + truelayer per Cash Conductor §9 Q1+Q2.
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W7-8): SELECT config->>'accounting_provider', config->>'open_banking_provider'
-# FROM tenant_adapters WHERE tenant_slug = $CTX_TENANT_SLUG; honour defaults.
-# v0.3 supplement §4 tenant_adapters_config_additions includes neither key yet;
-# v0.4 supplement-pending will add them. Until then, defaults below stand.
+# W7 LIVE: read provider config from tenant_adapters under RLS (SET LOCAL
+# app.current_tenant). Falls back to xero/truelayer when there's no DB OR the
+# config keys are unset — the v1.0 single-provider default (config keys are not
+# in the v0.4 allowlist, so dev/pilot tenants run on the defaults).
+if [[ -z "${CTX_ACCOUNTING_PROVIDER:-}" || -z "${CTX_OPEN_BANKING_PROVIDER:-}" ]] \
+   && [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+  _cc_prov="$(psql "${IFOS_DB_URL}" -tAF'|' -q -v ON_ERROR_STOP=1 \
+    -c "BEGIN; SET LOCAL app.current_tenant='${CTX_TENANT_SLUG}'; \
+        SELECT coalesce(config->>'accounting_provider',''), coalesce(config->>'open_banking_provider','') \
+        FROM tenant_adapters WHERE tenant_slug='${CTX_TENANT_SLUG}' AND adapter_name='cash-conductor' LIMIT 1; \
+        COMMIT;" 2>/dev/null | grep '|' | head -1 || true)"
+  if [[ -n "${_cc_prov}" ]]; then
+    [[ -n "${_cc_prov%%|*}" ]] && CTX_ACCOUNTING_PROVIDER="${_cc_prov%%|*}"
+    [[ -n "${_cc_prov##*|}" ]] && CTX_OPEN_BANKING_PROVIDER="${_cc_prov##*|}"
+  fi
+fi
 : "${CTX_ACCOUNTING_PROVIDER:=xero}"
 : "${CTX_OPEN_BANKING_PROVIDER:=truelayer}"
 export CTX_ACCOUNTING_PROVIDER CTX_OPEN_BANKING_PROVIDER
