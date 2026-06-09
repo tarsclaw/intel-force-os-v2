@@ -47,6 +47,9 @@ export {
   DEFAULT_MCP_SERVER_URL,
   PAID_PLAN_TOOLS,
 } from "./client.js";
+// Default HTTP transport (wraps @modelcontextprotocol/sdk StreamableHTTPClientTransport)
+export { GranolaHttpTransport } from "./transport-http.js";
+export type { GranolaHttpTransportOptions } from "./transport-http.js";
 // OAuth helpers (PKCE pair, code exchange, token refresh, atomic persist)
 export {
   generatePkcePair,

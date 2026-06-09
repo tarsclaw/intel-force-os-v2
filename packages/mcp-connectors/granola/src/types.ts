@@ -142,9 +142,10 @@ export interface GranolaAccountInfo {
  *   (2) the live wiring (W5-live) can plug `StreamableHTTPClientTransport`
  *       from @modelcontextprotocol/sdk into the same surface.
  *
- * TODO(W5-live): pull in @modelcontextprotocol/sdk and provide the default
- * HTTP transport implementation. The auth/rate-limit/cache/plan-tier layers
- * are independent of which transport is wired in.
+ * The default HTTP transport implementation lives in src/transport-http.ts
+ * (GranolaHttpTransport, wraps StreamableHTTPClientTransport). The
+ * auth/rate-limit/cache/plan-tier layers are independent of which transport is
+ * wired in. Live path UNVERIFIED until Phase-1b live tests run.
  */
 export interface GranolaTransport {
   /** Call an MCP tool by name with arbitrary JSON args; return the tool's
@@ -170,9 +171,11 @@ export interface GranolaToolCallResult {
 
 export interface GranolaClientOptions {
   config: GranolaConfig;
-  /** Transport (real or fake). Required — there is no default at v0.1.0 since
-   *  the @modelcontextprotocol/sdk binding is W5-live work. */
-  transport: GranolaTransport;
+  /** Transport (real or fake). OPTIONAL: when omitted, GranolaClient defaults
+   *  to GranolaHttpTransport (src/transport-http.ts) wrapping the
+   *  @modelcontextprotocol/sdk StreamableHTTPClientTransport against
+   *  config.mcp_server_url. Tests inject a fake transport here. */
+  transport?: GranolaTransport;
   /** Override now() (testing). */
   now?: () => number;
 }

@@ -9,6 +9,7 @@
 // transport itself just shuttles the JSON-RPC envelope.
 
 import { refreshTokens, shouldRefresh, loadTokens } from "./auth.js";
+import { GranolaHttpTransport } from "./transport-http.js";
 import {
   GranolaAuthError,
   GranolaError,
@@ -23,6 +24,7 @@ import type {
   GranolaPlanTier,
   GranolaToolCallResult,
   GranolaTokens,
+  GranolaTransport,
 } from "./types.js";
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -50,6 +52,9 @@ interface CallToolOptions {
 export class GranolaClient {
   private readonly opts: GranolaClientOptions;
   private readonly now: () => number;
+  /** Resolved transport: the injected one, or the default HTTP transport
+   *  (GranolaHttpTransport) when none was provided. */
+  private readonly transport: GranolaTransport;
   private current_tokens: GranolaTokens | null = null;
   /** Cached account info — used to short-circuit Paid-tier guard without
    *  loading on every call. Populated lazily on first capability call that
@@ -59,6 +64,12 @@ export class GranolaClient {
   constructor(opts: GranolaClientOptions) {
     this.opts = opts;
     this.now = opts.now ?? Date.now;
+    this.transport =
+      opts.transport ??
+      new GranolaHttpTransport({
+        mcp_server_url: opts.config.mcp_server_url ?? DEFAULT_MCP_SERVER_URL,
+        getToken: () => this.getValidToken(),
+      });
   }
 
   /** Returns the active access_token, refreshing eagerly if within the
@@ -132,7 +143,7 @@ export class GranolaClient {
       // Ensure we have a fresh token; refreshTokens() handles rotation.
       await this.getValidToken();
 
-      const result = await this.opts.transport.callTool(tool_name, args);
+      const result = await this.transport.callTool(tool_name, args);
 
       // 200-ish happy path
       if (!result.isError) {
