@@ -4,6 +4,13 @@
 // Commands:
 //   refresh — load tokens from disk, rotate via refreshTokens, persist;
 //             print JSON {ok, expires_at_ms, refresh_token_expires_at_ms}
+//   list-open-invoices — normalised open-invoice rows for cash_conductor_invoices ingest
+//   write-payment --invoice <id> --amount <n> --customer <ref> [--date <ISO>] [--reference <ref>]
+//             — applies a payment-received against an invoice (Cash Conductor
+//               §4 Step 6 reconciliation write); prints JSON {ok, payment_id}.
+//               QB requires the CustomerRef the invoice belongs to (--customer);
+//               cycle.sh Step 6 passes the invoice's client_contact_id. STATE-
+//               CHANGING — only ever run against the sandbox for a Stage 1-2 match.
 //
 // PATH A: client_id/secret + realm via process.env (caller sources
 // _secrets.env); tokens from the vault file. JSON status on stdout, never a
@@ -18,11 +25,25 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadTokens, refreshTokens, listOpenInvoices } from "./index.js";
 import { QbClient } from "./client.js";
+import { buildPaymentWriteRequest, writePaymentReceived } from "./payments.js";
 import type { QbOAuthConfig } from "./index.js";
 
 function fail(error: string): never {
   process.stdout.write(JSON.stringify({ ok: false, error }) + "\n");
   process.exit(1);
+}
+
+/** Minimal --flag <value> parser over argv[3..]. */
+function parseFlags(argv: string[]): Record<string, string> {
+  const flags: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const tok = argv[i];
+    if (tok?.startsWith("--")) {
+      flags[tok.slice(2)] = argv[i + 1] ?? "";
+      i += 1;
+    }
+  }
+  return flags;
 }
 
 function buildConfig(): QbOAuthConfig {
@@ -86,7 +107,33 @@ async function main(): Promise<void> {
     return;
   }
 
-  fail(`unknown command '${command ?? ""}' (use: refresh | list-open-invoices)`);
+  if (command === "write-payment") {
+    const flags = parseFlags(process.argv.slice(3));
+    const invoice = flags.invoice;
+    const customer = flags.customer;
+    const amount = Number(flags.amount);
+    if (!invoice || !customer) {
+      fail("write-payment requires --invoice and --customer");
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      fail(`write-payment --amount must be a positive number (got '${flags.amount ?? ""}')`);
+    }
+    const client = new QbClient({ config });
+    const payment = await writePaymentReceived(
+      client,
+      buildPaymentWriteRequest({
+        invoice,
+        amount,
+        customer,
+        date: flags.date,
+        reference: flags.reference,
+      }),
+    );
+    process.stdout.write(JSON.stringify({ ok: true, payment_id: payment.Id }) + "\n");
+    return;
+  }
+
+  fail(`unknown command '${command ?? ""}' (use: refresh | list-open-invoices | write-payment)`);
 }
 
 main().catch((e: unknown) => fail(e instanceof Error ? e.message : String(e)));

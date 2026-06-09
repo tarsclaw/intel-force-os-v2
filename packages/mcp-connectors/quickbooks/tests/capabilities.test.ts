@@ -10,7 +10,11 @@ import { QbCache } from "../src/cache.js";
 import { saveTokens, _resetInflightForTest } from "../src/auth.js";
 import { reset as resetRateLimit } from "../src/rate-limit.js";
 import { listOpenInvoices, getInvoice } from "../src/invoices.js";
-import { listPayments, writePaymentReceived } from "../src/payments.js";
+import {
+  buildPaymentWriteRequest,
+  listPayments,
+  writePaymentReceived,
+} from "../src/payments.js";
 import {
   QbError,
   QbNotFoundError,
@@ -132,6 +136,27 @@ describe("quickbooks capabilities — payments", () => {
     expect(payments.length).toBe(1);
     expect(payments[0]?.TotalAmt).toBe(2000);
     expect(payments[0]?.Line[0]?.LinkedTxn[0]?.TxnId).toBe("1002");
+  });
+
+  it("buildPaymentWriteRequest: maps CLI args → QB single-invoice payment (optional fields omitted when absent)", () => {
+    const full = buildPaymentWriteRequest({
+      invoice: "1001",
+      amount: 1500.0,
+      customer: "200",
+      date: "2026-05-22",
+      reference: "BACS-2026-05-22-002",
+    });
+    expect(full).toEqual({
+      CustomerRef: { value: "200" },
+      TotalAmt: 1500.0,
+      TxnDate: "2026-05-22",
+      PaymentRefNum: "BACS-2026-05-22-002",
+      Line: [{ Amount: 1500.0, LinkedTxn: [{ TxnId: "1001", TxnType: "Invoice" }] }],
+    });
+    const minimal = buildPaymentWriteRequest({ invoice: "1001", amount: 50, customer: "200" });
+    expect("TxnDate" in minimal).toBe(false);
+    expect("PaymentRefNum" in minimal).toBe(false);
+    expect(minimal.Line[0]?.LinkedTxn[0]?.TxnId).toBe("1001");
   });
 
   it("writePaymentReceived: success path returns created payment", async () => {

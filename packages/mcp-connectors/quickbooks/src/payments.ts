@@ -52,6 +52,42 @@ export async function listPayments(
   return payments;
 }
 
+/** CLI `write-payment` args → QuickBooks write-request mapping input. */
+export interface PaymentWriteCliArgs {
+  /** QB invoice Id the payment is linked to (LinkedTxn TxnId). */
+  invoice: string;
+  /** Payment amount (must equal the bank-deposit amount for Stage 1-2 matches). */
+  amount: number;
+  /** QB CustomerRef value — the customer the invoice belongs to (QB requires it on Payment). */
+  customer: string;
+  /** Optional ISO yyyy-MM-dd payment date (defaults to QB server date if omitted). */
+  date?: string;
+  /** Optional payment reference (e.g. the bank transaction id). */
+  reference?: string;
+}
+
+/**
+ * Pure map: CLI args → QbPaymentWriteRequest (single-invoice payment). Factored
+ * out of cli.ts so the arg→payload mapping is unit-testable without a live
+ * client (Cash Conductor §4 Step 6 reconciliation write).
+ */
+export function buildPaymentWriteRequest(
+  args: PaymentWriteCliArgs,
+): QbPaymentWriteRequest {
+  return {
+    CustomerRef: { value: args.customer },
+    TotalAmt: args.amount,
+    ...(args.date ? { TxnDate: args.date } : {}),
+    ...(args.reference ? { PaymentRefNum: args.reference } : {}),
+    Line: [
+      {
+        Amount: args.amount,
+        LinkedTxn: [{ TxnId: args.invoice, TxnType: "Invoice" }],
+      },
+    ],
+  };
+}
+
 /**
  * Write a payment received against an invoice. State-changing — emits
  * action_type='accounting_reconciliation_write' (yellow tier per
