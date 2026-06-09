@@ -13,6 +13,26 @@ Each opens a browser to the provider consent screen, captures the redirect on a 
 
 ---
 
+## The smooth flow (do this) — pre-flight, then one command
+
+After the long 2026-06-08 loop, the fix was to stop clicking into misconfigured apps. Two helpers now gate that:
+
+```bash
+# 1. Doctor — checks everything verifiable WITHOUT a browser, per provider:
+#    port free, creds SET + plausible, redirect_uri registered, scope accepted.
+bash scripts/oauth-preflight.sh            # or: ... xero | quickbooks | truelayer
+
+# 2. Runner — pre-flights each provider, then opens a FRESH consent window only
+#    for the GREEN ones; you click Allow; it runs that package's test:live.
+bash scripts/run-oauth-dances.sh           # or one provider: ... xero
+```
+
+**The rule: don't click until the doctor is GREEN for that provider.** The doctor reliably catches redirect_uri/client problems AND Xero's `invalid_scope` (it follows the redirect chain, so it sees Xero's post-login scope rejection without a browser). The one thing it cannot see is purely cosmetic — it tells you when an app is good to go.
+
+As of 2026-06-09 the doctor reports: **QuickBooks ✓, TrueLayer ✓, Xero ✗** (the Xero app rejects accounting scopes — see §1).
+
+---
+
 ## §0 — Universal prerequisites (all three)
 
 1. **Redirect URI** — every app must register **exactly**:
@@ -35,7 +55,9 @@ Each opens a browser to the provider consent screen, captures the redirect on a 
 
 **App type is the thing that bites.** The connector uses the **OAuth 2.0 Authorization Code** flow (browser consent → refresh token). That requires a **Web app**. A **Custom Connection** is a different, machine-to-machine (`client_credentials`) flow with **no browser step** — requesting accounting scopes against one via the browser flow returns **`invalid_scope` / Error 500** every time.
 
-> **The tell:** in the app's config page, a **Custom Connection shows a list of scope checkboxes**; a **Web app does not**. If you see scope checkboxes, it is the wrong type.
+> **The tell (visual):** in the app's config page, a **Custom Connection shows a list of scope checkboxes**; a **Web app does not**. If you see scope checkboxes, it is the wrong type.
+>
+> **The tell (provable, browserless):** `bash scripts/oauth-preflight.sh xero`. It probes the authorize endpoint per scope. A correct Web app accepts `accounting.transactions`; the broken app accepts `openid`/`offline_access` but returns **`invalid_scope`** for every `accounting.*` scope. That asymmetry = not a Web app (confirmed 2026-06-09 on the current `XERO_CLIENT_ID`).
 
 ### Steps
 1. https://developer.xero.com → **My Apps** → **New app**.
