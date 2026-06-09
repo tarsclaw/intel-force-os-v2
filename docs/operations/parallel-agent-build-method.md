@@ -95,7 +95,7 @@ There is **no separate GUI**. Visibility = three surfaces:
 | Agent | Build state | Topology role | Notes |
 |---|---|---|---|
 | Diagnostic | ✅ LIVE | reference template #1 | 0 TODOs; real 12-section reports |
-| Cash Conductor | 🟡 steps 0-6 LIVE; 7-14 in `/goal` run | reference template #2 | `w7-cash-conductor-complete-all-steps` running 2026-06-09 PM |
+| Cash Conductor | ✅ COMPLETE — all 14 steps LIVE | reference template #2 (PROVEN) | finished 2026-06-09 PM; the full agent-bundle live-wiring pattern (cycle 14 steps + validate.sh Gate A + cleanup.sh + reusable SQL + fixture suites) is now proven end-to-end |
 | Janitor | ⚪ SKELETON (~13 TODOs) | PROVE-ONE pilot (§3 step 1) | first fan-out target once substrate frozen |
 | Scribe | ⚪ SKELETON (~13 TODOs) | parallel fan-out (§3 step 2) | |
 | Sourcing Scout | ⚪ SKELETON (~15 TODOs) | parallel fan-out (§3 step 2) | LinkedIn NO-OP (Proxycurl shutdown) |
