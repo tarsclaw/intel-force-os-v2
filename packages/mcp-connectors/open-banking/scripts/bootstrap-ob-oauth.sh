@@ -45,6 +45,8 @@
 #   IFOS_OAUTH_CALLBACK_PORT  (default 3100; must match the registered redirect URI)
 #   IFOS_TRUELAYER_PROVIDERS  (default uk-cs-mock — the sandbox Mock Bank provider id)
 #   IFOS_TOKEN_DIR            (default ~/.ifos-local-vault/dev-sandbox)
+#   IFOS_OAUTH_TIMEOUT_SECONDS (default 600; how long to wait for the browser callback)
+#   IFOS_OB_SCOPE            (default "info accounts balance transactions offline_access")
 #
 # OUTPUT:
 #   ${IFOS_TOKEN_DIR}/ob-tokens.json    (mode 0600; OpenBankingTokens shape)
@@ -95,7 +97,7 @@ import base64, http.server, json, os, secrets, sys, threading, time, urllib.pars
 AUTH_DIALOG = "https://auth.truelayer-sandbox.com/"
 TOKEN       = "https://auth.truelayer-sandbox.com/connect/token"
 ACCOUNTS    = "https://api.truelayer-sandbox.com/data/v1/accounts"
-SCOPE       = "info accounts balance transactions offline_access"
+SCOPE       = os.environ.get("IFOS_OB_SCOPE", "info accounts balance transactions offline_access")
 DAY_MS      = 24 * 60 * 60 * 1000
 
 client_id     = os.environ["TRUELAYER_CLIENT_ID"]
@@ -103,6 +105,7 @@ client_secret = os.environ["TRUELAYER_CLIENT_SECRET"]
 port          = int(os.environ.get("IFOS_OAUTH_CALLBACK_PORT", "3100"))
 providers     = os.environ.get("IFOS_TRUELAYER_PROVIDERS", "uk-cs-mock")
 token_dir     = os.environ["IFOS_TOKEN_DIR"]
+timeout_s     = int(os.environ.get("IFOS_OAUTH_TIMEOUT_SECONDS", "600"))
 redirect_uri  = f"http://localhost:{port}/callback"
 
 def b64url(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
@@ -139,14 +142,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 srv = http.server.HTTPServer(("127.0.0.1", port), Handler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-print("  [1/3] authorize ... opening browser (timeout 300s)")
+print(f"  [1/3] authorize ... opening browser (timeout {timeout_s}s)")
 print(f"        {authorize_url}\n")
 try:
     webbrowser.open(authorize_url)
 except Exception:
     pass
 
-deadline = time.time() + 300
+deadline = time.time() + timeout_s
 while "code" not in captured and time.time() < deadline:
     time.sleep(0.4)
 srv.shutdown()
@@ -154,8 +157,12 @@ srv.shutdown()
 if captured.get("error"):
     sys.exit(f"ERROR: TrueLayer returned error='{captured['error']}' at the consent screen. STOP + surface.")
 if not captured.get("code"):
-    sys.exit("ERROR: no auth code captured within 300s. Likely a redirect_uri mismatch — "
-             f"register EXACTLY {redirect_uri} in the TrueLayer console, or set IFOS_OAUTH_CALLBACK_PORT. STOP + surface.")
+    sys.exit(f"ERROR: no auth code captured within {timeout_s}s. No callback reached "
+             f"{redirect_uri}. Most likely one of:\n"
+             f"  (a) redirect_uri not registered EXACTLY as {redirect_uri} in the TrueLayer console;\n"
+             "  (b) the Mock Bank consent was not completed (pick uk-cs-mock + the mock login);\n"
+             "  (c) consent not completed in time (raise IFOS_OAUTH_TIMEOUT_SECONDS).\n"
+             "  See docs/operations/oauth-sandbox-app-setup-runbook.md. STOP + surface.")
 if captured.get("state") != state:
     sys.exit("ERROR: state mismatch (possible CSRF/stale tab). STOP + surface; re-run.")
 
