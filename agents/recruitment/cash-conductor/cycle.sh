@@ -427,10 +427,39 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *8* ]]; then
-  # TODO(W7-8): LLM call → write draft body to vault → emit:
-  # hh_decision_output "chase_draft_generated" "invoice:<id>" \
-  #   "vault_path:<path>; body_sha256:<hash>; escalation_position:<N>; voice_score:<N>; ..."
-  :
+  # W7 LIVE: per Step-7 candidate, render a position-appropriate chase draft and
+  # write it to the vault FIRST (chmod 0600) per ADR-002; decision_log carries
+  # METADATA only. v1.0 uses deterministic templated drafts (bin/render-chase-draft.sh);
+  # LLM polish + an embedding voice classifier scored against a seeded tenant
+  # voice_corpus is the documented enhancement — dev-sandbox corpus is empty, so
+  # voice_score is recorded honestly as unscored/no_corpus (never a faked number).
+  _cc_render="${CTX_AGENT_DIR}/bin/render-chase-draft.sh"
+  [[ -f "${_cc_render}" ]] || _cc_render="${IFOS_REPO_ROOT:-}/agents/recruitment/cash-conductor/bin/render-chase-draft.sh"
+  _cc_drafts_dir="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${CTX_TENANT_SLUG}/cash-conductor-drafts"
+  _cc_drafts_made=0
+  if [[ -n "${CC_CHASE_CANDIDATES:-}" && -s "${CC_CHASE_CANDIDATES}" && -f "${_cc_render}" ]]; then
+    mkdir -p "${_cc_drafts_dir}" 2>/dev/null || true
+    chmod 0700 "${_cc_drafts_dir}" 2>/dev/null || true
+    while IFS='|' read -r _ci_id _ci_num _ci_amt _ci_days _ci_pos _ci_contact _ci_email; do
+      [[ -z "${_ci_id}" ]] && continue
+      _cc_draft_id="cc-${_ci_id}-p${_ci_pos}"   # stable per (invoice,position) → idempotent re-runs
+      _cc_draft_path="${_cc_drafts_dir}/${_cc_draft_id}.md"
+      if bash "${_cc_render}" --draft-id "${_cc_draft_id}" --invoice-id "${_ci_id}" \
+           --invoice-number "${_ci_num}" --amount "${_ci_amt}" --days-overdue "${_ci_days}" \
+           --position "${_ci_pos}" --contact-email "${_ci_email}" > "${_cc_draft_path}.tmp" 2>/dev/null; then
+        mv "${_cc_draft_path}.tmp" "${_cc_draft_path}"
+        chmod 0600 "${_cc_draft_path}" 2>/dev/null || true
+        _cc_body_sha="$(shasum -a 256 "${_cc_draft_path}" 2>/dev/null | cut -c1-16)"
+        [[ -z "${_cc_body_sha}" ]] && _cc_body_sha="na"
+        _cc_drafts_made=$((_cc_drafts_made + 1))
+        hh_decision_output "chase_draft_generated" "invoice:${_ci_id}" \
+          "vault_path:${_cc_draft_path}; body_sha256:${_cc_body_sha}; escalation_position:${_ci_pos}; voice_score:unscored; voice_reason:no_corpus; days_overdue:${_ci_days}; amount_due:${_ci_amt}"
+      else
+        rm -f "${_cc_draft_path}.tmp" 2>/dev/null || true
+      fi
+    done < "${CC_CHASE_CANDIDATES}"
+  fi
+  export CC_DRAFTS_DIR="${_cc_drafts_dir}"
 fi
 
 # ────────────────────────────────────────────────────────────────────────
