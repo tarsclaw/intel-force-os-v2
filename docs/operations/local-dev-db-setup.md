@@ -25,7 +25,7 @@ The script (idempotent, local-only):
 2. creates a local `ifos_app` role (dev password `ifos_dev_local`, overridable);
 3. drops + recreates a local `ifos_v2_dev` database;
 4. loads the schema dump; asserts `tenant_adapters` + `decision_log` + `cash_conductor_invoices` + `cash_conductor_transactions` exist;
-5. seeds a `dev-sandbox` `tenant_adapters` row (best-effort — if the table needs more NOT-NULL columns it prints `\d tenant_adapters` so you extend the INSERT);
+5. seeds the `dev-sandbox` tenant — a `tenants` row (FK parent) + a `tenant_adapters` row (`adapter_name=cash-conductor`, `enabled=true`); `config` stays `{}` so the v0.4 allowlist trigger passes;
 6. **RLS correctness gate** (the load-bearing check, per tenancy-invariants T1-T4): as `ifos_app`, an `INSERT` *without* `SET LOCAL app.current_tenant` must be **rejected** by row-level security. PASS = isolation enforced; a WARNING here means RLS isn't active — investigate before trusting any writes;
 7. prints the `IFOS_DB_URL` to export.
 

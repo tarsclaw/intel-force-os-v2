@@ -89,14 +89,17 @@ for t in tenant_adapters decision_log cash_conductor_invoices cash_conductor_tra
   fi
 done
 
-step "4. seed tenant_adapters row for '${TENANT}' (best-effort; surfaces columns if it needs more)"
-if psql -d "${DEV_DB}" -v ON_ERROR_STOP=1 -q \
-     -c "INSERT INTO tenant_adapters (tenant_slug) VALUES ('${TENANT}') ON CONFLICT DO NOTHING;" 2>/dev/null; then
-  ok "seeded tenant_slug=${TENANT}"
+step "4. seed tenants + tenant_adapters row for '${TENANT}'"
+# tenant_adapters.tenant_slug FKs to tenants; adapter_name is NOT NULL. config
+# defaults to '{}' so the v0.4 config-key allowlist trigger passes (we do NOT set
+# accounting_provider/open_banking_provider — context.sh falls back to defaults).
+SEED_SQL="INSERT INTO tenants (tenant_slug, tenant_name) VALUES ('${TENANT}','Dev Sandbox') ON CONFLICT (tenant_slug) DO NOTHING;
+INSERT INTO tenant_adapters (tenant_slug, adapter_name, enabled) VALUES ('${TENANT}','cash-conductor',true) ON CONFLICT (tenant_slug, adapter_name) DO NOTHING;"
+if SEED_OUT=$(psql -d "${DEV_DB}" -v ON_ERROR_STOP=1 -q -c "${SEED_SQL}" 2>&1); then
+  ok "seeded tenants + tenant_adapters (${TENANT} / adapter_name=cash-conductor)"
 else
-  printf '\033[33m•\033[0m minimal seed failed — tenant_adapters needs more NOT NULL columns. Its shape:\n'
+  printf '\033[33m•\033[0m seed failed: %s\n' "${SEED_OUT}"
   psql -d "${DEV_DB}" -c "\\d tenant_adapters" | sed 's/^/    /'
-  printf '    -> extend the INSERT above with the required columns, then re-run.\n'
 fi
 
 step "5. RLS correctness gate (tenancy-invariants T1-T4)"
