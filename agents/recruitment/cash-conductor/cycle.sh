@@ -218,9 +218,42 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 
 if [[ "${STEPS_TO_RUN}" == *4* ]]; then
-  # TODO(W7-8): provider-aware (tenant_adapters.config.accounting_provider)
-  #             listOpenInvoices → store in Postgres cash_conductor_invoices
-  hh_decision_output "invoices_ingested" "tenant:${CTX_TENANT_SLUG}" "STUB rows"
+  # W7 LIVE: provider-aware (CTX_ACCOUNTING_PROVIDER=xero|quickbooks) list-open-invoices
+  # → bulk UPSERT into cash_conductor_invoices under RLS. ON CONFLICT DO UPDATE
+  # refreshes amount_paid/status as payments arrive (but never touches the
+  # agent-managed last_chase_position/last_chase_sent_at). The CLI emits the
+  # unified normalised shape, so this INSERT is provider-agnostic.
+  _cc_inv_count=0
+  _acct_cli="${_CC_CONN_BASE:-}/${CTX_ACCOUNTING_PROVIDER}/dist/cli.js"
+  if [[ -n "${IFOS_DB_URL:-}" && -f "${_acct_cli}" ]] && command -v psql >/dev/null 2>&1; then
+    _cc_inv_json="$(node "${_acct_cli}" list-open-invoices 2>/dev/null || echo '[]')"
+    if [[ "$(printf '%s' "${_cc_inv_json}" | jq -e 'type=="array"' 2>/dev/null)" == "true" ]]; then
+      _cc_inv_count="$(printf '%s' "${_cc_inv_json}" | jq 'length')"
+      if [[ "${_cc_inv_count}" -gt 0 ]]; then
+        psql "${IFOS_DB_URL}" -q -v ON_ERROR_STOP=1 \
+          --set=tenant="${CTX_TENANT_SLUG}" --set=prov="${CTX_ACCOUNTING_PROVIDER}" --set=js="${_cc_inv_json}" <<'SQL'
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+INSERT INTO cash_conductor_invoices
+  (tenant_slug, invoice_id, accounting_provider, invoice_number, issued_at, due_at,
+   amount_total, amount_paid, currency, status, client_contact_id, raw_payload)
+SELECT :'tenant', t.invoice_id, :'prov', t.invoice_number, t.issued_at, t.due_at,
+       t.amount_total, coalesce(t.amount_paid,0), coalesce(t.currency,'GBP'),
+       coalesce(t.status,'open'), t.client_contact_id, t.raw
+FROM jsonb_to_recordset(:'js'::jsonb)
+  AS t(invoice_id text, invoice_number text, issued_at timestamptz, due_at timestamptz,
+       amount_total numeric, amount_paid numeric, currency text, status text,
+       client_contact_id text, raw jsonb)
+ON CONFLICT (tenant_slug, accounting_provider, invoice_id) DO UPDATE SET
+  amount_paid = EXCLUDED.amount_paid, status = EXCLUDED.status,
+  amount_total = EXCLUDED.amount_total, updated_at = now();
+COMMIT;
+SQL
+      fi
+    fi
+  fi
+  hh_decision_output "invoices_ingested" "tenant:${CTX_TENANT_SLUG}" \
+    "${_cc_inv_count} rows provider=${CTX_ACCOUNTING_PROVIDER}"
 fi
 
 # ────────────────────────────────────────────────────────────────────────
