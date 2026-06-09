@@ -67,7 +67,22 @@ async function main(): Promise<void> {
   if (command === "list-open-invoices") {
     const client = new QbClient({ config });
     const invoices = await listOpenInvoices(client, { no_cache: true });
-    process.stdout.write(JSON.stringify(invoices) + "\n");
+    // Normalise to the unified cash_conductor_invoices ingest shape (cycle.sh
+    // Step 4 INSERTs this generically across providers). QB Balance = amount
+    // outstanding, so amount_paid = TotalAmt - Balance.
+    const rows = invoices.map((inv) => ({
+      invoice_id: inv.Id,
+      invoice_number: inv.DocNumber,
+      issued_at: inv.TxnDate,
+      due_at: inv.DueDate,
+      amount_total: inv.TotalAmt,
+      amount_paid: inv.TotalAmt - inv.Balance,
+      currency: inv.CurrencyRef.value,
+      status: inv.Balance > 0 ? "open" : "paid",
+      client_contact_id: inv.CustomerRef.value,
+      raw: inv,
+    }));
+    process.stdout.write(JSON.stringify(rows) + "\n");
     return;
   }
 

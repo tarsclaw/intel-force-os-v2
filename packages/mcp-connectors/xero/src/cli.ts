@@ -70,7 +70,21 @@ async function main(): Promise<void> {
   if (command === "list-open-invoices") {
     const client = new XeroClient({ config });
     const invoices = await listOpenInvoices(client, { no_cache: true });
-    process.stdout.write(JSON.stringify(invoices) + "\n");
+    // Normalise to the unified cash_conductor_invoices ingest shape (cycle.sh
+    // Step 4 INSERTs this generically across providers).
+    const rows = invoices.map((inv) => ({
+      invoice_id: inv.InvoiceID,
+      invoice_number: inv.InvoiceNumber,
+      issued_at: inv.Date,
+      due_at: inv.DueDate,
+      amount_total: inv.Total,
+      amount_paid: inv.AmountPaid,
+      currency: inv.CurrencyCode,
+      status: inv.AmountDue > 0 ? "open" : "paid",
+      client_contact_id: inv.Contact.ContactID,
+      raw: inv,
+    }));
+    process.stdout.write(JSON.stringify(rows) + "\n");
     return;
   }
 
