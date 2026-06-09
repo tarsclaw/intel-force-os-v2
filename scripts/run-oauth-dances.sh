@@ -20,10 +20,14 @@
 # ENV: IFOS_OAUTH_CALLBACK_PORT (default 3100); IFOS_OAUTH_TIMEOUT_SECONDS
 #      (default 600, passed through to the dance).
 
-set -euo pipefail
+# NOTE: intentionally NOT `set -e`. This is an orchestrator that checks each
+# step's exit status explicitly (preflight, dance rc, test:live). Under `set -e`
+# a benign `url=$(grep ... | head -1)` with no match (SIGPIPE/pipefail) would
+# kill the whole runner mid-dance. `-u` + pipefail are kept.
+set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "${REPO_ROOT}"
+cd "${REPO_ROOT}" || { echo "ERROR: cannot cd to repo root" >&2; exit 1; }
 PORT="${IFOS_OAUTH_CALLBACK_PORT:-3100}"
 WANT="${1:-all}"
 
@@ -77,7 +81,7 @@ run_one() {
   # Give it a moment to print the authorize URL, then force a fresh window.
   sleep 3
   local url
-  url=$(grep -oE 'https://[^ ]*(authorize|truelayer-sandbox.com/)[^ ]*' /tmp/ifos-dance-"${key}".log | head -1)
+  url=$(grep -oE 'https://[^[:space:]]+' /tmp/ifos-dance-"${key}".log | head -1 || true)
   [ -n "${url}" ] && open_fresh "${url}"
   wait "${dance_pid}"; local rc=$?
   if [ "${rc}" -ne 0 ]; then
