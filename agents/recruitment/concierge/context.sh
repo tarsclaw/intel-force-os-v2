@@ -7,9 +7,11 @@
 #         SELECT config->>'<key>' FROM tenant_adapters path, with the
 #         IFOS_FORCE_* env-var fallback retained for fixtures + local dev
 #         (the blocked_recipients precedent). Bullhorn OAuth refresh routes
-#         through bin/bh-bridge.sh (the Janitor-branch connector shim) and
-#         records token state HONESTLY (creds are EMPTY in the dev sandbox
-#         as of 2026-06-10 → state=degraded, never a faked "refreshed").
+#         through bin/bh-bridge.sh (the Janitor-branch connector shim,
+#         reconciled to the agreed CLI contract: check-auth-probed mode
+#         resolution) and records token state HONESTLY (creds are EMPTY in
+#         the dev sandbox as of 2026-06-10 → state=unavailable, NO ESC;
+#         never a faked "refreshed").
 #         Email-provider OAuth (MS Graph / Gmail) is absent → state=absent;
 #         live send remains founder/tenant-onboarding-gated.
 # Reading order: agent.md §2 (invocation surface) + §4 Step 0 (session start)
@@ -45,8 +47,11 @@
 #   CTX_VOICE_CORPUS_ID                  — pgvector index ref
 #   CTX_TONE_RULES_PATH                  — vault path to tone-rules YAML
 #   CTX_COMMS_TEMPLATE_LIBRARY_PATH      — /vault/<slug>/concierge-templates/
-#   CTX_BULLHORN_TOKEN_STATE             — fresh | refreshed | failed
-#   CTX_EMAIL_PROVIDER_TOKEN_STATE       — fresh | refreshed | failed
+#   CTX_BULLHORN_TOKEN_STATE             — fresh | refreshed | failed | unavailable
+#                                          (unavailable = not provisioned, NO
+#                                          ESC; failed = real refresh failure
+#                                          → ESC_BULLHORN_AUTH)
+#   CTX_EMAIL_PROVIDER_TOKEN_STATE       — fresh | refreshed | failed | absent
 
 set -euo pipefail
 
@@ -118,18 +123,24 @@ export CTX_EMAIL_CHANNEL="${_ctx_channel:-microsoft-graph}"
 
 _bh_bridge="${CTX_AGENT_DIR}/bin/bh-bridge.sh"
 [[ -f "${_bh_bridge}" ]] || _bh_bridge="${IFOS_REPO_ROOT:-}/agents/recruitment/concierge/bin/bh-bridge.sh"
-CTX_BULLHORN_TOKEN_STATE="degraded"
+CTX_BULLHORN_TOKEN_STATE="unavailable"
 if [[ -f "${_bh_bridge}" ]]; then
   _bh_refresh="$(bash "${_bh_bridge}" refresh 2>/dev/null || echo '{}')"
   if [[ "$(printf '%s' "${_bh_refresh}" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
-    CTX_BULLHORN_TOKEN_STATE="refreshed"
+    # Agreed contract shape: {ok, oauth_expires_at_ms, token_state:
+    # "refreshed"|"fresh"} — carry the connector's token_state verbatim.
+    CTX_BULLHORN_TOKEN_STATE="$(printf '%s' "${_bh_refresh}" | jq -r '.token_state // "refreshed"' 2>/dev/null || echo refreshed)"
   else
-    # Honest degraded state: creds EMPTY in dev sandbox / connector CLI
-    # unmerged. ESC_BULLHORN_AUTH fires only on a REAL refresh failure with
-    # creds present (reason=refresh_failed), not on the known-absent case.
-    _bh_reason="$(printf '%s' "${_bh_refresh}" | jq -r '.reason // "unknown"' 2>/dev/null || echo unknown)"
-    if [[ "${_bh_reason}" == "refresh_failed" || "${_bh_reason}" == "revoked_401" ]]; then
+    # Shim reason semantics (check-auth-probed, per the agreed contract):
+    #   unavailable — not provisioned (creds/tokens absent or CLI unbuilt);
+    #                 the KNOWN-absent case → NO ESC, state=unavailable.
+    #   failed      — provisioned (check-auth ok) but the refresh FAILED →
+    #                 a REAL auth failure → ESC_BULLHORN_AUTH (blocking).
+    _bh_reason="$(printf '%s' "${_bh_refresh}" | jq -r '.reason // "unavailable"' 2>/dev/null || echo unavailable)"
+    if [[ "${_bh_reason}" == "failed" ]]; then
       CTX_BULLHORN_TOKEN_STATE="failed"
+      autosend_escalate "ESC_BULLHORN_AUTH" "agent=concierge" \
+        "tenant=${CTX_TENANT_SLUG}" "failure_type=refresh_failed"
     fi
   fi
 fi
