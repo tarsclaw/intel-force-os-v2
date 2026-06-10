@@ -126,10 +126,11 @@ Source: master brief §8.1 Change 3 lines 585-592
 
 #### `ESC_DUPLICATE_DETECTED`
 - **Severity:** warn — Janitor dedup needs human approval
-- **Trigger:** Dedup confidence `≥ 0.85` per Ultraplan §8.1 line 511 A2 Gate A; human-review-required cases
+- **Trigger:** Dedup pair held for human approval: confidence in the `0.70–0.85` review band, OR `≥ 0.85` where either record has Bullhorn activity in the last 90 days (recency hold) — per spec-001 §4 band→action table. _(Amended 2026-06-10: supersedes the original ≥0.85-only wording from Ultraplan §8.1 line 511 A2 — the W6-7 Janitor build implements the spec-001 dedup band model, which holds the review band and recency cases rather than auto-merging or silently dropping them. ≥0.85 with no 90d activity auto-merges (yellow) and does NOT fire this code; `< 0.70` silently drops.)_
 - **Phase:** `action`
 - **Routing:** `operator_chat_id` via Telegram approval gate
-- **Payload fields:** `candidate_a_id`, `candidate_b_id`, `confidence_score`, `match_basis` (e.g. `email+phone`, `name+email`, `phone+linkedin`)
+- **Entity types:** `candidate`, `contractor` (same matcher, separate entity_type — spec-001 §4 Steps 3-4)
+- **Payload fields:** `entity_a_id`, `entity_b_id`, `entity_type` (`candidate`|`contractor`), `confidence_score`, `match_basis` (e.g. `email+phone`, `name+email`, `phone+linkedin`), `hold_reason` (`review_band` | `recency_hold_90d`). Legacy aliases `candidate_a_id`/`candidate_b_id` remain readable for pre-amendment candidate rows.
 
 #### `ESC_JSL_RED_FLAG`
 - **Severity:** warn — Supply Chain Auditor (placeholder for v1.1+ JSL extension)
