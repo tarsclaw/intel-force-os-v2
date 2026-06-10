@@ -107,3 +107,52 @@ dominant-ESC routing + `validate_gate_a_fail` row + `/tmp` quarantine.
 Concierge bundle (cycle/validate/context/cleanup/tools + bins + templates +
 fixtures + 3 suites) + autosend-bridge-telegram production wiring, via
 `review-agent-bundle.md`.
+
+## Round-2 combined fix pass (2026-06-10)
+
+Combined fix pass after review round 1 (`04-reviews/review-concierge.md`) +
+Codex session `20260610T142308Z-65963` (REJECTED:4, all agent.md). Three
+atomic commits on this branch:
+
+1. **`10dfc07` agent.md honesty pass** (Codex 1-4 + reviewer finding 2 +
+   deviation-2 recording): all "awaits D1" language + §9 Q1 removed (D1
+   ACCEPTED 2026-05-31; Q2-Q10 numbering retained for stable §10
+   cross-references); header + reading-discipline note + §5 honesty note +
+   §8 rows + §10 updated to the W10-13 LIVE/BUILT bundle state
+   (fixture-proven only; zero live Bullhorn/Telegram/email; /approve handler
+   = @ifos/telegram-surface scope); §4 Step 2 doc query corrected to
+   `payload->>'action_type'` / `payload->>'target'` equality (implementation
+   was already correct); v0.4 supplement moved to satisfied dependency
+   (landed 2026-06-03, `a1bbcf6`); reviewer deviation 2 (client_contact
+   second drafts not generated, events 5/9/11/12, W14+ path) recorded in §3.
+   §10 status field NOT flipped (founder-gated).
+2. **`997226d` bh-bridge.sh reconciliation** (reviewer finding 1) to the
+   agreed CLI contract + Janitor's actual `cli.ts`: network-free `check-auth`
+   mode resolution (not-provisioned → refresh reason `unavailable`, NO ESC;
+   provisioned-but-failed refresh → `failed` → context.sh fires
+   ESC_BULLHORN_AUTH); agreed refresh shape `{ok, oauth_expires_at_ms,
+   token_state}` carried verbatim into CTX_BULLHORN_TOKEN_STATE; live
+   context fetches via existing `list-*` with shim-side id filter;
+   `create-activity-log` → `create-note --entity-type/--entity-id/
+   --body-file --action` (note_id parsed); `patch-state` → `update-entity
+   --patch {"status":...}` ({ok,updated} parsed); IFOS_TOKEN_DIR + numeric-id
+   live requirement documented; 4 REQUIRED CONNECTOR EXTENSIONS named in the
+   shim header (get-by-id convenience, Placement read, list-state-changes,
+   list-nurture-due — served honestly from the entities cache, none
+   invented). Fixture mode unchanged (the proven path).
+3. **`b5bf167` catalogue-honest ESC + vault default + gap note** (reviewer
+   findings 3/4/5/6): ESC_RENDERER_FAILED → ESC_AGENT_OUTPUT_SHAPE at the
+   Step-7 render-failure path; IFOS_VAULT_ROOT default unified to `/vault`
+   (hook-helpers contract); Step 12 KNOWN-GAP comment — orange row emitted
+   pre-transport, emit-on-confirmed-send (or correction row) required when
+   the live email connector lands; phantom ESC_AGENT_TOOL_FAILURE removed
+   from tools.yaml + cycle.sh comment + transport-telegram.ts header;
+   ESC_TONE_RULE_VIOLATION aligned to catalogue (warn / operator_chat_id);
+   tenant-admin routing notes dropped per agent.md §6.
+
+Verification: shellcheck clean across the bundle; bridge typecheck clean +
+34/34 vitest offline; all 3 concierge DB suites green; full build-gate PASS
+re-run after the pass. Honest scope unchanged: fixture-proven only — live
+Bullhorn/Telegram/email remain unexercised (creds/tokens EMPTY,
+founder-gated). Post-merge follow-ups (tracked in STATUS): the 4 named
+connector extensions + email-connector emit-on-confirmed-send.
