@@ -2,7 +2,7 @@
 
 Telegram approval-bridge for orange-tier autosend gating. Backs the **D1-B founder decision** (`docs/decisions/2026-05-31-d1-founder-decision.md`) — consumed by **Concierge `cycle.sh` Step 11** + **Cash Conductor `cycle.sh` Step 10**.
 
-**Status:** Proposed (W4 Day-26 scaffold, fully unit-tested; production wiring lands in the Concierge W10–13 build slice).
+**Status:** Production wiring LANDED (W10-13 Concierge build slice) — `createTelegramTransport` (real Telegram Bot API `sendMessage`) + `createPostgresDecisionSource` (postgres approvals reader over `decision_log`) + the `dist/bin/{propose,await,record-decision}.js` CLI entrypoints the agent shells consume. **Honest-scope caveats:** (1) the Telegram **/approve — /reject command handler** that turns operator replies into decision rows is `@ifos/telegram-surface` scope and NOT yet built — until it exists, decisions are recorded via `dist/bin/record-decision.js` (the single writer; the future handler calls the same CLI). (2) `TELEGRAM_BOT_TOKEN` is EMPTY in the dev sandbox as of 2026-06-10 — the live transport is built + fetch-mock-tested but has not been exercised against the real Bot API.
 
 ---
 
@@ -70,11 +70,27 @@ interface BridgeDependencies {
 
 This is what lets the test suite run the **full PT4H timeout flow in <50ms** — the fake clock advances inside `sleepMs`, the in-memory decision source satisfies the same interface as the production postgres reader, and the test transport records posts without hitting the Telegram API.
 
-When the Concierge W10–13 build slice wires production, the agent layer constructs:
+The production constructions (landed in the W10-13 Concierge build slice; both in this package):
 
-- `transport` from `@ifos/telegram-surface.botApiClient({chat_id, bot_token})`
-- `decisions` from a small postgres reader over the `approvals` table that the Telegram bot command-handler writes to on every `/approve` / `/reject` reply
+- `transport` from `createTelegramTransport({bot_token})` — real Bot API `sendMessage` over global fetch (node ≥20); injectable `fetch` for tests; the bot token is never logged or echoed in error messages
+- `decisions` from `createPostgresDecisionSource({db_url, tenant_slug})` — RLS-scoped reader over `decision_log` rows with `agent_name='autosend-bridge'` (NO new `approvals` table — schema-before-code: decisions live in the same append-only audit substrate; see `src/decisions-postgres.ts` header). Zero npm deps: it shells `psql` via `execFile` with psql `-v` variables (no SQL interpolation of caller input); injectable `runPsql` keeps tests offline
 - `clock` and `generateApprovalId` omitted (defaults are correct in production)
+
+### CLI entrypoints (the shell-layer contract)
+
+Built to `dist/bin/` by tsup; consumed by Concierge `cycle.sh` Step 11 + Cash Conductor `cycle.sh` Step 10:
+
+```bash
+node dist/bin/propose.js  --action gmail_outlook_send_to_candidate --tenant <slug> \
+  --operator-chat <chat-id> --target <email> --preview <text> \
+  --vault-path <path> [--timeout-seconds 14400]      # → {approval_id, posted_at_iso, expires_at_iso}
+node dist/bin/await.js    --approval-id <id> --tenant <slug> [--expires-at <ISO>]
+                                                      # → {outcome: approved|rejected|timeout, ...}; exit 0 for all three
+node dist/bin/record-decision.js --approval-id <id> --tenant <slug> \
+  --outcome approved|rejected --decided-by <tg-user>  # → {ok, recorded}; first-valid-reply-wins
+```
+
+Env: `TELEGRAM_BOT_TOKEN` (propose, production), `IFOS_DB_URL` (await + record-decision). Fixture mode: `IFOS_BRIDGE_FAKE=approve|reject|timeout` short-circuits network/DB deterministically (output carries `"fake": true`).
 
 ---
 

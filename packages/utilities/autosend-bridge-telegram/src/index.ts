@@ -9,6 +9,16 @@ export {
   awaitApprovalDecisionOrThrow,
 } from "./bridge.js";
 
+// Production wiring (W10-13 Concierge build slice) — real Telegram Bot API
+// transport + the postgres approvals reader for the D1-B orange path.
+export { createTelegramTransport } from "./transport-telegram.js";
+export type { FetchLike, TelegramTransportConfig } from "./transport-telegram.js";
+export {
+  createPostgresDecisionSource,
+  RECORD_DECISION_SQL,
+} from "./decisions-postgres.js";
+export type { PostgresDecisionSourceConfig, RunPsql } from "./decisions-postgres.js";
+
 export {
   BridgeError,
   BridgeInputError,
