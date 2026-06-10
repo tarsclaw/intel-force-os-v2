@@ -9,7 +9,7 @@ at-a-glance view. `git log`/branch diffs are the ground truth._
 |---|---|---|---|---|---|
 | Diagnostic | — | — | ✅ LIVE (template #1) | `main` | yes (Companies House + Anthropic) |
 | Cash Conductor | — | — | ✅ LIVE (template #2) | `main` | yes (QB/Xero/TrueLayer sandboxes) |
-| Sourcing Scout | `spec-003-sourcing-scout.md` | 1 (PROVE-ONE) | 🔨 implementing — worktree sub-agent in flight (spawned 2026-06-10) | worktree branch (TBC on report) | **YES via CV-Library** (degraded mode) — the live pilot; Reed/Bullhorn blocked |
+| Sourcing Scout | `spec-003-sourcing-scout.md` | 1 (PROVE-ONE) | 🟡 built + gate-green (9 commits; orchestrator-verified build-gate PASS); review sub-agent + Codex ratification in flight | `worktree-agent-a45354564e8f66257` | **NO — corrected 2026-06-10:** `CVLIBRARY_*` values are actually EMPTY (template comments fooled the naive SET check). Live smoke founder-gated: fill via `scripts/fill-dev-sandbox-secrets.sh` |
 | Janitor | `spec-001-janitor.md` | 2 | ⚪ not started | — | partial — Companies House yes; **Bullhorn BLOCKED** |
 | Scribe | `spec-002-scribe.md` | 2 | ⚪ not started | — | no — **Bullhorn BLOCKED** + Granola token/0-meetings |
 | Concierge | `spec-004-concierge.md` | 4 (last) | ⚪ not started | — | no — Bullhorn + autosend-bridge wiring + email OAuth |
@@ -32,6 +32,7 @@ at-a-glance view. `git log`/branch diffs are the ground truth._
 4. Empty `voice_corpus` → record `unscored/no_corpus`, never a faked score (CC precedent).
 
 ## Founder actions that unblock LIVE (build proceeds without them)
+- **CV-Library creds (CORRECTED 2026-06-10: actually EMPTY — `KEY= # comment` template lines fooled the naive SET check). Fill via `bash scripts/fill-dev-sandbox-secrets.sh` → unblocks the Sourcing Scout live smoke.**
 - Bullhorn dev sandbox creds (unblocks Janitor/Scribe/Concierge + Sourcing Scout source #1).
 - Reed API creds (unblocks Sourcing Scout source #2).
 - Granola IFOS-side OAuth token on disk + ≥1 recorded meeting (unblocks Scribe live transcript).
