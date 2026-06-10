@@ -35,7 +35,8 @@
 #   2  Bullhorn auth refresh               bullhorn_auth_refreshed   ESC_BULLHORN_AUTH
 #   3  Granola transcript fetch → /tmp     transcript_fetched        ESC_PROVIDER_FETCH_FAIL
 #   4  participant → entity resolution     entity_resolved           ESC_AGENT_OUTPUT_SHAPE
-#   5  field extraction (≥3 ≥0.6)          fields_extracted          ESC_FIELD_EXTRACTION_LOW_CONFIDENCE
+#   5  field extraction (≥0.6 conf; per-   fields_extracted          ESC_FIELD_EXTRACTION_LOW_CONFIDENCE
+#      entity min: contact 2, others 3)
 #   6  tacit-note → vault (0600)           tacit_note_rendered       ESC_VOICE_DRIFT (via Gate A)
 #   7  schema validation + Gate A          fields_validated          ESC_SCHEMA_VIOLATION
 #   8  Bullhorn field write (yellow)       bullhorn_scribe_field_write  ESC_BULLHORN_WRITE_FAIL
@@ -51,7 +52,9 @@
 # fixture suites; live smoke is founder-gated (creds + ≥1 recorded meeting).
 #
 # Output contract per agent.md §1: two outputs per meeting —
-#   1. ≥3 Bullhorn structured-field writes (yellow bullhorn_scribe_field_write;
+#   1. Bullhorn structured-field writes meeting the per-entity Gate A minimum
+#      (contact 2 — its full Scribe-writable v0.3 set; others 3)
+#      (yellow bullhorn_scribe_field_write;
 #      IFOS-cached entities row is ALWAYS written; the Bullhorn PATCH push is
 #      deferred while the CLI bridge is unavailable — recorded on the row)
 #   2. Tacit-note markdown → vault (canonical, ADR-002) + Bullhorn Note attach
@@ -428,7 +431,14 @@ SQL
   hh_decision_output "entity_resolved" "${entity_type}:${bullhorn_id}" \
     "call:${call_id}; confidence:${confidence}; match:email_exact"
 
-  # ── Step 5 — Field extraction (≥3 fields ≥0.6 per Gate A) ─────────────
+  # ── Step 5 — Field extraction (≥0.6 conf; per-entity Gate A minimum) ───
+  # Per-entity minimum (Codex R2-1): contact = 2 (its full Scribe-writable
+  # v0.3 set — decision_authority is R-only); all other entities = 3.
+  local min_required
+  case "${entity_type}" in
+    contact) min_required=2 ;;
+    *)       min_required=3 ;;
+  esac
   local fields_file="${tmp_tx%.txt}-fields.json"
   if ! bash "${_BIN}/extract-fields.sh" --transcript "${tmp_tx}" --entity-type "${entity_type}" \
         --call-id "${call_id}" --vault-path "${vault_path_logical}" > "${fields_file}" 2>/dev/null; then
@@ -439,11 +449,16 @@ SQL
   n_above="$(jq '[.[] | select(.confidence >= 0.6)] | length' "${fields_file}" 2>/dev/null || echo 0)"
   hh_decision_output "fields_extracted" "${entity_type}:${bullhorn_id}" \
     "call:${call_id}; fields_above_threshold:${n_above}; extractor:$( [[ "${IFOS_SCRIBE_USE_LLM:-0}" == "1" && -n "${ANTHROPIC_API_KEY:-}" ]] && echo llm_with_deterministic_fallback || echo deterministic ); ingest_mode:${ingest_mode}"
-  if [[ "${n_above}" -lt 3 ]]; then
+  if [[ "${n_above}" -lt "${min_required}" ]]; then
+    # Catalogue AGGREGATE-form payload (escalation-codes.md, amended
+    # 2026-06-10): entity_type, fields_extracted_count, confidence_floor,
+    # required_minimum, agent_name.
     autosend_escalate "ESC_FIELD_EXTRACTION_LOW_CONFIDENCE" "agent=scribe" \
-      "tenant=${CTX_TENANT_SLUG}" "call=${call_id}" "fields_above_threshold=${n_above}" "required=3"
+      "tenant=${CTX_TENANT_SLUG}" "call=${call_id}" "entity_type=${entity_type}" \
+      "fields_extracted_count=${n_above}" "confidence_floor=0.6" \
+      "required_minimum=${min_required}" "agent_name=scribe"
     hh_decision_action "validate_gate_a_fail" "${entity_type}:${bullhorn_id}" "lowconf-${call_id}" \
-      "ESC_FIELD_EXTRACTION_LOW_CONFIDENCE; agent_name:scribe; step:5; fields:${n_above}" || true
+      "ESC_FIELD_EXTRACTION_LOW_CONFIDENCE; agent_name:scribe; step:5; fields:${n_above}; required:${min_required}" || true
     rm -f "${fields_file}" 2>/dev/null || true
     return 1
   fi
@@ -501,11 +516,12 @@ SQL
   vres="$(bash "${_BIN}/validate-fields.sh" --entity-type "${entity_type}" --fields-file "${fields_file}" 2>/dev/null || echo '{"valid":[],"dropped":[],"valid_count":0}')"
   valid_count="$(jq -r '.valid_count' <<<"${vres}")"
   dropped_count="$(jq -r '.dropped | length' <<<"${vres}")"
-  if [[ "${valid_count}" -lt 3 ]]; then
+  if [[ "${valid_count}" -lt "${min_required}" ]]; then
     autosend_escalate "ESC_SCHEMA_VIOLATION" "agent=scribe" \
-      "tenant=${CTX_TENANT_SLUG}" "call=${call_id}" "valid=${valid_count}" "dropped=${dropped_count}"
+      "tenant=${CTX_TENANT_SLUG}" "call=${call_id}" "valid=${valid_count}" "dropped=${dropped_count}" \
+      "required_minimum=${min_required}"
     hh_decision_action "validate_gate_a_fail" "${entity_type}:${bullhorn_id}" "schema-${call_id}" \
-      "ESC_SCHEMA_VIOLATION; agent_name:scribe; step:7; valid:${valid_count}; dropped:${dropped_count}" || true
+      "ESC_SCHEMA_VIOLATION; agent_name:scribe; step:7; valid:${valid_count}; dropped:${dropped_count}; required:${min_required}" || true
     rm -f "${fields_file}" 2>/dev/null || true
     return 1
   fi

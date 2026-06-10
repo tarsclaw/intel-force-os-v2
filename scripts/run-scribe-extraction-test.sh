@@ -304,6 +304,22 @@ if [[ "${ESC}" == "ESC_FIELD_EXTRACTION_LOW_CONFIDENCE" ]]; then
 else
   _fail "<3-fields: expected ESC_FIELD_EXTRACTION_LOW_CONFIDENCE, got '${ESC}'"; fails=$((fails + 1))
 fi
+# Catalogue AGGREGATE-form payload (escalation-codes.md amended 2026-06-10):
+# entity_type, fields_extracted_count, confidence_floor, required_minimum, agent_name.
+ESC_PAYLOAD="$(appq <<'SQL' 2>/dev/null | tail -1
+BEGIN; SET LOCAL app.current_tenant = :'tenant';
+SELECT concat_ws('|', payload->>'entity_type', payload->>'fields_extracted_count',
+                 payload->>'confidence_floor', payload->>'required_minimum', payload->>'agent_name')
+FROM decision_log WHERE tenant_slug=:'tenant' AND phase='gating_failed'
+  AND outcome='ESC_FIELD_EXTRACTION_LOW_CONFIDENCE' ORDER BY id DESC LIMIT 1;
+COMMIT;
+SQL
+)"
+if [[ "${ESC_PAYLOAD}" == "candidate|1|0.6|3|scribe" ]]; then
+  _ok "<3-fields: catalogue aggregate-form payload (entity_type|count|floor|min|agent_name)"
+else
+  _fail "<3-fields: expected payload 'candidate|1|0.6|3|scribe', got '${ESC_PAYLOAD}'"; fails=$((fails + 1))
+fi
 GF="$(appq <<'SQL' 2>/dev/null | tail -1
 BEGIN; SET LOCAL app.current_tenant = :'tenant';
 SELECT count(*) FROM decision_log WHERE tenant_slug=:'tenant' AND phase='action'

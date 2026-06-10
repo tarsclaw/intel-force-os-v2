@@ -29,7 +29,8 @@
 #
 #   update-entity --entity-type <Candidate|ClientContact|JobOrder|Placement> \
 #     --id <numeric> --patch '<json field map>'
-#     → {"ok":true,"updated":<n>,"entity_type":"<T>","id":<N>}
+#     → {"ok":true,"updated":true,"entity_type":"<T>","id":<N>}
+#       (updated is a BOOLEAN per the implemented CLI, not a row count)
 #       (PATCH /<EntityType>/<id>; existing update-candidate/update-client
 #       commands stay Janitor-internal — Scribe uses update-entity only)
 #
@@ -109,7 +110,7 @@ _test_ok() {
   case "${CMD}" in
     check-auth)    printf '{"ok":true,"creds_present":true,"tokens_present":true,"mode":"test"}\n' ;;
     refresh)       printf '{"ok":true,"oauth_expires_at_ms":0,"token_state":"refreshed","mode":"test"}\n' ;;
-    update-entity) printf '{"ok":true,"updated":1,"mode":"test"}\n' ;;
+    update-entity) printf '{"ok":true,"updated":true,"mode":"test"}\n' ;;
     create-note)   printf '{"ok":true,"note_id":"test-note-1","mode":"test"}\n' ;;
   esac
   exit 0

@@ -40,7 +40,7 @@ NOTE_DIR="${IFOS_VAULT_ROOT}/${TENANT}/scribe-notes"
 NOTE_PHYS="${NOTE_DIR}/meeting-ga-2026-06-10.md"
 mkdir -p "${NOTE_DIR}"
 
-appq() { psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 --set=tenant="${TENANT}"; }
+appq() { psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 --set=tenant="${TENANT}" "$@"; }
 
 # shellcheck disable=SC2329  # invoked via trap
 cleanup() {
@@ -83,15 +83,33 @@ SQL
     _fail "  → expected ${want}, got '${got}'"; fails=$((fails + 1))
   fi
 }
+assert_esc_payload() {  # <key> <want> — on the latest gating_failed row
+  local key="$1" want="$2" got
+  got="$(appq --set=k="${key}" <<'SQL' 2>/dev/null | tail -1
+BEGIN; SET LOCAL app.current_tenant = :'tenant';
+SELECT payload->>:'k' FROM decision_log WHERE tenant_slug = :'tenant' AND phase = 'gating_failed'
+ORDER BY id DESC LIMIT 1;
+COMMIT;
+SQL
+)"
+  if [[ "${got}" == "${want}" ]]; then
+    _ok "  → payload.${key}=${want}"
+  else
+    _fail "  → payload.${key}: expected '${want}', got '${got}'"; fails=$((fails + 1))
+  fi
+}
 
 # Proposal builder. Args: file sig_state voice_score word_count preview fields_json [body]
 # Also writes the PHYSICAL vault note (frontmatter + body) that G6 full-body
 # scans; body defaults to the preview text (the preview itself is audit-only).
+# Entity type defaults to candidate; export MK_ENTITY=contact for the
+# per-entity-minimum (Codex R2-1) Contact cases.
 mkproposal() {
   local file="$1" sig="$2" voice="$3" words="$4" preview="$5" fields="$6" body="${7:-$5}"
   jq -nc --arg sig "${sig}" --arg voice "${voice}" --argjson words "${words}" \
+     --arg et "${MK_ENTITY:-candidate}" \
      --arg pv "${preview}" --argjson fields "${fields}" '{
-    call_id: "meeting-ga", entity_type: "candidate", bullhorn_id: "1001",
+    call_id: "meeting-ga", entity_type: $et, bullhorn_id: "1001",
     webhook_sig_state: $sig, fields_extracted: $fields,
     tacit_note: { vault_path: "/vault/scribe-gate-a-fixture/scribe-notes/meeting-ga-2026-06-10.md",
                   body_sha256: "abc123", voice_score: $voice, voice_reason: "test",
@@ -133,13 +151,38 @@ mkproposal "${TMPD}/badsig.json" invalid 0.82 200 "clean text" "${GOOD_FIELDS}"
 run_case "FAIL G1: webhook signature invalid"  1 "${TMPD}/badsig.json"
 assert_esc ESC_INPUT_VALIDATION_FAIL
 
-# ── G2: <3 fields ≥0.6 confidence ─────────────────────────────────────────
+# ── G2: < per-entity minimum fields ≥0.6 confidence (candidate: 3) ────────
 LOW_FIELDS='[{"field_name":"location","value":"Leeds","confidence":0.9},
              {"field_name":"current_role","value":"Engineer","confidence":0.55},
              {"field_name":"notice_period_weeks","value":4,"confidence":0.41}]'
 mkproposal "${TMPD}/lowconf.json" verified 0.82 200 "clean text" "${LOW_FIELDS}"
-run_case "FAIL G2: only 1 field ≥0.6"          1 "${TMPD}/lowconf.json"
+run_case "FAIL G2: candidate with only 1 field ≥0.6 (min 3)" 1 "${TMPD}/lowconf.json"
 assert_esc ESC_FIELD_EXTRACTION_LOW_CONFIDENCE
+# Catalogue aggregate-form payload (escalation-codes.md amended 2026-06-10)
+assert_esc_payload entity_type candidate
+assert_esc_payload fields_extracted_count 1
+assert_esc_payload confidence_floor 0.6
+assert_esc_payload required_minimum 3
+assert_esc_payload agent_name scribe
+
+# ── Per-entity minimum (Codex R2-1): Contact = 2 writable v0.3 fields ─────
+# The v0.3 schema grants Scribe exactly TWO writable Contact fields
+# (preferred_channel, next_action_target_date; decision_authority R-only) —
+# a 2-field Contact call is a LEGITIMATE full-coverage call and must PASS.
+CONTACT_2_FIELDS='[{"field_name":"preferred_channel","value":"email","confidence":0.8},
+                   {"field_name":"next_action_target_date","value":"2026-06-20","confidence":0.85}]'
+MK_ENTITY=contact mkproposal "${TMPD}/contact2.json" verified 0.82 200 "clean text" "${CONTACT_2_FIELDS}"
+run_case "PASS: contact with 2 writable fields (per-entity min 2)" 0 "${TMPD}/contact2.json"
+
+# ...while a 1-field Contact call fails G2 with the aggregate-form payload.
+CONTACT_1_FIELD='[{"field_name":"preferred_channel","value":"email","confidence":0.8},
+                  {"field_name":"next_action_target_date","value":"2026-06-20","confidence":0.45}]'
+MK_ENTITY=contact mkproposal "${TMPD}/contact1.json" verified 0.82 200 "clean text" "${CONTACT_1_FIELD}"
+run_case "FAIL G2: contact with only 1 field ≥0.6 (min 2)" 1 "${TMPD}/contact1.json"
+assert_esc ESC_FIELD_EXTRACTION_LOW_CONFIDENCE
+assert_esc_payload entity_type contact
+assert_esc_payload fields_extracted_count 1
+assert_esc_payload required_minimum 2
 
 # ── G3: voice score below 0.75 ─────────────────────────────────────────────
 mkproposal "${TMPD}/voice.json" verified 0.61 200 "clean text" "${GOOD_FIELDS}"
@@ -182,6 +225,16 @@ mkproposal "${TMPD}/pii-tail.json" verified 0.82 200 "${TAIL_PREVIEW}" "${GOOD_F
 run_case "FAIL G6 tail: PII beyond 500-char preview (full-body scan)" 1 "${TMPD}/pii-tail.json"
 assert_esc ESC_PII_LEAKAGE_RISK
 
+# ── G6 frontmatter anchoring (re-review advisory): `---` horizontal rules ──
+# in the BODY must stay in the scan surface. The old sed range
+# (/^---$/,/^---$/!p) skipped content between ANY later `---` pair, so PII
+# framed by markdown hr lines escaped the scan; the awk strip is anchored to
+# the LEADING block only (first pair starting at line 1).
+HR_BODY="$(printf 'clean observation about process friction\n---\nreferee reachable at hidden.referee@gmail.com per the candidate\n---\nmore clean tone notes\n')"
+mkproposal "${TMPD}/pii-hr.json" verified 0.82 200 "clean text" "${GOOD_FIELDS}" "${HR_BODY}"
+run_case "FAIL G6 hr-rule: PII between later --- pair (leading-block-only strip)" 1 "${TMPD}/pii-hr.json"
+assert_esc ESC_PII_LEAKAGE_RISK
+
 # ── G6 fail-closed: physical note body unreadable → blocked ───────────────
 mkproposal "${TMPD}/nobody.json" verified 0.82 200 "clean text" "${GOOD_FIELDS}"
 rm -f "${NOTE_PHYS}"
@@ -201,15 +254,15 @@ SELECT count(*) FROM decision_log WHERE tenant_slug = :'tenant'
 COMMIT;
 SQL
 )"
-if [[ "${GF_COUNT:-0}" -ge 10 ]]; then
+if [[ "${GF_COUNT:-0}" -ge 12 ]]; then
   _ok "validate_gate_a_fail action row written for all ${GF_COUNT} fail cases"
 else
-  _fail "expected ≥10 validate_gate_a_fail rows, got ${GF_COUNT:-0}"; fails=$((fails + 1))
+  _fail "expected ≥12 validate_gate_a_fail rows, got ${GF_COUNT:-0}"; fails=$((fails + 1))
 fi
 
 printf '\n'
 if [[ "${fails}" -eq 0 ]]; then
-  _ok "all Gate A assertions passed (2 pass paths + 10 fail cases incl. G6 tail-PII + fail-closed + ESC routes)"
+  _ok "all Gate A assertions passed (3 pass paths incl. 2-field contact + 12 fail cases incl. 1-field contact, G6 tail-PII, hr-rule, fail-closed + ESC routes/payloads)"
   exit 0
 fi
 _fail "${fails} assertion(s) failed"

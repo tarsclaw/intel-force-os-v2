@@ -241,7 +241,7 @@ failure_modes:
     surface: "validate.sh exit 1 with G6 failure"
     escalation: ESC_PII_LEAKAGE_RISK   # blocking; operator + ifos_oncall_chat_id
 
-  - condition: "<3 structured-field extractions with confidence ≥0.6 (Step 5 → validate.sh G2)"
+  - condition: "structured-field extractions with confidence ≥0.6 below the per-entity Gate A minimum — contact 2, others 3 (Step 5 → validate.sh G2; catalogue aggregate form)"
     surface: "validate.sh exit 1 with G2 failure"
     escalation: ESC_FIELD_EXTRACTION_LOW_CONFIDENCE   # warn; operator_chat_id
 

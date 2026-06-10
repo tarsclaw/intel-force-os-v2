@@ -49,10 +49,11 @@
 #
 # Checks (spec-002 §5 — all 7, in spec order — plus the agent.md §3 word cap):
 #   G1 — webhook-sig: valid per provider                    ESC_INPUT_VALIDATION_FAIL  hard
-#   G2 — field-count: ≥3 extractions ≥0.6 confidence        ESC_FIELD_EXTRACTION_LOW_CONFIDENCE  hard
+#   G2 — field-count: ≥ per-entity min extractions ≥0.6     ESC_FIELD_EXTRACTION_LOW_CONFIDENCE  hard
+#        (contact: 2 — its full Scribe-writable v0.3 set; all others: 3)
 #   G3 — tacit-voice: classifier ≥0.75                      ESC_VOICE_DRIFT  hard (warn-when-unscored)
 #   G4 — field-names: exist in target entity schema         ESC_SCHEMA_VIOLATION  hard
-#   G5 — field-types: per-field type/range valid; ≥3 valid  ESC_SCHEMA_VIOLATION  hard
+#   G5 — field-types: per-field type/range valid; ≥ per-entity min valid  ESC_SCHEMA_VIOLATION  hard
 #   G6 — PII: none outside firm boundary in note narrative  ESC_PII_LEAKAGE_RISK  hard (blocking)
 #        (FULL physical body from tacit_note.vault_path — Step 9 exports the
 #        full body to Bullhorn, so the gate scans everything that leaves)
@@ -133,13 +134,26 @@ ESC_CLASS=""
 
 # Thresholds (per ULTRAPLAN A3 line 524 + agent.md §3)
 readonly FIELD_CONFIDENCE_THRESHOLD="0.6"
-readonly MIN_FIELDS_REQUIRED="3"
 readonly VOICE_SCORE_THRESHOLD="0.75"
 readonly TACIT_NOTE_WORD_CAP="800"
 
 CALL_ID="$(jq -r '.call_id // "unknown"' "${PROPOSAL}")"
 ENTITY_TYPE="$(jq -r '.entity_type // ""' "${PROPOSAL}")"
 BULLHORN_ID="$(jq -r '.bullhorn_id // "unknown"' "${PROPOSAL}")"
+
+# Per-entity Gate A minimum (Codex R2-1): the v0.3 schema grants Scribe
+# exactly TWO writable Contact fields (preferred_channel,
+# next_action_target_date — decision_authority is R-only per the v0.3 §2
+# access matrix), so a blanket ≥3 bar would hard-fail EVERY legitimate
+# Contact-resolved call at G5 (max 2 valid writable fields exist). Contact's
+# minimum is its full writable set (2); all other entities keep the
+# ULTRAPLAN A3 line 524 ≥3 bar. Extraction may surface more fields; R-only
+# fields flow to the tacit-note narrative only, never the write payload.
+case "${ENTITY_TYPE}" in
+  contact) MIN_FIELDS_REQUIRED="2" ;;
+  *)       MIN_FIELDS_REQUIRED="3" ;;
+esac
+readonly MIN_FIELDS_REQUIRED
 
 # ────────────────────────────────────────────────────────────────────────
 # G1 — Webhook signature valid per provider (spec-002 §5 row 1)
@@ -158,8 +172,8 @@ case "${_sig}" in
 esac
 
 # ────────────────────────────────────────────────────────────────────────
-# G2 — ≥3 structured-field extractions with confidence ≥0.6
-# Per ULTRAPLAN A3 line 524 verbatim.
+# G2 — structured-field extractions with confidence ≥0.6 meet the
+# per-entity minimum (contact: 2; all others: 3 per ULTRAPLAN A3 line 524).
 # ────────────────────────────────────────────────────────────────────────
 
 _n_conf="$(jq --argjson t "${FIELD_CONFIDENCE_THRESHOLD}" \
@@ -247,8 +261,13 @@ if [[ -z "${_note_phys}" || ! -r "${_note_phys}" ]]; then
   _fail "G6: tacit-note body unreadable (vault_path:'${_vault_path:-missing}') — cannot certify PII boundary; write blocked"
   ESC_CLASS="ESC_PII_LEAKAGE_RISK"
 else
-  # Frontmatter excluded (metadata only — call_id/date/voice keys, no narrative).
-  _note_body="$(sed -n '/^---$/,/^---$/!p' "${_note_phys}")"
+  # Frontmatter excluded (metadata only — call_id/date/voice keys, no
+  # narrative). Anchored to the LEADING block ONLY (re-review advisory): a
+  # `---` pair must start at line 1 to be frontmatter; later `---` lines in
+  # the narrative (e.g. markdown horizontal rules) are BODY and stay in the
+  # scan surface. The previous sed range (/^---$/,/^---$/!p) wrongly skipped
+  # content between ANY later `---` pair.
+  _note_body="$(awk 'NR==1 && /^---$/ {fm=1; next} fm {if (/^---$/) fm=0; next} {print}' "${_note_phys}")"
   _whitelist="${CTX_FIRM_DOMAIN_WHITELIST:-${CTX_TENANT_SLUG}.test}"
   _pii_hit=0
   _body_emails="$(printf '%s' "${_note_body}" | grep -oiE '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' | sort -u || true)"
@@ -330,9 +349,19 @@ if [[ ${#FAILURES[@]} -gt 0 ]]; then
   # G2 → ESC_FIELD_EXTRACTION_LOW_CONFIDENCE; G3 → ESC_VOICE_DRIFT;
   # G4/G5 → ESC_SCHEMA_VIOLATION; G6 → ESC_PII_LEAKAGE_RISK (blocking);
   # G7 → ESC_BULLHORN_AUTH (blocking); G8 → ESC_AGENT_OUTPUT_SHAPE.
+  # ESC_FIELD_EXTRACTION_LOW_CONFIDENCE carries the catalogue AGGREGATE-form
+  # payload fields (escalation-codes.md, amended 2026-06-10): entity_type,
+  # fields_extracted_count, confidence_floor, required_minimum, agent_name.
+  declare -a _esc_extra=()
+  if [[ "${ESC_CLASS:-}" == "ESC_FIELD_EXTRACTION_LOW_CONFIDENCE" ]]; then
+    _esc_extra+=("entity_type=${ENTITY_TYPE}" "fields_extracted_count=${_n_conf}" \
+      "confidence_floor=${FIELD_CONFIDENCE_THRESHOLD}" "required_minimum=${MIN_FIELDS_REQUIRED}" \
+      "agent_name=scribe")
+  fi
   autosend_escalate "${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}" "agent=scribe" \
     "tenant=${CTX_TENANT_SLUG}" "call=${CALL_ID}" \
-    "entity=${ENTITY_TYPE}:${BULLHORN_ID}" "failures=${#FAILURES[@]}"
+    "entity=${ENTITY_TYPE}:${BULLHORN_ID}" "failures=${#FAILURES[@]}" \
+    ${_esc_extra[@]+"${_esc_extra[@]}"}
   _gate_hash="$(printf '%s' "${CALL_ID}|${ENTITY_TYPE}|${BULLHORN_ID}" | shasum -a 256 2>/dev/null | cut -c1-16)"
   [[ -z "${_gate_hash}" ]] && _gate_hash="${CALL_ID}"
   hh_decision_action "validate_gate_a_fail" "${ENTITY_TYPE}:${BULLHORN_ID}" "${_gate_hash}" \
