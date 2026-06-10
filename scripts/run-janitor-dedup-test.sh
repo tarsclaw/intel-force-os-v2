@@ -197,8 +197,8 @@ assert_eq "B2 dedup_candidate_pass auto:1 review:1" \
   "$(dlq "phase='output' AND payload->>'output_type'='dedup_candidate_pass' AND reason='auto_merges:1; review_band:1; dropped:0'")" "1"
 assert_eq "B3 dedup_contractor_pass auto:1" \
   "$(dlq "phase='output' AND payload->>'output_type'='dedup_contractor_pass' AND reason='auto_merges:1; review_band:0; dropped:0'")" "1"
-assert_eq "B4 ESC_DUPLICATE_DETECTED hold (John pair; reason carries days)" \
-  "$(dlq "phase='gating_failed' AND outcome='ESC_DUPLICATE_DETECTED' AND payload->>'review_band_reason' LIKE 'recent_activity_days:20%'")" "1"
+assert_eq "B4 ESC_DUPLICATE_DETECTED hold (John pair; amended catalogue payload shape)" \
+  "$(dlq "phase='gating_failed' AND outcome='ESC_DUPLICATE_DETECTED' AND payload->>'entity_a_id'='2001' AND payload->>'entity_b_id'='2002' AND payload->>'entity_type'='candidate' AND payload->>'match_basis'='name+email+phone' AND payload->>'hold_reason'='recency_hold_90d' AND payload->>'hold_detail' LIKE 'recent_activity_days:20%'")" "1"
 assert_eq "B5 bullhorn_candidate_dedupe yellow action rows (Jane + Carl)" \
   "$(dlq "phase='action' AND payload->>'action_type'='bullhorn_candidate_dedupe' AND payload->>'tier'='yellow'")" "2"
 assert_eq "B6 bullhorn_field_backfill action row (CH fixture)" \

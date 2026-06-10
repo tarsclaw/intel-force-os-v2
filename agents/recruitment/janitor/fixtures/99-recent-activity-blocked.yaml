@@ -103,10 +103,10 @@ expected:
       severity: warn
       routing: operator_chat_id   # via Telegram approval gate
       count: 3                    # one per blocked pair
-      payload_includes_per_pair:   # live matcher reason format: recent_activity_days:<pair MIN>
-        - {primary_id: 3001, merge_target_id: 3002, review_band_reason: "recent_activity_days:10"}
-        - {primary_id: 3003, merge_target_id: 3004, review_band_reason: "recent_activity_days:45"}
-        - {primary_id: 3005, merge_target_id: 3006, review_band_reason: "recent_activity_days:60"}
+      payload_includes_per_pair:   # amended catalogue §2.5 shape; hold_detail carries the matcher reason (pair MIN)
+        - {entity_a_id: 3001, entity_b_id: 3002, entity_type: candidate, match_basis: "name+email+phone", hold_reason: recency_hold_90d, hold_detail: "recent_activity_days:10"}
+        - {entity_a_id: 3003, entity_b_id: 3004, entity_type: candidate, match_basis: "name+email+phone", hold_reason: recency_hold_90d, hold_detail: "recent_activity_days:45"}
+        - {entity_a_id: 3005, entity_b_id: 3006, entity_type: candidate, match_basis: "name+email+phone", hold_reason: recency_hold_90d, hold_detail: "recent_activity_days:60"}
   day_30_report:
     vault_path_pattern: "/vault/migration-test/janitor-reports/day-30-*.md"
     sections_present: [1, 2, 3, 4, 5, 6, 7, 8]   # section 7 lists all 3 review-band pairs
@@ -115,7 +115,7 @@ expected:
     gate_b_met: false             # SINGLE-run miss (not 3-consecutive) → no ESC_GATE_B_MISS fire per agent.md §5
   esc_gate_b_miss_fired: false   # explicit: 3-consecutive trigger NOT activated by single-run miss
   operator_notification:
-    tier: yellow                  # Gate B missed → yellow + 200-char executive summary
+    tier: green                   # operator_notify_telegram is registered GREEN in autosend-policy.yaml; tiers are policy-owned (deviation 8) — miss state + ≤200-char summary ride in the payload (gate_b_state:missed)
     channel: telegram
     chat_id: "operator-test-chat-id"
     summary_chars: "<=200"

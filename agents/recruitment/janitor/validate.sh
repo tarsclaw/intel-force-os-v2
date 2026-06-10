@@ -339,10 +339,23 @@ if [[ ${#FAILURES[@]} -gt 0 ]]; then
   [[ -z "${_v_hash}" ]] && _v_hash="proposal-${PRIMARY_ID:-unknown}"
   hh_decision_action "validate_gate_a_fail" "tenant:${CTX_TENANT_SLUG}" "${_v_hash}" \
     "${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}; agent_name:janitor; action_type:${ACTION_TYPE}; primary_id:${PRIMARY_ID:-unknown}; failures:${#FAILURES[@]}; first:${FAILURES[0]}" || true
-  autosend_escalate "${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}" "agent=janitor" \
-    "tenant=${CTX_TENANT_SLUG}" "action_type=${ACTION_TYPE}" \
-    "primary_id=${PRIMARY_ID:-unknown}" "failures=${#FAILURES[@]}" \
-    "proposal=${PROPOSAL}"
+  if [[ "${ESC_CLASS:-}" == "ESC_DUPLICATE_DETECTED" ]]; then
+    # G3 hold — emit the amended catalogue §2.5 payload shape (entity ids,
+    # confidence, match basis, hold reason). G3 only fires on recent/unknown
+    # activity, so hold_reason is always the recency class here.
+    autosend_escalate "ESC_DUPLICATE_DETECTED" "agent=janitor" \
+      "tenant=${CTX_TENANT_SLUG}" "action_type=${ACTION_TYPE}" \
+      "entity_a_id=${PRIMARY_ID:-unknown}" "entity_b_id=$(_p '.merge_target_id')" \
+      "entity_type=$(_p '.entity_type')" "confidence_score=$(_p '.confidence')" \
+      "match_basis=$(jq -r '(.match_dimensions // []) | join("+")' "${PROPOSAL}" 2>/dev/null)" \
+      "hold_reason=recency_hold_90d" "failures=${#FAILURES[@]}" \
+      "proposal=${PROPOSAL}"
+  else
+    autosend_escalate "${ESC_CLASS:-ESC_AGENT_OUTPUT_SHAPE}" "agent=janitor" \
+      "tenant=${CTX_TENANT_SLUG}" "action_type=${ACTION_TYPE}" \
+      "primary_id=${PRIMARY_ID:-unknown}" "failures=${#FAILURES[@]}" \
+      "proposal=${PROPOSAL}"
+  fi
   exit 1
 fi
 printf 'PASS (warnings=%d)\n' "${#WARNINGS[@]}"

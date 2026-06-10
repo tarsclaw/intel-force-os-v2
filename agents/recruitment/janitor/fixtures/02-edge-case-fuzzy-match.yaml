@@ -77,11 +77,14 @@ expected:
     - code: ESC_DUPLICATE_DETECTED
       severity: warn
       routing: operator_chat_id   # via Telegram approval gate per catalogue §2.5
-      payload_includes:
-        primary_id: 2001
-        merge_target_id: 2002
-        confidence: 1.0   # live matcher: all 4 dims match
-        review_band_reason: "recent_activity_days:20"   # live matcher reason format (pair MIN)
+      payload_includes:   # amended catalogue §2.5 payload shape (2026-06-10)
+        entity_a_id: 2001
+        entity_b_id: 2002
+        entity_type: candidate
+        confidence_score: 1.0   # live matcher: all 4 dims match
+        match_basis: "name+email+phone+linkedin"
+        hold_reason: recency_hold_90d
+        hold_detail: "recent_activity_days:20"   # live matcher reason format (pair MIN)
   day_30_report:
     vault_path_pattern: "/vault/migration-test/janitor-reports/day-30-*.md"
     sections_present: [1, 2, 3, 4, 5, 6, 7, 8]   # section 7 (Exception list) includes the review-band pair
@@ -89,7 +92,7 @@ expected:
     gate_b_completeness_pct: ">=0"
     gate_b_met: false            # single-run miss; tracked in report but does NOT fire ESC
   operator_notification:
-    tier: yellow                 # Gate B missed → yellow not green
+    tier: green                  # operator_notify_telegram is registered GREEN in autosend-policy.yaml; tiers are policy-owned (deviation 8) — the miss urgency rides in payload.gate_b_state:missed
     channel: telegram
     chat_id: "operator-test-chat-id"
   audit_rows_emitted:
@@ -100,7 +103,7 @@ expected:
       payload_contains: "auto_merges:0; review_band:1"
     - phase: gating_failed
       outcome: ESC_DUPLICATE_DETECTED          # Telegram approval gate row (live contract)
-      payload_contains: "review_band_reason"
+      payload_contains: "hold_reason"          # amended catalogue §2.5 shape
     - phase: action
       action_type: operator_notify_telegram
     - phase: action

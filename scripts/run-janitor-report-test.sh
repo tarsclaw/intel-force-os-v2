@@ -120,7 +120,7 @@ appq <<'SQL' >/dev/null
 BEGIN; SET LOCAL app.current_tenant = :'tenant';
 INSERT INTO decision_log (tenant_slug, agent_name, phase, outcome, reason, payload)
 VALUES (:'tenant', 'janitor', 'gating_failed', 'ESC_DUPLICATE_DETECTED', '',
-        '{"escalation_code": "ESC_DUPLICATE_DETECTED", "review_band_reason": "recent_activity_days:20"}');
+        '{"escalation_code": "ESC_DUPLICATE_DETECTED", "hold_reason": "recency_hold_90d", "hold_detail": "recent_activity_days:20"}');
 COMMIT;
 SQL
 

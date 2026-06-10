@@ -362,15 +362,23 @@ SQL
   dropped="$(printf '%s' "${pairs_json}" | jq -r '.dropped')"
 
   # Review band → ESC_DUPLICATE_DETECTED per pair (SUCCESS-path approval gate).
-  while IFS=$'\t' read -r _rp _rt _rc _rr; do
-    [[ -z "${_rp}" ]] && continue
+  # Payload per the amended catalogue §2.5 entry (2026-06-10): entity_a_id /
+  # entity_b_id / entity_type / confidence_score / match_basis / hold_reason
+  # (review_band | recency_hold_90d); the matcher's verbatim reason rides in
+  # hold_detail for operator debuggability.
+  while IFS=$'\t' read -r _ra _rb _rc _rm _rr; do
+    [[ -z "${_ra}" ]] && continue
+    _rh="review_band"
+    case "${_rr}" in
+      recent_activity_days:*|activity_unknown*) _rh="recency_hold_90d" ;;
+    esac
     autosend_escalate "ESC_DUPLICATE_DETECTED" "agent=janitor" "tenant=${CTX_TENANT_SLUG}" \
-      "entity_type=${etype}" "primary_id=${_rp}" "merge_target_id=${_rt}" \
-      "confidence=${_rc}" "review_band_reason=${_rr}" \
-      "routing=operator_telegram_approval_gate"
-    _jn_exception "Review-band ${etype} pair ${_rp}/${_rt} (conf ${_rc}; ${_rr}) — held for operator approval (ESC_DUPLICATE_DETECTED)"
+      "entity_a_id=${_ra}" "entity_b_id=${_rb}" "entity_type=${etype}" \
+      "confidence_score=${_rc}" "match_basis=${_rm}" "hold_reason=${_rh}" \
+      "hold_detail=${_rr}" "routing=operator_telegram_approval_gate"
+    _jn_exception "Review-band ${etype} pair ${_ra}/${_rb} (conf ${_rc}; ${_rr}) — held for operator approval (ESC_DUPLICATE_DETECTED)"
   done < <(printf '%s' "${pairs_json}" \
-    | jq -r '.pairs[] | select(.band == "review") | [.primary_id, .target_id, (.confidence|tostring), .reason] | @tsv')
+    | jq -r '.pairs[] | select(.band == "review") | [.primary_id, .target_id, (.confidence|tostring), (.dims | join("+")), .reason] | @tsv')
 
   # Auto band → Step 9 write proposals (validate.sh contract shape).
   while IFS= read -r _ap; do
@@ -436,7 +444,9 @@ SQL
       esac
     done <<<"${_jn_fc_out}"
   fi
-  _jn_enrichable="$(grep -c . "${JN_CLIENT_QUEUE}" 2>/dev/null || echo 0)"
+  # awk (not `grep -c || echo 0`): grep prints "0" AND fails on an empty file,
+  # so the || arm appended a second 0 → newline-corrupted marker reason.
+  _jn_enrichable="$(awk 'END{print NR}' "${JN_CLIENT_QUEUE}" 2>/dev/null || echo 0)"
   hh_decision_output "field_completeness_audit" "tenant:${CTX_TENANT_SLUG}" \
     "${_jn_missing_total} missing-field rows; enrichable_via_companies_house:${_jn_enrichable}"
 fi
@@ -662,7 +672,12 @@ if _step_planned 9; then
     if [[ "${_jn_wstate}" == "fail5xx" ]]; then
       sleep "${_JN_DELAY}"   # retry once with 30s backoff per agent.md §4 Step 9
       _jn_wstate="$(_jn_bh_write "${_prop}")"
-      [[ "${_jn_wstate}" == "applied_fixture" || "${_jn_wstate}" == "fail4xx" ]] && _jn_wstate="fail5xx"  # fixture 5xx stays 5xx on retry
+      # Fixture-ONLY coercion: the 5xx fixture simulates a persistent 5xx, so
+      # the retry outcome stays 5xx. On the LIVE path the retry's real class
+      # stands (a genuine 4xx-on-retry must not be mislabelled class=5xx).
+      if [[ "${IFOS_JANITOR_FIXTURE_WRITE_RESULT:-}" == "5xx" ]]; then
+        _jn_wstate="fail5xx"
+      fi
     fi
     case "${_jn_wstate}" in
       fail4xx)
@@ -801,7 +816,9 @@ if _step_planned 11; then
     _jn_msg="Janitor nightly (${CTX_TENANT_SLUG}): Gate B MET. Merges:${JN_MERGES} backfills:${JN_BACKFILLS} notes:${JN_NOTES} deferred:${JN_DEFERRED}."
   else
     _jn_gb_state="missed"
-    _jn_msg="Janitor nightly (${CTX_TENANT_SLUG}): Gate B MISSED. Merges:${JN_MERGES} backfills:${JN_BACKFILLS} review-held:$(grep -c 'Review-band' "${_JN_EXCEPTIONS}" 2>/dev/null || echo 0). Consultant follow-up suggested on held pairs + remaining missing fields."
+    # awk (not `grep -c || echo 0`): zero matches → grep prints "0" AND exits 1,
+    # so the || arm doubled the 0 with a newline inside the message.
+    _jn_msg="Janitor nightly (${CTX_TENANT_SLUG}): Gate B MISSED. Merges:${JN_MERGES} backfills:${JN_BACKFILLS} review-held:$(awk '/Review-band/{n++} END{print n+0}' "${_JN_EXCEPTIONS}" 2>/dev/null || echo 0). Consultant follow-up suggested on held pairs + remaining missing fields."
   fi
   _jn_msg="${_jn_msg:0:200}"
   _jn_channel="stdout_degraded"
@@ -827,7 +844,10 @@ fi
 # or single-threshold misses are tracked in the report, no ESC) → exit 1.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${_jn_db_up}" -eq 1 ]]; then
+# Stamp janitor_last_run ONLY when Step 2 actually ran this invocation —
+# --report-only (Steps 10+12) must not silently narrow the next live scan
+# window to a period nothing actually scanned.
+if _step_planned 2 && [[ "${_jn_db_up}" -eq 1 ]]; then
   _jn_psql -q <<'SQL' >/dev/null 2>&1 || true
 BEGIN;
 SET LOCAL app.current_tenant = :'tenant';
