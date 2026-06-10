@@ -9,8 +9,8 @@ at-a-glance view. `git log`/branch diffs are the ground truth._
 |---|---|---|---|---|---|
 | Diagnostic | — | — | ✅ LIVE (template #1) | `main` | yes (Companies House + Anthropic) |
 | Cash Conductor | — | — | ✅ LIVE (template #2) | `main` | yes (QB/Xero/TrueLayer sandboxes) |
-| Janitor | `spec-001-janitor.md` | 1 (prove-one) | ⚪ not started | — | partial — Companies House yes; **Bullhorn BLOCKED** |
-| Sourcing Scout | `spec-003-sourcing-scout.md` | 2 | ⚪ not started | — | **YES via CV-Library** (degraded mode); Reed/Bullhorn blocked |
+| Sourcing Scout | `spec-003-sourcing-scout.md` | 1 (PROVE-ONE) | ⚪ not started | — | **YES via CV-Library** (degraded mode) — the live pilot; Reed/Bullhorn blocked |
+| Janitor | `spec-001-janitor.md` | 2 | ⚪ not started | — | partial — Companies House yes; **Bullhorn BLOCKED** |
 | Scribe | `spec-002-scribe.md` | 2 | ⚪ not started | — | no — **Bullhorn BLOCKED** + Granola token/0-meetings |
 | Concierge | `spec-004-concierge.md` | 4 (last) | ⚪ not started | — | no — Bullhorn + autosend-bridge wiring + email OAuth |
 

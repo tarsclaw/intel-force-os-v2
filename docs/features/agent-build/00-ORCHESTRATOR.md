@@ -42,15 +42,19 @@ substrate element (a new `autosend-policy` action_type, a new migration, a new `
 helper), land that on `main` FIRST (serial, gated), then mark it frozen in the method doc §7.
 Confirm `bash scripts/build-gate.sh` is green on `main`. Only then fan out.
 
-### Phase 1 — Prove ONE (Janitor) end-to-end
-Spawn a single worktree sub-agent for `02-specs/spec-001-janitor.md`. Let it run the full
-implement→self-review→gate loop to a green branch. You (orchestrator) run `scripts/build-gate.sh`
-+ a review sub-agent on the branch. Surface the branch to the founder for merge. This validates
-the whole machine before 3×.
+### Phase 1 — Prove ONE (Sourcing Scout) end-to-end
+Spawn a single worktree sub-agent for `02-specs/spec-003-sourcing-scout.md`. **Sourcing Scout is
+the prove-one because it is the only remaining agent that can be LIVE-smoked today** (CV-Library
+creds SET; read-only on Bullhorn → degraded-mode skips the blocked sources), so it validates the
+machine against real data, not just fixtures. Let it run the full implement→self-review→gate loop
+to a green branch; you (orchestrator) run `scripts/build-gate.sh` + a review sub-agent on the
+branch + a live CV-Library smoke; surface the branch to the founder for merge. This validates the
+whole machine — including the connector-CLI-bridge + reusable-SQL + fixture patterns — before 3×.
+(Janitor `spec-001` is the fixture-only alternative if the founder prefers it.)
 
 ### Phase 2 — Fan out (parallel background worktree sub-agents)
 Spawn, in parallel, one sub-agent per remaining spec that has no unmet upstream dependency:
-`spec-002-scribe`, `spec-003-sourcing-scout`. Each runs in its own worktree + branch,
+`spec-001-janitor`, `spec-002-scribe`. Each runs in its own worktree + branch,
 `run_in_background: true`. **Context-isolation (method §9):** give each sub-agent ONLY its
 spec file + its agent.md + the named template pointers + CLAUDE.md — never this full session.
 
