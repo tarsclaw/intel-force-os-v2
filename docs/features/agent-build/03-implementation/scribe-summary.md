@@ -188,3 +188,24 @@ connector suites; 9/9 DB suites). Scribe suites: gate-a now 3 pass paths
 regression) with ESC routes AND aggregate-payload asserts; extraction suite
 +1 payload assert. Still NOT live-smoked — creds/token state unchanged;
 nothing claimed beyond fixtures.
+
+## Codex final-run findings (4) — incorporated post-run (2026-06-10 — session `20260610T154432Z-44557` REJECTED:4)
+
+**Final verdict on record: REJECTED:4.** Per the ≤2-round ratification
+ceiling there is NO further Codex run — these four findings are incorporated
+POST-run (doc-only, `agent.md` + this record), the trail stands as-is, and
+the **founder judges at the merge gate**. Loop closed.
+
+| Finding | Fix (doc-only, post-run) |
+|---|---|
+| 1 — "all green under build-gate.sh" lacked evidence context (Codex's sandbox had no reachable `IFOS_DB_URL`, so the DB suites SKIPPED there — the blanket claim wasn't reproducible in that environment) | Banner + §8 row now state the evidence environment explicitly: green **against the dev DB** (orchestrator + two reviewers; per-assert outputs in this file), with the declared caveat that build-gate skips DB suites where `IFOS_DB_URL` is unreachable — gate hardening tracked by the orchestrator. The suites DID run green on the dev DB; the claim is now scoped to that evidence. |
+| 2 — §7 claimed `hh_load_voice_samples` + `hh_load_recent_edits` integration, but `context.sh` calls ONLY `hh_load_tone_rules` (verified by grep before editing) | §7 marks both **NOT WIRED in v1.0**: `hh_load_voice_samples` lands with the LLM-rationale/classifier enhancement (Scout-precedent disposition); `hh_load_recent_edits` with the Gate-B edit-rate consumer. Master brief §8.1 Change-1's all-three-loaders expectation recorded as a known, **declared gap** (one of three satisfied), not silently dropped. §4 Step 0's matching "recent_edits (drift)" hydration claim corrected too. |
+| 3 — §1 claimed a tacit-note "confidence ≥0.6" gate; no such check exists in `validate.sh` (verified: the 0.6 floor is G2 structured-field extraction only) | §1 now states the shipped behaviour: tacit-note gated by voice score ≥0.75 on real numeric scores (G3), warn-and-pass when unscored (no classifier in v1.0), plus the structural checks — rendered to the 8-category taxonomy (Step-6 renderer), ≤800-word cap (G8), full-note-body PII scan (G6). The ≥0.6 tacit-note confidence claim is removed. |
+| 4 — SLA anchor stated differently across §1 (poll-sweep discovery), §4 Step 10 (meeting end), §5 (`ended_at`) — two clocks implied | ALL THREE now state the single anchor identically: **meeting end (`ended_at`)**, with poll-discovery latency (the 5-minute sweep cadence) described as a component within that window, never a second anchor. One clock everywhere. |
+
+### Evidence
+
+`bash scripts/build-gate.sh` re-run post-fix (doc-only change — verified
+anyway): **PASS**, with the DB suites' per-suite ✓ lines present (i.e. they
+RAN against the dev DB, not skipped). Creds/token state unchanged; still NOT
+live-smoked; nothing claimed beyond fixtures.

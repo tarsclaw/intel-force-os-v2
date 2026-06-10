@@ -1,7 +1,7 @@
 # Scribe — the data spine
 
 **Status:** Proposed.
-**Build state (post-W6 build slice, 2026-06-10):** the W6 build slice is BUILT on branch `worktree-agent-a59f16e915e384257`: `cycle.sh` (10-step, 4 modes), `validate.sh` (Gate A G1-G8), `context.sh`, `cleanup.sh`, `tools.yaml`, 5 `bin/` helpers, 3 fixtures + 3 deterministic DB-backed fixture suites — all green under `scripts/build-gate.sh`. This document was reconciled to the built Granola-poll reality in the round-2 fix pass (Codex round-1 findings 1-4). **What has NOT happened:** no live Bullhorn or Granola call — Bullhorn dev creds are EMPTY, the `@ifos/bullhorn` CLI bridge is the Janitor build slice's parallel deliverable (Scribe consumes it only through `bin/bh-bridge.sh`), the Granola IFOS-side OAuth token is not on disk, and `@ifos/granola` has no built CLI. Live smoke is founder-gated (see §8). Earlier history: Day-20 W4 bilateral pass + R19 substantive fixes; pre-pivot Fathom/Fireflies prose removed 2026-06-10 (see vendor note below).
+**Build state (post-W6 build slice, 2026-06-10):** the W6 build slice is BUILT on branch `worktree-agent-a59f16e915e384257`: `cycle.sh` (10-step, 4 modes), `validate.sh` (Gate A G1-G8), `context.sh`, `cleanup.sh`, `tools.yaml`, 5 `bin/` helpers, 3 fixtures + 3 deterministic DB-backed fixture suites — all green under `scripts/build-gate.sh` **against the dev DB** (run evidence: per-assert outputs recorded in `docs/features/agent-build/03-implementation/scribe-summary.md`; note: build-gate skips the DB suites wherever `IFOS_DB_URL` is unreachable — in such an environment the suites SKIP rather than pass, so "all green" is an evidence claim about the dev-DB runs, not about every environment; gate hardening tracked by the orchestrator). This document was reconciled to the built Granola-poll reality in the round-2 fix pass (Codex round-1 findings 1-4). **What has NOT happened:** no live Bullhorn or Granola call — Bullhorn dev creds are EMPTY, the `@ifos/bullhorn` CLI bridge is the Janitor build slice's parallel deliverable (Scribe consumes it only through `bin/bh-bridge.sh`), the Granola IFOS-side OAuth token is not on disk, and `@ifos/granola` has no built CLI. Live smoke is founder-gated (see §8). Earlier history: Day-20 W4 bilateral pass + R19 substantive fixes; pre-pivot Fathom/Fireflies prose removed 2026-06-10 (see vendor note below).
 **Vendor note (Day-29 pivot, founder-decided 2026-06-03):** the v1.0 transcript vendor is **Granola** (`@ifos/granola`; official MCP server mcp.granola.ai/mcp). The original W3 draft of this document specified a webhook-driven flow from Fathom/Fireflies; that is PRE-PIVOT history, not the v1.0 path (no Fathom/Fireflies signup, connector, or webhook contract exists in v1.0). Granola publishes no webhooks, so the operational trigger is a **poll-sweep**; a generic verified-webhook surface is retained as a secondary mode (§2). This reconciliation is contract-prose truth-up only — the §10 status flip remains founder-gated and is NOT exercised here.
 **Per-component state (honest, verified 2026-06-10):** `cycle.sh`/`validate.sh`/`context.sh`/`cleanup.sh`/`bin/*` BUILT + fixture-proven; `context.sh` reads `tenant_adapters.config` (v0.4 keys `bullhorn_corporation_id` + `granola_workspace_id`) with `IFOS_FORCE_*` env fallbacks for fixtures; LLM extraction path EXISTS but is opt-in (`IFOS_SCRIBE_USE_LLM=1`) — fixtures run the deterministic extractor; the voice classifier is NOT built (notes carry honest `unscored/no_corpus` or `unscored/no_classifier`); `bin/bh-bridge.sh` conforms to the agreed `@ifos/bullhorn` CLI contract (review-scribe.md orchestrator ruling) and degrades honestly (exit 3 `unavailable`, no fake writes) until the Janitor bridge lands.
 **Date:** 2026-05-24.
@@ -16,7 +16,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Scribe ingests a call transcript from Granola (`@ifos/granola`; discovered by a 5-minute poll-sweep of meetings since the last poll — Granola publishes no webhooks; Ringover deferred to v1.1+) and produces TWO outputs per meeting:** (1) a structured Bullhorn write payload populating the per-entity Gate A minimum of placement-relevant fields on the appropriate entity (≥3 for candidate / brief / opportunity / placement; ≥2 for contact, whose Scribe-writable v0.3 set is exactly two fields — §3; contractor is NOT a v1.0 resolution target — see §3), and (2) one tacit-note Markdown artefact written to `/vault/<tenant>/scribe-notes/<call_id>-<ISO-date>.md` containing the consultant's "things I'd write down but there's no field for" observations. The tacit-note vault artefact is also mirrored as a Bullhorn `Note` attachment on the resolved entity (consultant-visible in their ATS) **except for Opportunity, which is cache-only/vault-only at v1.0** (§3); the vault copy is the canonical narrative source per ADR-002 vault/Postgres split. End-to-end SLA: post-call note in Bullhorn within 10 minutes of the poll-sweep discovering the finished meeting, per master brief §8.2 line 597. Gate A hard-fails any transcript that doesn't produce the per-entity minimum of structured-field extractions (Contact 2, others 3 — §5 G2) AND 1 tacit-note with confidence ≥0.6 (ULTRAPLAN A3 line 524's ≥3 predates the v0.3 Contact write scope). Gate B success threshold: 90% of calls completing their Bullhorn write within 5 minutes of meeting end (§5 — the single timing anchor); consultant edit-rate on structured fields ≤20% (per ULTRAPLAN A3 line 525). Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml`; tacit-notes are voice-classified (≥0.75 score) per master brief §8.1 Change 1 — with the honest `unscored` state while the classifier is unbuilt (§5 G3 warn-when-unscored).
+> **Scribe ingests a call transcript from Granola (`@ifos/granola`; discovered by a 5-minute poll-sweep of meetings since the last poll — Granola publishes no webhooks; Ringover deferred to v1.1+) and produces TWO outputs per meeting:** (1) a structured Bullhorn write payload populating the per-entity Gate A minimum of placement-relevant fields on the appropriate entity (≥3 for candidate / brief / opportunity / placement; ≥2 for contact, whose Scribe-writable v0.3 set is exactly two fields — §3; contractor is NOT a v1.0 resolution target — see §3), and (2) one tacit-note Markdown artefact written to `/vault/<tenant>/scribe-notes/<call_id>-<ISO-date>.md` containing the consultant's "things I'd write down but there's no field for" observations. The tacit-note vault artefact is also mirrored as a Bullhorn `Note` attachment on the resolved entity (consultant-visible in their ATS) **except for Opportunity, which is cache-only/vault-only at v1.0** (§3); the vault copy is the canonical narrative source per ADR-002 vault/Postgres split. End-to-end SLA: post-call note in Bullhorn within 10 minutes of **meeting end (`ended_at`) — the single timing anchor**; poll-discovery latency (the 5-minute sweep cadence) is a component within that window, never a second anchor (per master brief §8.2 line 597). Gate A hard-fails any transcript that doesn't produce the per-entity minimum of structured-field extractions (Contact 2, others 3 — §5 G2; ULTRAPLAN A3 line 524's ≥3 predates the v0.3 Contact write scope). The tacit-note carries no confidence threshold of its own — as shipped it is gated by voice score ≥0.75 when a real numeric score exists, warn-and-pass when unscored (no classifier in v1.0 — §5 G3), plus the structural checks: rendered to the 8-category taxonomy (§3 Step-6 renderer), ≤800 words (§5 G8), and the full-note-body PII scan (§5 G6). Gate B success threshold: 90% of calls completing their Bullhorn write within 5 minutes of **meeting end (`ended_at`) — the single timing anchor** (§5); consultant edit-rate on structured fields ≤20% (per ULTRAPLAN A3 line 525). Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml`; tacit-notes are voice-classified (≥0.75 score) per master brief §8.1 Change 1 — with the honest `unscored` state while the classifier is unbuilt (§5 G3 warn-when-unscored).
 
 ---
 
@@ -183,7 +183,9 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
 ```
 0. Session start
    → context.sh hydrates: tenant config (tenant_adapters v0.4 keys) + voice
-     corpus id + tone rules + recent_edits (drift) + granola plan_tier cache
+     corpus id (direct voice_corpus lookup) + tone rules (hh_load_tone_rules
+     — the only voice-loader call wired in v1.0; §7) + granola plan_tier
+     cache (recent_edits drift input NOT hydrated in v1.0 — §7 declared gap)
    → hh_decision_trigger("session_start", "scribe mode=<mode> call_id=<id|NA>")
 
 1. Discovery / webhook verification (mode-dependent)
@@ -311,10 +313,13 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
      settles), so Gate B's denominator isn't inflated; ESC_BULLHORN_WRITE_FAIL
 
 10. Session close + SLA metric
-   → per-call elapsed_seconds anchored to MEETING END TIME (bin/sla-class.sh;
-     declared note: stricter than "poll receipt" anchoring and consistent
-     with the catalogue's "after call end" wording — poll-sweep latency
-     counts against Scribe, honestly)
+   → per-call elapsed_seconds anchored to MEETING END (`ended_at`) — the
+     single timing anchor, stated identically in §1 and §5 (cycle.sh computes
+     elapsed from the meeting's end_time payload field; bin/sla-class.sh
+     buckets it). Poll-discovery latency (the 5-minute sweep cadence) is a
+     component within that window, never a second anchor — it counts against
+     Scribe, honestly (consistent with the catalogue's "after call end"
+     wording; stricter than any receipt-time anchoring)
    → Master brief §8.2 line 597 Bullhorn SLA: "post-call note in Bullhorn within
      10 min". Catalogue ESC_SCRIBE_SLA_MISS triggers (line 443): "summary-render
      >30 min OR note-attach >1h after call end". The two thresholds are
@@ -353,9 +358,9 @@ Gate A failures fire the per-check ESC class (`ESC_INPUT_VALIDATION_FAIL` / `ESC
 
 ### Gate B — Outcome thresholds (success metrics, not block)
 
-Two metrics, **ONE timing anchor: meeting end (`ended_at`)** — as implemented (cycle.sh Step 10 computes `elapsed` from the meeting's `end_time`; `bin/sla-class.sh` buckets it; §4 Step 10):
+Two metrics, **ONE timing anchor: meeting end (`ended_at`) — the single timing anchor, stated identically in §1 and §4 Step 10** — as implemented (cycle.sh Step 10 computes `elapsed` from the meeting's `end_time` payload field; `bin/sla-class.sh` buckets it):
 
-- **SLA:** ≥90% of calls have their Bullhorn write completed within 5 minutes of **meeting end**. Poll-discovery latency (the 5-minute sweep cadence, §2) is a *component* of that elapsed time and counts against Scribe — there is no separate "webhook receipt" anchor at v1.0.
+- **SLA:** ≥90% of calls have their Bullhorn write completed within 5 minutes of **meeting end (`ended_at`)**. Poll-discovery latency (the 5-minute sweep cadence, §2) is a *component within that window*, never a second anchor — it counts against Scribe; there is no separate "webhook receipt" or "poll receipt" anchor at v1.0.
 - **Quality:** consultant edit-rate ≤20% on structured fields (measured via `recent_edit` rows for `agent_name='scribe'`)
 
 **ULTRAPLAN drift note (pre-pivot wording; noted only — ULTRAPLAN not edited):** ULTRAPLAN A3 line 525 reads "90% of calls processed within 5 minutes of webhook; consultant edit-rate on structured fields ≤ 20%". The "of webhook" anchor predates the Day-29 Granola pivot (§2: Granola publishes no webhooks; the poll-sweep is the primary trigger and the secondary webhook mode has no v1.0 provider). The implemented anchor — meeting end — is at least as strict as any receipt-time anchor; the 90%/5-min and ≤20% numbers are unchanged.
@@ -394,14 +399,16 @@ Scribe does NOT use:
 
 ## §7 — Voice + tone constraints
 
-Step 6 (tacit-note generation) is the only voice-classified output. The agent integrates with `_shared/voice-loader.sh`:
+Step 6 (tacit-note generation) is the only voice-classified output. The agent integrates with `_shared/voice-loader.sh`. **As built (verified 2026-06-10): `context.sh` calls exactly ONE of the three loaders — `hh_load_tone_rules`. `hh_load_voice_samples` and `hh_load_recent_edits` are NOT WIRED in v1.0.**
 
-- **`hh_load_tone_rules` filtered by `applies_to_agents` containing `scribe`** — surfaces rules like:
+- **`hh_load_tone_rules` filtered by `applies_to_agents` containing `scribe`** (WIRED — the only voice-loader call in `context.sh`; count surfaced as `CTX_TONE_RULES_COUNT`) — surfaces rules like:
   - No identifying language about call participants beyond their professional context
   - No verbatim quotes longer than 12 words from candidate (paraphrase for privacy)
   - No compensation specifics in tacit notes (those go to structured fields only)
-- **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "internal call summary note" task context.
-- **`hh_load_recent_edits` last 30 days for `scribe` agent**: detects consultant edit patterns. Per-run `ESC_VOICE_DRIFT` fires when the tacit-note voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Scribe does NOT fire `_TENANT` directly. Edit-distance metrics are tracked separately for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Scribe.
+- **`hh_load_voice_samples` — NOT WIRED in v1.0.** `context.sh` does not call it (the deterministic note renderer consumes no ANN samples; `CTX_VOICE_CORPUS_ID` is hydrated by a direct `voice_corpus` lookup, not via the loader). The ANN query (top-5 chunks matching "internal call summary note" task context) lands with the LLM-rationale/classifier enhancement — same disposition as Sourcing Scout's deferred voice-sample wiring.
+- **`hh_load_recent_edits` — NOT WIRED in v1.0.** `context.sh` does not call it; consultant-edit-pattern drift input lands with the Gate-B edit-rate consumer (the day-30 metrics roll-up over `recent_edit` rows — §5). Per-run `ESC_VOICE_DRIFT` fires when the tacit-note voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Scribe does NOT fire `_TENANT` directly. Edit-distance metrics are tracked separately for analytics; they inform the canary's threshold tuning but do not fire ESC codes from Scribe.
+
+**Declared gap vs master brief §8.1 Change 1:** the brief expects every `context.sh` to call all three loaders (`hh_load_tone_rules`, `hh_load_voice_samples`, `hh_load_recent_edits`). Scribe v1.0 satisfies one of three. This is a known, declared deviation — not a dropped requirement: the two unwired loaders are queued against their consuming features above (voice samples → classifier/LLM enhancement; recent edits → Gate-B edit-rate consumer), because wiring them today would hydrate context no v1.0 code path reads.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
@@ -419,7 +426,7 @@ items gate LIVE OPERATION, not the build:
 | `context.sh` hydration (tenant_adapters v0.4 keys + env fallbacks) | W6 build slice | ✅ built |
 | `cycle.sh` orchestration (10-step, 4 modes) | W6 build slice | ✅ built |
 | `cleanup.sh` + 5 `bin/` helpers | W6 build slice | ✅ built |
-| 3 fixtures + 3 deterministic DB-backed fixture suites | W6 build slice | ✅ built (green in build-gate.sh) |
+| 3 fixtures + 3 deterministic DB-backed fixture suites | W6 build slice | ✅ built (green in build-gate.sh against the dev DB — run evidence in scribe-summary; the DB suites SKIP where `IFOS_DB_URL` is unreachable, so the green claim is dev-DB-run evidence, not environment-independent; gate hardening tracked by the orchestrator) |
 | Tacit-note taxonomy v0.1 (8 categories, deterministic cues) | §3; founder prune/expand with first pilot | ✅ implemented (v0.1) |
 | **Granola: IFOS-side OAuth token on disk** (`@ifos/granola` reads its own token bundle, not the Claude-Code MCP keychain) | Founder OAuth dance | ⏸ |
 | **Granola: `@ifos/granola` CLI built** (`list-meetings --since` / `get-transcript --meeting` — expected surface documented at the cycle.sh call sites) | Connector build slice | ⏸ |
