@@ -156,3 +156,47 @@ re-run after the pass. Honest scope unchanged: fixture-proven only — live
 Bullhorn/Telegram/email remain unexercised (creds/tokens EMPTY,
 founder-gated). Post-merge follow-ups (tracked in STATUS): the 4 named
 connector extensions + email-connector emit-on-confirmed-send.
+
+## Codex final-run findings (3) — incorporated post-run
+
+Final ratification verdict on record: **REJECTED:3**, Codex session
+`20260610T154203Z-26445`. Per the ≤2-round ratification ceiling the loop is
+**closed** — these three findings are incorporated POST-run with no further
+ratification round; the founder judges the full trail (both Codex sessions +
+these commits) at the merge gate. Two atomic commits on this branch:
+
+1. **`aea658b` agent.md doc gaps (findings 1-2)**: `ESC_BULLHORN_WRITE_FAIL`
+   added to §4 Steps 13-14 + the §6 table — the built cycle.sh already
+   emitted it at both Bullhorn write sites (activity-log write fail;
+   opted-in state-advance fail); entry matches catalogue §2.8 (warn;
+   operator_chat_id; distinct from ESC_BULLHORN_AUTH / ESC_RATE_LIMIT_HIT).
+   `ESC_AUTOSEND_RACE` added to §5 Gate A + the §6 table — validate.sh G5
+   true-duplicate hard-fail already emitted it; entry matches catalogue §2.9
+   (warn; operator_chat_id; race_class=duplicate_payload); validate.sh
+   itself untouched (catalogue-correct as built).
+2. **`acc5805` Step 12 orange-row ordering (finding 3)**: the round-2
+   KNOWN-GAP is now closed in code. Variant implemented: the orange
+   `gmail_outlook_send_to_candidate` row STAYS pre-transport as the
+   policy-authorization record, because `hh_decision_action`'s orange path
+   fuses row emission with the gating (policy lookup → tenant red-elevation
+   block → orange row → ESC_AUTOSEND_NEEDS_REVIEW → approval await) inside
+   the SHARED helper — deferring the row to post-transport would require
+   editing `agents/_shared/hook-helpers.sh` (every agent) or running the
+   policy gate after the email left. Transport truth is carried by three new
+   output rows: `send_attempt` (pre-transport), `send_confirmed`
+   (provider-confirmed success — the only marker that means an email
+   actually left), `send_failed` (CORRECTION row + ESC_SEND_FAIL on
+   transport failure). Trail invariants smoke-verified on the dev DB:
+   success = exactly 1 orange row + send_confirmed (18 audit rows, was 16);
+   drafts-only + bridge-timeout = 0 orange rows; transport-failure = 1
+   orange row + send_failed correction (documented deviation from
+   "failed = 0 orange rows" — the gate fusion makes 0 impossible without
+   bypassing the helper). agent.md §4 Step 12 + §3, fixture 01, and the
+   tools.yaml registration comment describe the contract.
+
+Verification after the pass: forced-send smoke green (happy / drafts-only /
+bridge-timeout paths); full `build-gate.sh` PASS (shellcheck 40 files, 4
+connector typecheck+vitest suites, 9 DB fixture suites incl. all 3
+concierge). Honest scope unchanged: fixture-proven only; live
+Bullhorn/Telegram/email remain unexercised (creds/tokens EMPTY,
+founder-gated).
