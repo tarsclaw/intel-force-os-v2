@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# IFOS non-bypassable pre-commit gate (parallel-agent-build-method.md §4 tier 1, fast subset).
+#
+# Lint (via shellcheck) the staged shell files before every commit. git runs this regardless of
+# Claude Code's --dangerously-skip-permissions — skip-permissions bypasses Claude's
+# TOOL-approval prompt, NOT git's own hooks. This is the fast static gate that stops a
+# skip-permissions worker committing broken shell. The full bar (typecheck + vitest +
+# DB fixtures) runs at the review/merge tier via scripts/build-gate.sh.
+#
+# Enabled via: git config core.hooksPath .githooks  (shared across worktrees).
+
+set -uo pipefail
+
+mapfile -t STAGED < <(git diff --cached --name-only --diff-filter=ACM 2>/dev/null | grep -E '\.sh$' || true)
+[[ "${#STAGED[@]}" -eq 0 ]] && exit 0
+
+if ! command -v shellcheck >/dev/null 2>&1; then
+  printf 'pre-commit: shellcheck not installed — static gate skipped (install shellcheck to enforce).\n' >&2
+  exit 0
+fi
+
+if shellcheck -s bash "${STAGED[@]}"; then
+  exit 0
+fi
+printf 'pre-commit: shellcheck found issues in staged shell files — commit BLOCKED.\n' >&2
+printf '  Fix the findings above. (Emergency bypass: git commit --no-verify — do NOT use in autonomous runs.)\n' >&2
+exit 1
