@@ -2,7 +2,7 @@
 #
 # Tests the canonical flow per agent.md §3 + §4:
 #   Bullhorn entity scan → identify a single high-confidence dedup pair
-#   (confidence 0.92; no Bullhorn activity in last 90 days) → validate.sh
+#   (confidence 1.0 — all four dimensions match; no Bullhorn activity in last 90 days) → validate.sh
 #   Gate A G1-G7 all pass → @ifos/bullhorn updateCandidate write (yellow tier
 #   bullhorn_candidate_dedupe action_type) → field completeness audit identifies
 #   one client missing client.industry → Companies House enrichment fills it
@@ -14,8 +14,12 @@
 # Per agent.md §5 Gate B: dual-threshold (dedup ≥15% AND completeness ≥10%)
 # both met for this 30-day window.
 #
-# Status: Proposed (W5 Day-31 SKELETON; W6-7 build slice wires the real
-#         package calls + verifies fixture expectations against actual outputs).
+# Status: ALIGNED TO LIVE CONTRACT (W6-7 build slice; spec-001 §3 marker names
+#         supersede skeleton-era names — janitor_scan not bullhorn_entity_scan).
+#         Bullhorn creds founder-gated: Step 9 action rows carry
+#         write_state:deferred_no_bullhorn_creds until creds land (honest scope
+#         per spec-001 §8); fixture write simulation via
+#         IFOS_JANITOR_FIXTURE_WRITE_RESULT=ok exercises the applied path.
 
 fixture_id: 01-primary
 description: Happy path — 1 dedup auto-merge (≥0.85; no recent activity) + 1 field backfill via Companies House + day-30 report Gate B met
@@ -94,7 +98,7 @@ expected:
       payload_includes:
         primary_id: 1001
         merge_target_id: 1002
-        confidence: 0.92
+        confidence: 1.0   # live matcher: all 4 dims match → matched/comparable = 1.0
     - action_type: bullhorn_field_backfill
       tier: yellow
       sample_rate: 10
@@ -121,7 +125,7 @@ expected:
     - phase: output
       output_type: mode_routed
     - phase: output
-      output_type: bullhorn_entity_scan
+      output_type: janitor_scan          # spec-001 §3 contract marker (supersedes skeleton-era bullhorn_entity_scan)
     - phase: output
       output_type: dedup_candidate_pass
     - phase: output
