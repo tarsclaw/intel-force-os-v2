@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Concierge agent — context.sh (pre-cycle hydration; W4 Day-26 SKELETON)
+# Concierge agent — context.sh (pre-cycle hydration; W10-13 LIVE)
 #
-# Status: Proposed (W4 Day-26 SKELETON; W10-13 build slice replaces stubs
-#         with real provider config + tenant_adapters reads. v0.4 schema
-#         supplement LANDED 2026-06-03 (commit a1bbcf6) — email_channel +
-#         operator_telegram_chat_id now allowlisted; W10-13 implementation
-#         flips Step 1 + Step 5 from IFOS_FORCE_* env-var fallback to the
-#         canonical SELECT config->>'<key>' FROM tenant_adapters path.
-#         Today's SKELETON still reads via env-var fallback (no consumer
-#         wiring change at v0.4 landing — that's W10-13 scope per D1-B
-#         decision-doc §Implementation surface item 5). No schema violation
-#         at runtime today; reads remain env-var-sourced).
+# Status: BUILT (W10-13 build slice). v0.4 schema supplement landed 2026-06-03
+#         (commit a1bbcf6) — email_channel + operator_telegram_chat_id are
+#         allowlisted, so Steps 1 + 5 now read the canonical
+#         SELECT config->>'<key>' FROM tenant_adapters path, with the
+#         IFOS_FORCE_* env-var fallback retained for fixtures + local dev
+#         (the blocked_recipients precedent). Bullhorn OAuth refresh routes
+#         through bin/bh-bridge.sh (the Janitor-branch connector shim) and
+#         records token state HONESTLY (creds are EMPTY in the dev sandbox
+#         as of 2026-06-10 → state=degraded, never a faked "refreshed").
+#         Email-provider OAuth (MS Graph / Gmail) is absent → state=absent;
+#         live send remains founder/tenant-onboarding-gated.
 # Reading order: agent.md §2 (invocation surface) + §4 Step 0 (session start)
 # + §7 (voice + tone constraints) first.
 #
@@ -84,44 +85,70 @@ source "${_SHARED_DIR}/hook-helpers.sh"
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 1 — Email channel resolution (MS Graph OR Gmail per tenant)
-# ────────────────────────────────────────────────────────────────────────
-
-# TODO(W10-13): swap to canonical tenant_adapters SELECT path now that v0.4
-# supplement has LANDED 2026-06-03 (commit a1bbcf6) — `email_channel` is
-# allowlisted in validate_tenant_adapters_config_v0_4 (enum: microsoft-graph
-# | gmail). THEN: SELECT config->>'email_channel' FROM tenant_adapters
-# WHERE tenant_slug=$1. Today's SKELETON still uses the IFOS_FORCE_*
-# env-var fallback; the W10-13 implementation wires the postgres read
-# alongside connection-pool setup + IFOS_FORCE_* retained for fixture +
-# local-dev use (per pattern established for blocked_recipients reads).
+# Canonical: tenant_adapters.config.email_channel (v0.4-allowlisted key).
+# IFOS_FORCE_EMAIL_CHANNEL overrides for fixtures + local dev.
 # Default: microsoft-graph (most common in UK recruitment per CSM survey).
-export CTX_EMAIL_CHANNEL="${IFOS_FORCE_EMAIL_CHANNEL:-microsoft-graph}"
-
-# ────────────────────────────────────────────────────────────────────────
-# Step 2 — Bullhorn OAuth refresh
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W10-13): @ifos/bullhorn refreshTokens(); on success export CTX_BULLHORN_TOKEN_STATE=refreshed
-# On 6+ consecutive failures: emit ESC_BULLHORN_AUTH (blocking) + exit 1
-export CTX_BULLHORN_TOKEN_STATE="STUB"
+# RLS-scoped single-key read of tenant_adapters.config (empty on any failure).
+_ctx_ta_read() {
+  local key="$1" out=""
+  if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+    out="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 \
+      --set=tenant="${CTX_TENANT_SLUG}" --set=k="${key}" <<'SQL' 2>/dev/null || true
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+SELECT coalesce(config->>:'k', '') FROM tenant_adapters WHERE tenant_slug = :'tenant' LIMIT 1;
+COMMIT;
+SQL
+)"
+    out="$(printf '%s\n' "${out}" | grep -vE '^$' | head -1 || true)"
+  fi
+  printf '%s' "${out}"
+}
+
+_ctx_channel="${IFOS_FORCE_EMAIL_CHANNEL:-}"
+[[ -z "${_ctx_channel}" ]] && _ctx_channel="$(_ctx_ta_read email_channel)"
+export CTX_EMAIL_CHANNEL="${_ctx_channel:-microsoft-graph}"
+
+# ────────────────────────────────────────────────────────────────────────
+# Step 2 — Bullhorn OAuth refresh (via bin/bh-bridge.sh — Janitor-branch
+# connector shim; see that file's header for the reconciliation contract)
+# ────────────────────────────────────────────────────────────────────────
+
+_bh_bridge="${CTX_AGENT_DIR}/bin/bh-bridge.sh"
+[[ -f "${_bh_bridge}" ]] || _bh_bridge="${IFOS_REPO_ROOT:-}/agents/recruitment/concierge/bin/bh-bridge.sh"
+CTX_BULLHORN_TOKEN_STATE="degraded"
+if [[ -f "${_bh_bridge}" ]]; then
+  _bh_refresh="$(bash "${_bh_bridge}" refresh 2>/dev/null || echo '{}')"
+  if [[ "$(printf '%s' "${_bh_refresh}" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
+    CTX_BULLHORN_TOKEN_STATE="refreshed"
+  else
+    # Honest degraded state: creds EMPTY in dev sandbox / connector CLI
+    # unmerged. ESC_BULLHORN_AUTH fires only on a REAL refresh failure with
+    # creds present (reason=refresh_failed), not on the known-absent case.
+    _bh_reason="$(printf '%s' "${_bh_refresh}" | jq -r '.reason // "unknown"' 2>/dev/null || echo unknown)"
+    if [[ "${_bh_reason}" == "refresh_failed" || "${_bh_reason}" == "revoked_401" ]]; then
+      CTX_BULLHORN_TOKEN_STATE="failed"
+    fi
+  fi
+fi
+export CTX_BULLHORN_TOKEN_STATE
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 3 — Email provider OAuth refresh (per channel)
+# HONEST: MS Graph / Gmail OAuth is ABSENT (per-tenant onboarding not done;
+# connector packages not built). State=absent → cycle.sh Step 12 degrades to
+# no-live-send. When the connectors land, this mirrors Step 2's shim call
+# and fires ESC_MS_GRAPH_AUTH / ESC_GMAIL_AUTH (blocking) on refresh failure.
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W10-13):
-#   if [[ "${CTX_EMAIL_CHANNEL}" == "microsoft-graph" ]]; then
-#     @ifos/microsoft-graph refreshTokens() → on fail ESC_MS_GRAPH_AUTH blocking
-#   else
-#     @ifos/gmail refreshTokens() → on fail ESC_GMAIL_AUTH blocking
-#   fi
-export CTX_EMAIL_PROVIDER_TOKEN_STATE="STUB"
+export CTX_EMAIL_PROVIDER_TOKEN_STATE="${IFOS_FORCE_EMAIL_TOKEN_STATE:-absent}"
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 4 — Voice corpus + tone rules + comms-template library
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W10-13): resolve via tenant_adapters.config; default fallback chain.
 export CTX_VOICE_CORPUS_ID="${IFOS_FORCE_VOICE_CORPUS_ID:-default}"
 export CTX_TONE_RULES_PATH="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${CTX_TENANT_SLUG}/tone-rules.yaml"
 export CTX_COMMS_TEMPLATE_LIBRARY_PATH="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${CTX_TENANT_SLUG}/concierge-templates/"
@@ -130,21 +157,27 @@ export CTX_COMMS_TEMPLATE_LIBRARY_PATH="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-v
 # Step 5 — Operator routing (Telegram chat ID for autosend-bridge per D1-B)
 # ────────────────────────────────────────────────────────────────────────
 
-# TODO(W10-13): swap to canonical tenant_adapters SELECT path now that v0.4
-# supplement has LANDED 2026-06-03 (commit a1bbcf6) — `operator_telegram_chat_id`
-# is allowlisted in validate_tenant_adapters_config_v0_4 (pattern: '^-?[0-9]+$'
-# matching Telegram chat ID format). D1-B both paths are now schema-clean:
-# Path A reuses approval_routing.default_recipient (no schema change ever
-# needed; recommended for new tenants); Path B uses this top-level key
-# (v0.4 added; cleaner single-key override for the wizard). THEN:
-# SELECT config->>'operator_telegram_chat_id' FROM tenant_adapters
-# WHERE tenant_slug=$1 (Path B) OR
-# SELECT config->'approval_routing'->>'default_recipient' (Path A).
-# Today's SKELETON still uses the IFOS_FORCE_* env-var fallback; the
-# W10-13 implementation wires the postgres read. The autosend-bridge
-# package consumes this CTX_* var as a function argument (per package
-# README §Dependency injection), NOT via tenant_adapters read.
-export CTX_OPERATOR_TELEGRAM_CHAT_ID="${IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID:-STUB}"
+# Canonical read order (v0.4 supplement landed 2026-06-03, commit a1bbcf6):
+#   1. IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID (fixtures + local dev)
+#   2. Path B: tenant_adapters.config.operator_telegram_chat_id (v0.4 key)
+#   3. Path A: tenant_adapters.config.approval_routing.default_recipient
+# The autosend-bridge CLIs consume this CTX_* var as an argument (per package
+# README §Dependency injection), NOT via their own tenant_adapters read.
+_ctx_op_chat="${IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID:-}"
+[[ -z "${_ctx_op_chat}" ]] && _ctx_op_chat="$(_ctx_ta_read operator_telegram_chat_id)"
+if [[ -z "${_ctx_op_chat}" && -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+  _ctx_op_chat="$(psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 \
+    --set=tenant="${CTX_TENANT_SLUG}" <<'SQL' 2>/dev/null | grep -vE '^$' | head -1 || true
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+SELECT coalesce(config->'approval_routing'->>'default_recipient', '')
+FROM tenant_adapters WHERE tenant_slug = :'tenant' LIMIT 1;
+COMMIT;
+SQL
+)"
+fi
+# Empty = unconfigured; cycle.sh Step 11 degrades to drafts-only when unset.
+export CTX_OPERATOR_TELEGRAM_CHAT_ID="${_ctx_op_chat}"
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 6 — Session-start trigger row (mandatory; anchors session in decision_log)
