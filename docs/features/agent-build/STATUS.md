@@ -9,7 +9,7 @@ at-a-glance view. `git log`/branch diffs are the ground truth._
 |---|---|---|---|---|---|
 | Diagnostic | — | — | ✅ LIVE (template #1) | `main` | yes (Companies House + Anthropic) |
 | Cash Conductor | — | — | ✅ LIVE (template #2) | `main` | yes (QB/Xero/TrueLayer sandboxes) |
-| Sourcing Scout | `spec-003-sourcing-scout.md` | 3 (review loop) | 🟡 review PASS (`04-reviews/review-sourcing-scout.md`); Codex R1 REJECTED (4 agent.md doc-accuracy issues, 0 code) → fix worker on branch; Codex R2 next | `worktree-agent-a45354564e8f66257` | **NO — corrected 2026-06-10:** `CVLIBRARY_*` values are actually EMPTY (template comments fooled the naive SET check). Live smoke founder-gated: fill via `scripts/fill-dev-sandbox-secrets.sh` |
+| Sourcing Scout | `spec-003-sourcing-scout.md` | 3 (review loop) | 🟡 review PASS; Codex R1 fixed (4/4, `66b46cf`); Codex R2 REJECTED w/ 4 NEW doc findings (voice-gate wording, unregistered action_type declarations, §10 lifecycle, Composio-comment idiom) → final fix pass in flight; one last ratification run, then disagreement-doc/escalate per ≤2-round ceiling | `worktree-agent-a45354564e8f66257` | **NO — corrected 2026-06-10:** `CVLIBRARY_*` values are actually EMPTY (template comments fooled the naive SET check). Live smoke founder-gated: fill via `scripts/fill-dev-sandbox-secrets.sh` |
 | Janitor | `spec-001-janitor.md` | 2 | 🔨 implementing — worktree sub-agent in flight (owns `packages/mcp-connectors/bullhorn` CLI bridge this cycle) | TBC on report | partial — Companies House yes; **Bullhorn BLOCKED** |
 | Scribe | `spec-002-scribe.md` | 2 | 🔨 implementing — worktree sub-agent in flight (Bullhorn via local `bin/bh-bridge.sh` shim; no `packages/` edits) | TBC on report | no — **Bullhorn BLOCKED** + Granola token/0-meetings |
 | Concierge | `spec-004-concierge.md` | 4 (last) | ⚪ not started | — | no — Bullhorn + autosend-bridge wiring + email OAuth |
@@ -38,3 +38,8 @@ at-a-glance view. `git log`/branch diffs are the ground truth._
 - Granola IFOS-side OAuth token on disk + ≥1 recorded meeting (unblocks Scribe live transcript).
 - MS Graph / Gmail OAuth per tenant (unblocks Concierge live send).
 - Apply v0.5 migration to prod VPS (unblocks Cash Conductor prod reconciliation writes).
+
+## Follow-ups surfaced by the Scout review loop (orchestrator-tracked)
+- **Codex R2 precedent conflict:** the `# No Composio/AgentMail references` negative-assertion comment idiom (present in the RATIFIED cash-conductor tools.yaml) is now read by Codex as an adapter-boundary violation. Scout's copy reworded on its branch; CC's copy left untouched (surgical). Founder decision: align CC's comment in a later slice or file a disagreement doc.
+- **Founder-gated policy registrations:** `sourcing_scout_cleanup` + `bullhorn_oauth`/`reed_oauth`/`cvlibrary_oauth` action_types are intentionally NOT registered in `agents/_shared/autosend-policy.yaml` (tier decisions need founder input). tools.yaml reworded to future-registration notes; cleanup.sh stays `hh_decision_output`.
+- **build-gate connector loop** hard-codes 4 packages; add `cv-library` + `reed` (+ `bullhorn` once Janitor lands its CLI bridge) in ONE orchestrator-proposed main-side change post-merge (avoids parallel-branch conflicts).
