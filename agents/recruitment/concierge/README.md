@@ -1,44 +1,52 @@
 # Concierge — directory README
 
-**Status:** Proposed (Day-19 pre-W10-13-build scaffold).
+**Status:** BUILT (W10-13 build slice; agent.md status flip remains founder-gated).
 
 ## What's in this directory
 
 | File | Status |
 |---|---|
-| `agent.md` | Proposed |
-| `README.md` | Proposed |
+| `agent.md` | CONTRACT (Proposed-with-disagreement-on-file; status flip founder-gated) |
+| `cycle.sh` | BUILT — 15-step lifecycle workflow (spec-004 §4; every marker + ESC route) |
+| `validate.sh` | BUILT — Gate A, all 6 checks (spec-004 §5; 30-min SLA is Gate B per ADR-007) |
+| `context.sh` | BUILT — tenant_adapters reads (v0.4 keys) + honest token states |
+| `cleanup.sh` | BUILT — live >24h cache purge (concierge_cleanup registration still queued) |
+| `tools.yaml` | BUILT — capabilities + registration status + honest-scope header |
+| `bin/bh-bridge.sh` | Bullhorn shim — single reconciliation point vs the Janitor-branch connector |
+| `bin/render-concierge-draft.sh` | Deterministic templated render + optional LLM polish |
+| `templates/common-comms-templates.yaml` | Shared comms library (12 events; bundled canonical copy) |
+| `fixtures/` | 3 fixtures (primary / rejection-voice-drift / bridge-timeout canary) |
+
+Test suites (auto-discovered by `scripts/build-gate.sh`):
+`scripts/run-concierge-gate-a-test.sh`, `scripts/run-concierge-antidup-test.sh`,
+`scripts/run-concierge-routing-test.sh`.
 
 ## What this is
 
-The customer-comms agent. Highest-stakes v1.0 agent (XL complexity, 4 weeks build). 12 lifecycle events × 2 recipient roles = 24+ comms-template variants per tenant. Orange-tier autosend per `autosend-safety-policy.yaml` — consultant approval mandatory before send.
+The customer-comms agent — no candidate ghosted. Highest-stakes v1.0 agent.
+12 lifecycle events; drafts are yellow-tier `concierge_email_draft`; the
+customer-facing send is orange-tier `gmail_outlook_send_to_candidate`, gated
+through the D1-B Telegram approval bridge (`@ifos/autosend-bridge-telegram` —
+production wiring landed in this slice; it also closes Cash Conductor's
+drafts-only→orange-send path).
 
-## What's NOT in this directory (yet)
+## Honest-scope (what is NOT live)
 
-Full bundle at W10-13 build (~4 weeks per ULTRAPLAN A6 line 568 XL flag):
-
-- `tools.yaml` — Bullhorn R+W + Microsoft Graph + Gmail + voice classifier + autosend bridge (per D1 outcome)
-- `context.sh` — multi-source auth + voice corpus + comms-template library + addressee-resolution data
-- `validate.sh` — Gate A (SLA 30 min + voice ≥0.75 per-position + addressee + tone-rule + PII + anti-duplicate) — most complex validator of v1.0
-- `cycle.sh` — 15-step workflow with lifecycle state machine
-- `cleanup.sh` — token rotation + 14-day decision_log retention check
-- `fixtures/01-primary-interview-completed.yaml` — golden case
-- `fixtures/02-edge-case-rejection.yaml` — position-3 voice ≥0.82 test
-- `fixtures/03-edge-case-90day-checkin.yaml` — nurture sweep
-- `fixtures/04-edge-case-missed-webhook-poll-recovery.yaml` — polling fallback test
-- `fixtures/99-addressee-mismatch-canary.yaml` — Gate A blocker (wrong recipient)
-
-5 fixtures (broader than 3-fixture pattern) warranted by XL complexity.
-
-## Critical pre-requisite
-
-**Founder Decision D1 (autosend orange-tier path) MUST be resolved before W10 build starts.** Per `docs/decisions/2026-05-20-codex-round-1-founder-decisions.md` §D1. Three options:
-- D1-A: bridge to cortextOS approval system (most powerful; ~3 days dev)
-- D1-B: lightweight Telegram shim (recommended for v1.0 ship; ~1 day dev)
-- D1-C: no autosend; manual consultant pickup (0 dev; ships fastest but worst UX)
+- **Bullhorn**: creds EMPTY; connector CLI on the unmerged Janitor branch →
+  all Bullhorn calls run fixture-mode via `bin/bh-bridge.sh` against the
+  seeded `entities` cache. Live is founder-gated.
+- **Email transport**: MS Graph / Gmail OAuth absent → Step 12 live send
+  gated; fixtures prove the chain via `IFOS_FORCE_SEND_RESULT=sent`.
+- **Telegram**: `TELEGRAM_BOT_TOKEN` EMPTY in the sandbox → live Bot API
+  unexercised (fetch-mock-tested); the `/approve`–`/reject` command handler is
+  `@ifos/telegram-surface` scope and NOT built (decisions recorded via the
+  bridge's `record-decision.js` CLI until it lands).
+- **Voice**: NO classifier exists in v1.0; drafts are `unscored/no_classifier`
+  and Gate A G1 warn-and-passes them. Position thresholds (0.75/0.78/0.82)
+  hard-enforce only on real numeric scores. Never faked.
 
 ## Ratification
 
-Codex Round 4 Phase 2 (Day 20) via `review-architecture-decision.md`.
+Codex re-ratification post-build via `review-agent-bundle.md` (queued).
 
 *End of Concierge README.*

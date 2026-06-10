@@ -1,7 +1,23 @@
 # Concierge agent — tools.yaml (capability declarations)
 #
-# Status: Proposed (W4 Day-26 SKELETON; W10-13 build slice replaces per-cap
-#         stubs with concrete provider configuration + per-tenant overrides).
+# Status: BUILT (W10-13 build slice). cycle.sh 15-step + validate.sh 6-check
+#         Gate A + context.sh tenant_adapters reads + cleanup.sh purge are
+#         LIVE; fixtures prove the full chain against seeded entities rows.
+#         Honest-scope (verified 2026-06-10): Bullhorn creds EMPTY + connector
+#         CLI on the unmerged Janitor branch → all Bullhorn calls route via
+#         bin/bh-bridge.sh (fixture mode against the entities cache; the shim
+#         header documents the connector CLI surface to reconcile at review).
+#         MS Graph / Gmail OAuth ABSENT → Step 12 live transport gated
+#         (fixtures prove the chain via IFOS_FORCE_SEND_RESULT). The
+#         @ifos/autosend-bridge-telegram PRODUCTION wiring (real Bot API
+#         transport + postgres approvals reader + dist/bin CLIs) landed THIS
+#         slice; TELEGRAM_BOT_TOKEN is EMPTY in the sandbox so live Telegram
+#         is unexercised (fetch-mock-tested; IFOS_BRIDGE_FAKE drives fixtures).
+#         VOICE HONESTY: no voice classifier exists in v1.0
+#         (@ifos/voice-classifier unbuilt; voice_corpus empty) — drafts are
+#         unscored/no_classifier and Gate A G1 warn-and-passes them (accepted
+#         v1.0 behaviour); the position thresholds 0.75/0.78/0.82
+#         hard-enforce on REAL numeric scores only (fixtures supply one).
 # Reading order: agent.md §1 (output contract) + §2 (invocation) + §3 (12
 #         lifecycle events × per-tenant template variants) + §4 (15-step
 #         workflow) first.
@@ -71,9 +87,13 @@ capabilities:
   - id: bullhorn_create_activity_log
     package: "@ifos/bullhorn"
     purpose: "Post-send audit-trail entry in Bullhorn itself (NOT customer-visible — green tier)"
-    action_type: bullhorn_activity_log_write  # green tier; QUEUED registration
+    action_type: bullhorn_activity_log_write  # green tier; REGISTERED in autosend-policy.yaml (Codex Fbis-R1 closure 2026-06-02)
     cycle_step: 13
     state_changing: true
+    failure_modes:
+      - condition: "Activity-log write fails (connector error / cache insert failure)"
+        surface: "bh-bridge {ok:false}"
+        escalation: ESC_BULLHORN_WRITE_FAIL  # warn; operator
 
   # ────────────────────────────────────────────────────────────────────────
   # Customer-facing email transport (orange tier — only fires post-approval)
@@ -112,18 +132,24 @@ capabilities:
         escalation: ESC_SEND_FAIL  # warn; operator; retry once
 
   # ────────────────────────────────────────────────────────────────────────
-  # Autosend bridge (D1-B Telegram shim per 2026-05-31 founder decision;
-  # package scaffold landed 2026-06-01 at commit 9b282d8). Per D1-B doc
-  # §"Implementation surface" item 4: declare on BOTH Concierge AND Cash
-  # Conductor (Concierge is the primary Step-11 consumer for orange-tier
-  # gmail_outlook_send_to_candidate drafts).
+  # Autosend bridge (D1-B Telegram shim per 2026-05-31 founder decision).
+  # PRODUCTION WIRING LANDED in this W10-13 slice: real Telegram Bot API
+  # transport (createTelegramTransport) + postgres approvals reader over
+  # decision_log (createPostgresDecisionSource; NO new approvals table) +
+  # dist/bin/{propose,await,record-decision}.js CLIs consumed by cycle.sh
+  # Step 11. Honest caveats: the /approve — /reject Telegram command handler
+  # is @ifos/telegram-surface scope (NOT built — decisions recorded via
+  # record-decision.js until it lands) and TELEGRAM_BOT_TOKEN is EMPTY in
+  # the sandbox (live Bot API unexercised; fetch-mock-tested).
+  # Per D1-B doc §"Implementation surface" item 4: declared on BOTH
+  # Concierge AND Cash Conductor (Concierge is the primary Step-11 consumer).
   # ────────────────────────────────────────────────────────────────────────
 
   - id: autosend_bridge_telegram_propose
     package: "@ifos/autosend-bridge-telegram"
     api: proposeApproval
     purpose: "Post orange-tier candidate-comms approval request to operator Telegram chat (D1-B founder decision)"
-    action_type: concierge_approval_routed  # ORANGE-adjacent metadata row per agent.md §6 + Step 11 hh_decision_action call; REGISTERED in autosend-policy.yaml per R19 fix
+    action_type: concierge_approval_routed  # GREEN internal audit row (REGISTERED per R19 fix) — records the orange-tier approval routing; the orange row itself is gmail_outlook_send_to_candidate at Step 12
     cycle_step: 11
     state_changing: true
     optional: true  # cycle.sh Step 11 checks for the package dist/; falls back to drafts-only mode if absent (per D1-C graceful degradation)
@@ -193,18 +219,23 @@ capabilities:
 # Action-type registration status (cross-reference autosend-policy.yaml at W10-13)
 # ──────────────────────────────────────────────────────────────────────────────
 #
-# Already REGISTERED in agents/_shared/autosend-policy.yaml (verified per agent.md
-# §6 + R19 R-round amendments):
-#   concierge_email_draft              yellow              [Concierge §3 output contract]
-#   concierge_approval_routed          orange-adjacent     [R19 registration fix]
-#   gmail_outlook_send_to_candidate    orange              [shared with Cash Conductor at audit layer when bullhorn channel = email]
-#   bullhorn_note_customer_visible     orange              [canonical orange]
+# Already REGISTERED in agents/_shared/autosend-policy.yaml (grep-verified
+# 2026-06-10 against the policy file):
+#   concierge_email_draft              yellow              [Concierge §3 output contract; emitted Step 8]
+#   concierge_approval_routed          green               [R19 registration; emitted Step 11]
+#   gmail_outlook_send_to_candidate    orange              [TRANSPORT row; emitted Step 12 post-approval]
+#   bullhorn_note_customer_visible     orange              [canonical orange; alt channel — not yet emitted in v1.0]
+#   bullhorn_activity_log_write        green               [Codex Fbis-R1 closure; emitted Step 13]
+#   concierge_send_complete            green               [emitted Step 14]
+#   concierge_run_complete             green               [emitted Step 15]
 #   operator_notify_telegram           green
+#   validate_gate_a_fail               green               [emitted by validate.sh + cycle hard-fail paths]
 #
-# QUEUED for registration when their build wave clears:
+# future_registration: QUEUED action_types — these emit via hh_decision_output
+# (Scout/Janitor precedent) until their registration commit lands; emitting an
+# unregistered type via hh_decision_action would fail-safe-red:
 #   bullhorn_oauth                     green               (W7 Janitor + Bullhorn partnership)
-#   bullhorn_activity_log_write        green               (W10-13 Concierge build slice)
-#   concierge_cleanup                  green               (W10-13 cleanup.sh wire)
+#   concierge_cleanup                  green               (registration queued; cleanup.sh emits output row)
 #   twilio_sms_send                    orange              (v1.1+)
 #   calendar_invite_send               orange              (v1.1+)
 

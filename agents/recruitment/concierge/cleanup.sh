@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# Concierge agent — cleanup.sh (post-run state purge; W4 Day-26 SKELETON)
+# Concierge agent — cleanup.sh (post-run state purge; W10-13 LIVE)
 #
-# Status: Proposed (W4 Day-26 SKELETON; W10-13 build slice replaces stubs
-#         with live cache-purge + reset calls).
+# Status: BUILT (W10-13 build slice; live cache purge below).
 # Reading order: agent.md §4 Step 15 (session close) + §6 ESC mappings first.
 #
 # Per agent.md §3 actions list: Concierge's cleanup action_type is
 # `concierge_cleanup` (green tier — internal-only audit row recording
 # cache-purge status + workspace cleanup; no external comms).
 #
-# Per agents/_shared/autosend-policy.yaml: `concierge_cleanup` is QUEUED for
-# registration at W10-13 build start (per tools.yaml status table). Once
-# registered + the W10-13 build wires real purge logic, this script switches
-# from hh_decision_output to hh_decision_action for proper tier classification.
+# Per agents/_shared/autosend-policy.yaml: `concierge_cleanup` is still QUEUED
+# for registration (future_registration noted in tools.yaml). It emits via
+# hh_decision_output until the registration commit lands — the Scout/Janitor
+# precedent; an unregistered type via hh_decision_action would fail-safe-red.
 #
 # Invocation contract:
 #   bash cleanup.sh
@@ -77,17 +76,20 @@ export BULLHORN_CACHE_DIR="${IFOS_BULLHORN_CACHE_DIR:-${HOME}/.ifos-cache/bullho
 export MSGRAPH_CACHE_DIR="${IFOS_MSGRAPH_CACHE_DIR:-${HOME}/.ifos-cache/microsoft-graph}"
 export GMAIL_CACHE_DIR="${IFOS_GMAIL_CACHE_DIR:-${HOME}/.ifos-cache/gmail}"
 
-# TODO(W10-13): replace these STUB counts with actual find -delete invocations
-# that prune > 24h entries. Skeleton emits zero so the audit row shape is
-# preserved for the build-slice author.
-BULLHORN_PURGED=0
-MSGRAPH_PURGED=0
-GMAIL_PURGED=0
-# When ready, replace with the real purge logic:
-#   if [[ -d "${BULLHORN_CACHE_DIR}" ]]; then
-#     BULLHORN_PURGED=$(find "${BULLHORN_CACHE_DIR}" -type f -mtime +1 -delete -print 2>/dev/null | wc -l | tr -d ' ')
-#   fi
-#   (same for MSGRAPH_CACHE_DIR + GMAIL_CACHE_DIR)
+# W10-13 LIVE: prune transient HTTP-cache entries older than 24h. Token files
+# live under ~/.ifos-local-vault/<tenant>/ (NOT these dirs) and are never
+# touched. A missing cache dir is a clean zero, not an error.
+_purge_old() {
+  local dir="$1"
+  if [[ -d "${dir}" ]]; then
+    find "${dir}" -type f -mtime +1 -delete -print 2>/dev/null | wc -l | tr -d ' '
+  else
+    printf '0'
+  fi
+}
+BULLHORN_PURGED="$(_purge_old "${BULLHORN_CACHE_DIR}")"
+MSGRAPH_PURGED="$(_purge_old "${MSGRAPH_CACHE_DIR}")"
+GMAIL_PURGED="$(_purge_old "${GMAIL_CACHE_DIR}")"
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 2 — Emit green-tier audit row (per agent.md §3 actions list)
@@ -95,14 +97,17 @@ GMAIL_PURGED=0
 
 TOTAL_PURGED=$((BULLHORN_PURGED + MSGRAPH_PURGED + GMAIL_PURGED))
 
-# TODO(W10-13): once concierge_cleanup action_type is registered in
-# autosend-policy.yaml (currently QUEUED per tools.yaml status table), switch
-# from hh_decision_output to hh_decision_action for proper tier classification.
+# concierge_cleanup is NOT yet registered in autosend-policy.yaml (QUEUED per
+# tools.yaml status table; future_registration noted there). Per the
+# Scout/Janitor precedent: unregistered action_types emit via
+# hh_decision_output — switching to hh_decision_action happens at the
+# registration commit, not before (emitting an unregistered type via
+# hh_decision_action would fail-safe-red).
 hh_decision_output "concierge_cleanup" "tenant:${CTX_TENANT_SLUG}" \
-  "bullhorn_cache_purged:${BULLHORN_PURGED}; msgraph_cache_purged:${MSGRAPH_PURGED}; gmail_cache_purged:${GMAIL_PURGED}; total:${TOTAL_PURGED}; mode:SKELETON"
+  "bullhorn_cache_purged:${BULLHORN_PURGED}; msgraph_cache_purged:${MSGRAPH_PURGED}; gmail_cache_purged:${GMAIL_PURGED}; total:${TOTAL_PURGED}"
 
 # Operator-readable trace
-printf '[concierge cleanup.sh] tenant=%s purged total=%d (bullhorn=%d msgraph=%d gmail=%d) mode=SKELETON\n' \
+printf '[concierge cleanup.sh] tenant=%s purged total=%d (bullhorn=%d msgraph=%d gmail=%d)\n' \
   "${CTX_TENANT_SLUG}" "${TOTAL_PURGED}" "${BULLHORN_PURGED}" "${MSGRAPH_PURGED}" "${GMAIL_PURGED}"
 
 exit 0
