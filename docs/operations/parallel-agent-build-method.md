@@ -110,4 +110,42 @@ Confirm (via claude-code-guide) before committing to the topology:
 - Max concurrent subagents / background-task limits.
 - Exact worktree-isolation mechanics + cleanup behaviour.
 - How background-completion notifications interact with the orchestrator's `/goal` re-fire.
+- The exact **Claude Fable 5** model id (via `/model`) — postdates training; never hard-code a guessed id.
 Size the fan-out to whatever the docs allow.
+
+## §9 — Fable 5 + skip-permissions operating mode
+
+**Claude Fable 5** (Mythos-class, GA 2026-06-09, runs *inside* Claude Code) is the
+engine for this method, not a separate tool. Anthropic's own guidance matches §2-§3
+exactly: Fable 5 as orchestrator that owns the plan, delegates, integrates results,
+and "dispatches and sustains parallel sub-agents far more reliably," giving "each
+sub-agent only the context it needs, not the full session history." So Fable 5 is a
+drop-in upgrade to the orchestrator + implement/review sub-agent roles — no re-architecture.
+
+**Launch:** `claude --dangerously-skip-permissions` then `/model` → select Fable 5
+(pull the exact id from `/model`; do not hard-code a guessed string).
+
+**Context-isolation rule (Fable 5 best practice, now mandatory here):** each
+implement/review sub-agent receives ONLY (a) its one spec/agent.md section, (b) the
+frozen shared-substrate contract, (c) its worktree path — NEVER the orchestrator's
+full history. Keeps token cost down, prevents context rot on long runs, and stops
+sub-agents stepping on each other.
+
+**Skip-permissions safety — the load-bearing addition.** `--dangerously-skip-permissions`
+removes the per-tool approval prompt (required for unattended parallelism), so the
+agents can run ANY command without asking. That is ONLY safe because four other gates
+contain the blast radius — none may be weakened to gain speed:
+1. **Worktree isolation** — every sub-agent works on its own branch in its own worktree;
+   it physically cannot corrupt `main` or another agent's tree.
+2. **Hook gate** — the pre-commit/Stop hook runs shellcheck + typecheck + vitest + the
+   fixture-test pattern; a red gate blocks the commit (non-bypassable even in skip mode).
+3. **Review tier** — review sub-agent + Codex ratification must pass on the branch.
+4. **Boundary rules still bind** — every sub-agent reads CLAUDE.md: no prod VPS, no
+   Bullhorn/Codex/submodule edits, Path A, RLS, the four boundaries. Skip-permissions
+   does not suspend these — it only removes the interactive prompt, not the rules.
+5. **Human merge gate** — nothing reaches `main` without founder sign-off.
+
+Net: skip-permissions is applied to the WORKERS inside disposable worktrees, behind an
+automated quality gate + review + human merge. The orchestrator never auto-merges. If
+any gate cannot be made airtight for a given agent, that agent does NOT run in skip
+mode — it falls back to prompted mode.
