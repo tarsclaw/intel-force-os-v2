@@ -7,9 +7,10 @@
 //
 // Failure semantics: ANY failure to post (network error, non-2xx, Telegram
 // `ok:false`) throws — the bridge layer wraps it in BridgeTransportError and
-// the agent layer surfaces ESC_AGENT_TOOL_FAILURE (NOT
-// ESC_APPROVAL_BRIDGE_TIMEOUT; that fires only when the message went out and
-// the operator never replied).
+// the agent layer handles it per its own escalation policy (Concierge
+// degrades to drafts-only with an explicit marker; NO catalogue ESC exists
+// for transport-class failure). NOT ESC_APPROVAL_BRIDGE_TIMEOUT — that fires
+// only when the message went out and the operator never replied.
 //
 // Secrets discipline: the bot token is passed in by the caller (sourced from
 // the tenant/sandbox _secrets.env by the shell layer); it is never logged and

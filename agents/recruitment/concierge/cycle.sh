@@ -378,7 +378,7 @@ fi
 
 TEMPLATE_FILE="" TEMPLATE_SOURCE="" TEMPLATE_ID=""
 if _step_on 5; then
-  _vault_root="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}"
+  _vault_root="${IFOS_VAULT_ROOT:-/vault}"   # /vault default per hook-helpers contract
   _tenant_tpl="${_vault_root}/${CTX_TENANT_SLUG}/concierge-templates/${EVENT_TYPE}-${RECIPIENT_ROLE}.md"
   _shared_tpl="${_vault_root}/shared/common-comms-templates.yaml"
   _bundled_tpl="${CTX_AGENT_DIR}/templates/common-comms-templates.yaml"
@@ -445,7 +445,7 @@ fi
 
 DRAFT_PATH=""
 if _step_on 7; then
-  _drafts_dir="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${CTX_TENANT_SLUG}/concierge-drafts"
+  _drafts_dir="${IFOS_VAULT_ROOT:-/vault}/${CTX_TENANT_SLUG}/concierge-drafts"   # /vault default per hook-helpers contract
   mkdir -p "${_drafts_dir}" 2>/dev/null || true
   chmod 0700 "${_drafts_dir}" 2>/dev/null || true
   DRAFT_ID="cg-${CANDIDATE_ID}-${EVENT_TYPE}-$(date -u +%Y%m%dT%H%M%SZ)"
@@ -466,8 +466,12 @@ if _step_on 7; then
   [[ -n "${IFOS_FORCE_VOICE_SCORE:-}" ]] && _render_args+=(--voice-score "${IFOS_FORCE_VOICE_SCORE}")
   if ! bash "${_RENDER}" "${_render_args[@]}" > "${DRAFT_PATH}.tmp" 2>/dev/null; then
     rm -f "${DRAFT_PATH}.tmp" 2>/dev/null || true
-    autosend_escalate "ESC_RENDERER_FAILED" "agent=concierge" \
-      "tenant=${CTX_TENANT_SLUG}" "candidate=${CANDIDATE_ID}" "event=${EVENT_TYPE}"
+    # ESC_AGENT_OUTPUT_SHAPE: the agent cannot produce its declared output
+    # shape. (ESC_RENDERER_FAILED is catalogue-reserved for the _renderer
+    # sentinel, NOT agent-local draft-render failures — review finding 3.)
+    autosend_escalate "ESC_AGENT_OUTPUT_SHAPE" "agent=concierge" \
+      "tenant=${CTX_TENANT_SLUG}" "candidate=${CANDIDATE_ID}" "event=${EVENT_TYPE}" \
+      "class=draft_render_failed"
     exit 1
   fi
   mv "${DRAFT_PATH}.tmp" "${DRAFT_PATH}"
@@ -620,9 +624,11 @@ if _step_on 11; then
           exit 1 ;;
       esac
     else
-      # Telegram postMessage transport failure → ESC_AGENT_TOOL_FAILURE class
-      # is not in the catalogue for concierge; surface as drafts-only with an
-      # explicit reason (the draft is safe in vault; operator picks up).
+      # Telegram postMessage transport failure — NO catalogue ESC exists for
+      # transport-class failure (the phantom ESC_AGENT_TOOL_FAILURE is not in
+      # the catalogue); surface as drafts-only with an explicit reason (the
+      # draft is safe in vault; operator picks up). NOT
+      # ESC_APPROVAL_BRIDGE_TIMEOUT — no approval message went out.
       hh_decision_output "drafts_only_mode" "tenant:${CTX_TENANT_SLUG}" \
         "bridge propose failed (transport) — draft retained in vault for manual consultant pickup"
       _close_run "bridge_transport_failed"
@@ -643,6 +649,12 @@ fi
 # Transport: MS Graph / Gmail per tenant config — OAuth ABSENT today, so the
 # live send path is gated; IFOS_FORCE_SEND_RESULT=sent proves the chain in
 # fixtures. ESC_SEND_FAIL (warn) on 4xx/5xx after 1 retry.
+# KNOWN GAP (review finding 5, doc-only today): the orange
+# gmail_outlook_send_to_candidate row is emitted BEFORE the transport
+# executes (the only reachable success path today is the forced fixture one,
+# so the row is honest). When the live email connector lands, this MUST move
+# to emit-on-confirmed-send — or emit a correction row on transport failure —
+# so the orange audit row never claims a send that did not happen.
 # ────────────────────────────────────────────────────────────────────────
 
 SEND_DONE=0

@@ -110,7 +110,7 @@ capabilities:
     failure_modes:
       - condition: "OAuth refresh fails (revoked, expired)"
         surface: "MsGraphAuthError"
-        escalation: ESC_MS_GRAPH_AUTH  # blocking; operator + ifos_oncall + tenant-admin (token re-auth required) per agent.md §6 row 3
+        escalation: ESC_MS_GRAPH_AUTH  # blocking; operator + ifos_oncall (catalogue verbatim per agent.md §6 — tenant-admin involvement is a manual operator-discretion follow-up, NOT catalogue routing)
       - condition: "4xx/5xx from Graph API at send time"
         surface: "MsGraphSendError"
         escalation: ESC_SEND_FAIL  # warn; operator; retry once 30s backoff per §4 Step 12
@@ -126,7 +126,7 @@ capabilities:
     failure_modes:
       - condition: "OAuth refresh fails"
         surface: "GmailAuthError"
-        escalation: ESC_GMAIL_AUTH  # blocking; operator + ifos_oncall + tenant-admin
+        escalation: ESC_GMAIL_AUTH  # blocking; operator + ifos_oncall (catalogue verbatim; same tenant-admin caveat as ESC_MS_GRAPH_AUTH per agent.md §6)
       - condition: "4xx/5xx from Gmail API at send time"
         surface: "GmailSendError"
         escalation: ESC_SEND_FAIL  # warn; operator; retry once
@@ -156,7 +156,7 @@ capabilities:
     failure_modes:
       - condition: "Telegram postMessage transport failure (network, 5xx, invalid chat_id)"
         surface: "BridgeTransportError thrown by package"
-        escalation: ESC_AGENT_TOOL_FAILURE  # transport-class failure, NOT timeout (different routing)
+        escalation: none  # NO catalogue ESC exists for transport-class failure (phantom ESC_AGENT_TOOL_FAILURE removed 2026-06-10); cycle.sh Step 11 degrades to drafts-only with an explicit drafts_only_mode marker (deviation 6) — NOT ESC_APPROVAL_BRIDGE_TIMEOUT (no message went out)
 
   - id: autosend_bridge_telegram_await
     package: "@ifos/autosend-bridge-telegram"
@@ -168,7 +168,7 @@ capabilities:
     failure_modes:
       - condition: "Operator never replies before PT4H expires_at_iso"
         surface: "outcome=timeout (or BridgeTimeoutError via awaitApprovalDecisionOrThrow)"
-        escalation: ESC_APPROVAL_BRIDGE_TIMEOUT  # warn-tier per escalation-codes.md lines 348-353; routes operator + tenant-admin per agent.md §6 row 11; action converts to manual reconciliation
+        escalation: ESC_APPROVAL_BRIDGE_TIMEOUT  # warn-tier per escalation-codes.md lines 348-353; routes operator + ifos_oncall (catalogue verbatim per agent.md §6 — tenant-admin is a manual escalation choice, NOT catalogue routing); action converts to manual reconciliation
 
   # ────────────────────────────────────────────────────────────────────────
   # Voice + tone validators (shared substrate — used at Step 8)
@@ -192,7 +192,7 @@ capabilities:
     failure_modes:
       - condition: "Block-severity tone-rule hit (e.g. forbidden-phrase match)"
         surface: "ToneRuleViolation"
-        escalation: ESC_TONE_RULE_VIOLATION  # blocking; operator + ifos_oncall
+        escalation: ESC_TONE_RULE_VIOLATION  # warn per catalogue; routes operator_chat_id — Gate A still BLOCKS the draft via validate.sh (ESC severity = operator-paging urgency only, per agent.md §5/§6)
 
   # ────────────────────────────────────────────────────────────────────────
   # Operator notification (Telegram operator-chat-id; not customer-facing)
