@@ -15,7 +15,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Janitor produces TWO outputs per nightly cron run:** (1) a Markdown day-30 cleanup report at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md` documenting all data-hygiene actions taken in the prior 30 days, and (2) a stream of yellow-tier writes to the tenant's Bullhorn ATS that (a) merge high-confidence duplicate candidate AND contractor records (separate entity types per vertical-schema.yaml §1; same fuzzy-matcher per §4 Steps 3-4), (b) backfill missing field values via Companies House enrichment, and (c) attach tacit notes harvested from `recent_edit.resolution='approved_after_edit'` rows (v0.3 supplement §2a grants Janitor R access). Cron fires at 02:00 UTC daily; the day-30 report regenerates on the 1st of each month rolling. Gate A hard-fails any merge proposal with confidence <0.85 (per ULTRAPLAN A2 line 510). Gate B success threshold: the day-30 report shows ≥15% dedup rate improvement AND ≥10% field-completeness improvement vs the day-0 baseline established at first pilot LOI signing (per ULTRAPLAN A2 line 511). Auto-band Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml` runtime (policy rationale at `docs/decisions/autosend-safety-policy.md`) — sampled spot-checks, no synchronous approval; review-band dedup merges (0.70–0.85 confidence, or ≥0.85 with Bullhorn activity in the last 90 days) are instead held for synchronous Telegram approval via `ESC_DUPLICATE_DETECTED` before write. Every write emits a per-write audit row to `decision_log` with `agent_name='janitor'`.
+> **Janitor produces TWO outputs per nightly cron run:** (1) a Markdown day-30 cleanup report at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md` documenting all data-hygiene actions taken in the prior 30 days, and (2) a stream of yellow-tier writes to the tenant's Bullhorn ATS that (a) merge high-confidence duplicate candidate AND contractor records (separate entity types per vertical-schema.yaml §1; same fuzzy-matcher per §4 Steps 3-4), (b) backfill missing field values via Companies House enrichment, and (c) attach tacit notes harvested from `recent_edit.resolution='approved_after_edit'` rows (v0.3 supplement §2a grants Janitor R access). Cron fires at 02:00 UTC daily; the day-30 report regenerates on the 1st of each month rolling. Gate A hard-fails any AUTO-MERGE proposal with confidence <0.85 (per ULTRAPLAN A2 line 510) — Gate A's merge-confidence check applies to auto-merge proposals ONLY; held and dropped pairs are classified upstream at §4 Steps 3-4 per the spec-001 band→action table (≥0.85 + no 90d activity → auto-merge; 0.70–0.85 OR ≥0.85-with-recency → held via ESC_DUPLICATE_DETECTED; <0.70 → silent drop) and never reach Gate A. Gate B success threshold: the day-30 report shows ≥15% dedup rate improvement AND ≥10% field-completeness improvement vs the day-0 baseline established at first pilot LOI signing (per ULTRAPLAN A2 line 511). Auto-band Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml` runtime (policy rationale at `docs/decisions/autosend-safety-policy.md`) — sampled spot-checks, no synchronous approval; review-band dedup merges (0.70–0.85 confidence, or ≥0.85 with Bullhorn activity in the last 90 days) are instead held for synchronous Telegram approval via `ESC_DUPLICATE_DETECTED` before write. Every write emits a per-write audit row to `decision_log` with `agent_name='janitor'`.
 
 ---
 
@@ -101,17 +101,27 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → ESC_RATE_LIMIT_HIT if Bullhorn 429 (60s backoff per ESC_RATE_LIMIT_HIT catalogue §2.5 standard handling)
 
 3. Dedup pass — candidate entity type
+   → matcher: bin/dedup-pairs.sh (pure-jq deterministic helper; declared in
+     tools.yaml as capability `janitor_dedup_matcher`)
    → fuzzy-match across (name, email, phone, linkedin_url) tuples
    → compute confidence per pair: name × 0.3 + email × 0.4 + phone × 0.2 + linkedin × 0.1
-   → discard pairs <0.85 confidence (per Gate A)
-   → discard pairs where EITHER candidate has Bullhorn activity in last 90d
-     (per ULTRAPLAN A2 line 510 verbatim)
-   → batch into proposed-merge list (in-memory intermediate; not persisted —
-     hh_decision_action emitted at Step 9 when each merge actually writes)
+     (comparable-weight normalisation + required strong identifier per build
+     deviation 1)
+   → classify per the spec-001 §4 band→action table (the ONE model §1/§5/§6 cite):
+     · ≥0.85 AND no Bullhorn activity on EITHER record in last 90d (per
+       ULTRAPLAN A2 line 510) → AUTO-MERGE proposal (yellow tier; written at
+       Step 9 behind Gate A)
+     · 0.70–0.85, OR ≥0.85 with recent (or unknown) 90d activity → HELD for
+       synchronous Telegram approval via ESC_DUPLICATE_DETECTED (SUCCESS-path
+       approval gate, NOT a Gate A failure)
+     · <0.70 → silent drop (tallied in the dedup_candidate_pass marker reason)
+   → batch auto-band pairs into proposed-merge list (in-memory intermediate;
+     not persisted — hh_decision_action emitted at Step 9 when each merge
+     actually writes)
 
 4. Dedup pass — contractor entity type
-   → same algorithm as candidates; separate entity_type per Q1 Day-6 resolution
-     (vertical-schema.yaml §1)
+   → same algorithm as candidates (same bin/dedup-pairs.sh matcher + band
+     table); separate entity_type per Q1 Day-6 resolution (vertical-schema.yaml §1)
 
 5. Field completeness audit (canonical field names per vertical-schema.yaml)
    → for each entity, check critical fields: candidate.location (line 124),
@@ -123,10 +133,13 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → hh_decision_output("field_completeness_audit", tenant, "<N> missing-field rows")
 
 6. Companies House enrichment (clients only)
-   → companies_house.search(client.name per vertical-schema.yaml line 235) → CRN →
-     profile → fill canonical schema fields client.industry (line 238),
+   → tools.yaml capabilities `companies_house_search` (client.name per
+     vertical-schema.yaml line 235 → CRN) + `companies_house_get_company`
+     (CRN → profile) on @ifos/companies-house, invoked via bin/ch-lookup.mjs
+     → fill canonical schema fields client.industry (line 238),
      client.companies_house_number (line 252)
-   → 7-day cache per tools.yaml; rate-limit budget shared with Diagnostic
+   → 7-day cache + shared 600/5min rate budget live INSIDE the connector
+     (Diagnostic precedent); budget shared with Diagnostic
    → ESC_RATE_LIMIT_HIT on 429
 
 7. LinkedIn enrichment (candidates; v1.1 via Proxycurl)
@@ -177,6 +190,25 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → exit code 0 (or 1 if BOTH Gate-B thresholds missed for 3 consecutive runs per §5 + catalogue → ESC_GATE_B_MISS)
 ```
 
+### Audit coverage — consolidated model (per master brief §8.1 Change 2)
+
+Every step that produces output or takes action audits to `decision_log` — but
+not every step carries its OWN `hh_decision_*` row; two clusters consolidate
+(deliberate, one model):
+
+- **Step 1 failures** audit via the per-run `bullhorn_auth_refresh` output row
+  (token state recorded every run) plus the `ESC_BULLHORN_AUTH` gating row on
+  refresh failure or creds absence. There is no separate Step-1
+  `hh_decision_action` row.
+- **Steps 3-4 outcomes** audit downstream: AUTO-band pairs become the Step 9
+  `bullhorn_candidate_dedupe` yellow action rows when each merge actually
+  writes; HELD pairs each emit an `ESC_DUPLICATE_DETECTED` gating row at
+  Steps 3-4 (catalogue §2.5 payload shape; also listed in the day-30 report §7
+  exception list); DROPPED (<0.70) pairs are tallied in the
+  `dedup_candidate_pass` / `dedup_contractor_pass` marker reasons
+  (`dropped:<N>`) with batch outcomes summarised in `bullhorn_write_batch`.
+  No held or dropped outcome is traceless.
+
 ---
 
 ## §5 — Gates
@@ -186,8 +218,8 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 Per master brief §8.1 Change 2 + `docs/decisions/autosend-safety-policy.md` §4 (policy rationale; runtime YAML is `agents/_shared/autosend-policy.yaml`). Janitor's `validate.sh` enforces:
 
 - Bullhorn auth refresh succeeded in Step 1 (no stale token writes)
-- Every proposed merge has confidence ≥ 0.85 per ULTRAPLAN A2 line 510
-- No merge proposal where EITHER candidate has activity (placement / interview / note) in last 90 days (per ULTRAPLAN A2 line 510 verbatim)
+- Every AUTO-MERGE proposal has confidence ≥ 0.85 per ULTRAPLAN A2 line 510 (G2 — applies to auto-merge proposals ONLY; review-band pairs are held upstream at §4 Steps 3-4 and never reach Step 9, so this check is defence-in-depth against a band-classification bug, not the band mechanism itself)
+- No auto-merge proposal where EITHER record has activity (placement / interview / note) in last 90 days (per ULTRAPLAN A2 line 510 verbatim; G3 — same defence-in-depth scope as G2)
 - No field-backfill where source confidence <0.7 (CH 404 / LinkedIn empty / no derivation source)
 - Tacit-note narratives pass voice classifier ≥ 0.75
 - Bullhorn write batch size ≤ 100 per minute (rate-limit defensive)
@@ -225,7 +257,7 @@ All codes are registered in `agents/_shared/escalation-codes.md` (catalogue exte
 | `ESC_VOICE_DRIFT` | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
-| `ESC_DUPLICATE_DETECTED` | Per catalogue §2.5: dedup pairs needing human approval before merge — the 0.70–0.85 review band, plus ≥0.85 pairs with recent Bullhorn activity (SUCCESS path; Telegram approval gate fires). NOT a Gate A failure code. | warn | operator_chat_id (via Telegram approval gate per catalogue routing) |
+| `ESC_DUPLICATE_DETECTED` | Per catalogue §2.5 (amended 2026-06-10): dedup pairs needing human approval before merge — the 0.70–0.85 review band, plus ≥0.85 pairs with recent Bullhorn activity (SUCCESS path; Telegram approval gate fires). NOT a Gate A failure code. Payload per catalogue: `entity_a_id` / `entity_b_id` / `entity_type` (`candidate`\|`contractor`) / `confidence_score` / `match_basis` (e.g. `email+phone`) / `hold_reason` (`review_band` \| `recency_hold_90d`). | warn | operator_chat_id (via Telegram approval gate per catalogue routing) |
 | `ESC_GATE_B_MISS` | Per catalogue trigger: per-agent local Gate B metric threshold missed. For Janitor: BOTH thresholds miss for 3 consecutive runs (dedup-improvement <15% AND field-completeness-improvement <10%) per catalogue `ESC_GATE_B_MISS` Janitor example. Single-threshold misses do NOT fire (per §5 Gate B). Catalogue routing: operator_chat_id | warn | operator_chat_id |
 | `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 

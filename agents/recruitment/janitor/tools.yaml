@@ -106,6 +106,16 @@ capabilities:
     state_changing: true
 
   # ────────────────────────────────────────────────────────────────────────
+  # Dedup matcher (agent.md §4 Steps 3-4; local bin/ helper — no external
+  # package, zero network; declared so the §4 capability citation resolves)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: janitor_dedup_matcher
+    purpose: "Deterministic duplicate-pair fuzzy matcher bin/dedup-pairs.sh (pure jq over stdin; zero network) — spec-001 weights name·0.3 + email·0.4 + phone·0.2 + linkedin·0.1 with comparable-weight normalisation + required strong identifier (build deviation 1); classifies every pair into the spec-001 §4 band→action table (auto ≥0.85+no-90d-activity / review 0.70–0.85 or recency-hold / silent drop <0.70). Shared by Step 3 (candidate) AND Step 4 (contractor — same matcher, separate entity_type)"
+    cycle_step: 3
+    state_changing: false
+
+  # ────────────────────────────────────────────────────────────────────────
   # Companies House enrichment (clients only; agent.md §4 Step 6)
   # ────────────────────────────────────────────────────────────────────────
 
