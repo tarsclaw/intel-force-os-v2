@@ -116,7 +116,7 @@ The actual SEND is a separate orange-tier action_type:
 - `twilio_sms_send` (orange tier per autosend-policy.yaml §ORANGE) when channel=SMS (v1.1+)
 - `calendar_invite_send` (orange tier per autosend-policy.yaml §ORANGE) when event includes calendar attachment
 
-Consultant approves via autosend-bridge (D1 path) → orange-tier send executes → Bullhorn activity-log entry written post-send.
+Consultant approves via autosend-bridge (D1 path) → orange-tier send executes → Bullhorn activity-log entry written post-send. The orange row is the policy-authorization record (emitted pre-transport — see §4 Step 12 attempt-row + confirmed-row contract); a `send_confirmed` output row is the marker that an email actually left.
 
 ---
 
@@ -274,6 +274,29 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
     → hh_decision_action("gmail_outlook_send_to_candidate",
       "candidate:<bullhorn_id>", payload_hash, payload_preview)
       [or `bullhorn_note_customer_visible` if channel=Bullhorn-note]
+      — POLICY-AUTHORIZATION record, emitted BEFORE transport: the shared
+      helper's orange path FUSES row emission with the gating (policy
+      lookup → tenant red-elevation block → orange row (approval_pending)
+      → ESC_AUTOSEND_NEEDS_REVIEW → approval await), so the row cannot be
+      deferred to post-transport without bypassing the helper or running
+      the policy gate after the email left. Transport truth is carried by
+      the output rows below.
+    → attempt-row + confirmed-row contract (Codex 20260610T154203Z-26445
+      finding 3, incorporated post-run):
+      hh_decision_output("send_attempt", <draft vault path>,
+        "...; transport_not_yet_executed") — pre-transport attempt row
+      → execute transport (retry once, 30s backoff)
+      → success: hh_decision_output("send_confirmed", <draft vault path>,
+        "...; provider_confirmed") — the ONLY marker that means an email
+        actually left
+      → failure: ESC_SEND_FAIL (warn) + hh_decision_output("send_failed",
+        <draft vault path>, "CORRECTION: orange row <hash> did NOT result
+        in a delivered email; ...") — run closes; draft stays in vault for
+        manual send
+    → trail invariants: success path = exactly 1 orange row + send_confirmed;
+      degraded/timeout/drafts-only paths = 0 orange rows; transport-failure
+      path = 1 orange row + send_failed CORRECTION row (the orange row alone
+      asserts authorization, never delivery)
     → ESC_SEND_FAIL on 4xx/5xx; retry once 30s backoff
 
 13. Bullhorn activity-log write
@@ -287,11 +310,18 @@ Consultant approves via autosend-bridge (D1 path) → orange-tier send executes 
       autosend-policy.yaml (registered 2026-06-02 per Codex Fbis-R1 closure;
       grep `^  bullhorn_activity_log_write:` to verify). External-write
       action_type required for tier classification per autosend-policy §3.
+    → ESC_BULLHORN_WRITE_FAIL (warn; operator_chat_id per catalogue §2.8)
+      if the activity-log write fails — distinct from ESC_BULLHORN_AUTH
+      (auth) and ESC_RATE_LIMIT_HIT (429). Audit-trail write only: the
+      customer send already happened; the run continues.
 
 14. Lifecycle state advance (Bullhorn write, conditional)
     → some events trigger Bullhorn state changes (e.g., interview-completed
       sent → advances state to "post-interview" if tenant policy says so)
     → per-tenant policy; opt-in; not all tenants want this
+    → ESC_BULLHORN_WRITE_FAIL (warn; operator_chat_id per catalogue §2.8)
+      if the opted-in state-advance write fails; state not advanced, audit
+      row below still emitted with state_advanced:false
     → hh_decision_action("concierge_send_complete", "candidate:<bullhorn_id>",
       payload_hash, "event=<type> elapsed=<seconds>")
 
@@ -320,7 +350,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4 + ULTRAPLAN A6 line
 - **"correct addressee resolution (no candidates emailed under another's name)"** — hard-fail (Step 4 critical; ESC_ADDRESSEE_MISMATCH)
 - No tone-rule block-severity violations — hard-fail (ESC_TONE_RULE_VIOLATION)
 - No PII outside firm boundary — hard-fail (ESC_PII_LEAKAGE_RISK)
-- Anti-duplicate guard passed (Step 2) — hard-fail (skip if true duplicate)
+- Anti-duplicate guard passed (Step 2) — hard-fail (skip if true duplicate). validate.sh G5 re-checks at validate time (defence-in-depth: a webhook re-fire between Step 2 and Gate A can insert a completed send in the window); a true duplicate caught there fires `ESC_AUTOSEND_RACE` (warn; `race_class=duplicate_payload` per catalogue §2.9) and Gate A blocks the draft
 - All Bullhorn context fields present (no missing candidate name / no missing email) — hard-fail (ESC_AGENT_OUTPUT_SHAPE; ESC_CANDIDATE_DATA_INCOMPLETE is Sourcing Scout's per catalogue §2.10)
 
 The 30-minute draft SLA (ULTRAPLAN A6 line 566) is interpreted as a Gate B leading metric (90% target) per §1 framing, NOT a per-draft Gate A hard-fail. Polling-fallback delays would otherwise block legitimate drafts. Per-draft SLA misses fire `ESC_CONCIERGE_SLA_MISS` (warn, aggregated).
@@ -328,9 +358,9 @@ The 30-minute draft SLA (ULTRAPLAN A6 line 566) is interpreted as a Gate B leadi
 Gate A failures fire ESC codes per their catalogue-defined severity (do NOT conflate "Gate A blocks the draft from sending" with "ESC severity escalates to oncall"):
 
 - **Catalogue blocking-severity:** `ESC_ADDRESSEE_MISMATCH`, `ESC_PII_LEAKAGE_RISK` — these route to operator + ifos_oncall_chat_id per catalogue §2.10 (truly customer-impacting violations).
-- **Catalogue warn-severity:** `ESC_TONE_RULE_VIOLATION`, `ESC_AGENT_OUTPUT_SHAPE` — these route to operator_chat_id only per catalogue §2.10 + §2.7 (per-draft signal-quality issues; not customer-impacting unless multiple aggregate).
+- **Catalogue warn-severity:** `ESC_TONE_RULE_VIOLATION`, `ESC_AGENT_OUTPUT_SHAPE`, `ESC_AUTOSEND_RACE` (G5 true-duplicate at validate time) — these route to operator_chat_id only per catalogue §2.10 + §2.7 + §2.9 (per-draft signal-quality issues; not customer-impacting unless multiple aggregate).
 
-ALL FOUR cause Gate A to block the draft from sending (validate.sh exits non-zero; draft stays in vault; cycle.sh aborts the orange-tier emission). The "blocking" of the DRAFT is `validate.sh` behavior; the "blocking" severity of the ESC code is the operator-paging-urgency lookup. These are separate dimensions. Draft is moved to `/tmp` (out of the customer-facing path) regardless of ESC severity; operator is notified immediately for blocking-tier ESCs, asynchronously-aggregated for warn-tier.
+ALL of these cause Gate A to block the draft from sending (validate.sh exits non-zero; draft stays in vault; cycle.sh aborts the orange-tier emission). The "blocking" of the DRAFT is `validate.sh` behavior; the "blocking" severity of the ESC code is the operator-paging-urgency lookup. These are separate dimensions. Draft is moved to `/tmp` (out of the customer-facing path) regardless of ESC severity; operator is notified immediately for blocking-tier ESCs, asynchronously-aggregated for warn-tier.
 
 **Honesty note (updated 2026-06-10; supersedes the 2026-06-02 skeleton-era note):** `agents/recruitment/concierge/validate.sh` is **LIVE** (W10-13 build slice, this branch) — the Gate A checks above enforce at runtime and are proven by `scripts/run-concierge-gate-a-test.sh` (DB-backed; ESC routing asserted per failure class). Voice honesty: no voice classifier exists in v1.0 (`@ifos/voice-classifier` unbuilt; voice_corpus empty) — unscored drafts carry `unscored/no_classifier` and G1 warn-and-passes them (accepted v1.0 behaviour); the position thresholds 0.75/0.78/0.82 hard-enforce on REAL numeric scores only (fixtures supply one via `IFOS_FORCE_VOICE_SCORE`).
 
@@ -365,7 +395,9 @@ Concierge uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_PII_LEAKAGE_RISK` | PII outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_CONCIERGE_SLA_MISS` | Draft >30 min after lifecycle event | warn | (logged; aggregated to Gate B) |
 | `ESC_APPROVAL_BRIDGE_TIMEOUT` | No consultant approval within the policy timeout (default PT4H per escalation-codes.md `ESC_APPROVAL_BRIDGE_TIMEOUT` block + autosend-policy.yaml grep `^  gmail_outlook_send_to_candidate:` or `^  bullhorn_note_customer_visible:` to verify the orange-tier `timeout` field) | warn | operator + ifos_oncall (catalogue verbatim — operator absent + commitment may need rerouting; tenant-admin involvement is a manual escalation choice when bridge-timeout becomes pattern-recurring, not part of catalogue routing) |
-| `ESC_SEND_FAIL` | Email provider 4xx/5xx | warn | operator_chat_id |
+| `ESC_SEND_FAIL` | Email provider 4xx/5xx at Step 12 transport, after 1 retry (30s backoff). A `send_failed` CORRECTION output row accompanies it — the pre-transport orange row asserts authorization, never delivery (Step 12 contract) | warn | operator_chat_id |
+| `ESC_BULLHORN_WRITE_FAIL` | Bullhorn REST write failed after retry budget — Step 13 activity-log write (`write=activity_log`) or Step 14 opted-in state advance (`write=state_advance`). Distinct from `ESC_BULLHORN_AUTH` (auth) and `ESC_RATE_LIMIT_HIT` (429) per catalogue §2.8 | warn | operator_chat_id |
+| `ESC_AUTOSEND_RACE` | validate.sh G5 anti-duplicate re-check: true duplicate at validate time (prior draft + completed send for same candidate+event within 24h — webhook re-fire between Step 2 and Gate A; `race_class=duplicate_payload` per catalogue §2.9). Gate A blocks the draft via validate.sh regardless of the warn paging severity | warn | operator_chat_id |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) — distinct from ESC_AUTOSEND_BLOCKED which is for red-tier action attempts only | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | Ghosted-rate >5% OR send-as-is <60% OR 30-min SLA hit-rate <90% for 30 consecutive days | warn | founder + operator |
 | `ESC_AUTOSEND_ORANGE_PENDING` | Draft awaiting approval (info — heartbeat reminder when ≥50% of timeout elapsed) | info | (logged) |
