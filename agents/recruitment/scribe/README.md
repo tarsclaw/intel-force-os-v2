@@ -8,7 +8,7 @@ Bullhorn/Granola smoke founder-gated (creds + ≥1 recorded meeting).
 
 | File | Status |
 |---|---|
-| `agent.md` | Proposed (CONTRACT; §4 Step 3 Fathom/Fireflies text is PRE-PIVOT — vendor is Granola per spec-002) |
+| `agent.md` | Proposed (CONTRACT; reconciled 2026-06-10 to the Granola poll-sweep + built reality — Fathom/Fireflies reduced to historical notes; §10 status flip still founder-gated) |
 | `tools.yaml` | built — Bullhorn W (via `bin/bh-bridge.sh`) + Granola R + voice notes |
 | `context.sh` | built — tenant_adapters v0.4 reads, token states, voice/tone hydration |
 | `cycle.sh` | built — 10-step per-call workflow (poll-sweep / replay / webhook / dry-run) |

@@ -82,7 +82,7 @@ contract exists in v1.0.
 
 ## §3 — Output shape
 
-Two outputs per meeting. Both write atomically; Step-9 failure rolls back Step 8 (best-effort — §4 Step 9 + §9 Q5), including the Step-8 `recent_edit` Gate-B row.
+Two outputs per meeting. Both write atomically; Step-9 failure rolls back Step 8 (best-effort — §4 Step 9 + §9 Q5). The Gate-B `recent_edit` row is only inserted after Step 9 settles (the table is append-only for `ifos_app`), so a rolled-back write never enters the edit-rate denominator.
 
 ### Output 1 — Bullhorn structured-field writes (≥3 per call)
 
@@ -283,8 +283,10 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
    → opportunity: cache-only by design (§3) — no PATCH attempted
    → on success: hh_decision_action("bullhorn_scribe_field_write",
      "<entity_type>:<bullhorn_id>", payload_hash, payload_preview)
-     + one recent_edit row (resolution='deferred') as the Gate B edit-rate
-     denominator
+   → the Gate B recent_edit row (resolution='deferred') for this write is
+     inserted only AFTER Step 9 settles — recent_edit is append-only for
+     ifos_app, so the denominator stays honest by never writing the row for
+     a write that gets rolled back
    → on PATCH hard-fail: roll the cache back; ESC_BULLHORN_WRITE_FAIL;
      do NOT proceed to Step 9
 
@@ -301,8 +303,8 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
    → on success: hh_decision_action("bullhorn_note_append_summary",
      "<entity_type>:<bullhorn_id>", note_payload_hash, payload_preview)
    → on hard failure: rollback Step 8 (best-effort cache restore + reverse
-     PATCH + removal of the Step-8 recent_edit 'deferred' row so Gate B's
-     denominator isn't inflated); ESC_BULLHORN_WRITE_FAIL
+     PATCH); no recent_edit row exists yet (inserted only after this step
+     settles), so Gate B's denominator isn't inflated; ESC_BULLHORN_WRITE_FAIL
 
 10. Session close + SLA metric
    → per-call elapsed_seconds anchored to MEETING END TIME (bin/sla-class.sh;
@@ -443,7 +445,7 @@ Pre-pivot rows removed 2026-06-10: Fathom/Fireflies commercial signup + connecto
 | Q2 | Per-call cost ceiling — LLM extraction + voice classification per call. Budget per pilot tenant? (v1.0 default is the zero-LLM deterministic extractor; this gates enabling `IFOS_SCRIBE_USE_LLM=1`.) | Cost model: ~$0.10-0.30 per call (Claude API + voice classifier). At 50 calls/day per consultant × 5 consultants per tenant = ~$25-75/day per tenant. |
 | Q3 | Tacit-note taxonomy v0.1 — 8 categories implemented in §3 above. Founder confidence each is high-value? | Founder review with first pilot tenant's consultants during onboarding; can prune/expand based on actual consultant patterns. |
 | Q4 | Webhook replay protection (SECONDARY mode only) — should Scribe reject webhook payloads >5 min old? Moot for the primary poll-sweep path (no inbound webhooks at v1.0). | Recommend yes when a push provider lands; timeout config in tools.yaml then. |
-| Q5 | Bullhorn write atomicity — Step 9 rollback of Step 8 on note-attach failure is best-effort PATCH (cache restore + reverse PATCH + recent_edit row removal). Could leave the Bullhorn entity in mid-state. | v1.0 accept; document risk. v1.1+: investigate Bullhorn transaction API if exposed. |
+| Q5 | Bullhorn write atomicity — Step 9 rollback of Step 8 on note-attach failure is best-effort PATCH (cache restore + reverse PATCH; the Gate-B recent_edit row is insert-after-settle so it never needs unwinding). Could leave the Bullhorn entity in mid-state. | v1.0 accept; document risk. v1.1+: investigate Bullhorn transaction API if exposed. |
 | Q6 | Consultant edit-rate ≤20% metric — how to measure when consultants edit Bullhorn entities outside our `recent_edit` audit path? | Use Bullhorn's audit log API + cross-reference with our writes. Founder approve approach at W6 design review. |
 | Q7 | What happens when a transcript references PII outside the tenant's Bullhorn data (e.g., a candidate's spouse's medical condition)? | Control point is the NOTE body (declared deviation 10, §4 Step 3): Gate A G6 full-body scan blocks the note write + fires ESC_PII_LEAKAGE_RISK; the transcript itself stays 0600 in /tmp and is purged ≤24h. Document tenant policy. |
 
