@@ -101,6 +101,19 @@ Combined pass over the review-janitor.md findings (reviewer MINORs 1-5 + Codex r
 
 Verification this pass: rebase onto `a78a1e2` clean → `bash scripts/build-gate.sh` **PASS** pre- and post-fix; all 3 janitor DB suites re-run green after the payload-shape change; shellcheck clean on every touched script; `node dist/cli.js` smoke (check-auth / unknown-command / unsupported_entity) confirms stdout + exit-code contracts unchanged.
 
+## Codex R2 fix pass (build-state honesty; 2026-06-10)
+
+Codex round 2 (session `20260610T135625Z-9910`) returned REJECTED:4 — all four findings the stale-build-state honesty class the Sourcing Scout branch already resolved (precedent: Scout's post-W9 agent.md build-state header + per-component truth rewrite). DOC-ONLY pass on `agent.md`; no shell script, fixture, tools.yaml, or package touched. Per-finding:
+
+| Codex R2 finding | Fix (agent.md) |
+|---|---|
+| 1 — stale status/build-state (lines 3-5, 288-310) | Header rewritten to the Scout idiom: Build state = "W6-7 build slice COMPLETE (spec-001; this branch, 2026-06-10)" — 6 bundle files + 3 fixtures LIVE/BUILT, build-gate GREEN, 3 DB-backed suites green, fixture-proven only (zero live Bullhorn calls; creds EMPTY founder-gated; Companies House live-smoked once read-only). §10 status field kept **Proposed** with explicit "(W6-7 build slice COMPLETE on this branch; status flip founder-gated)" — the flip is NOT Claude's call. Scaffold-era prose in §9 status, §9 gotcha 1, and §10 In-Force checklist also rewritten to current truth. |
+| 2 — false "NOT yet emitted at runtime" note (line 5) | Replaced with the W6-7 runtime truth, line-verified against the shipped cycle.sh: the three yellow action rows ARE emitted — Step 9 `hh_decision_action "${_jn_atype}"` at cycle.sh lines 703-704, per-type tallies lines 705-709, `bullhorn_write_batch` summary lines 711-712; creds-absent rows carry `write_state:deferred` in the reason (batch summary `deferred_no_creds:<N>`) until creds land. Note: the literal runtime token is `write_state:deferred`; the longer `deferred_no_bullhorn_creds` wording in cycle.sh comments / deviation 5 describes the same state — agent.md cites the literal emitted token. |
+| 3 — Gate B baseline claim vs shipped metric (lines 18, 238-244) | §1 + §5 amended to the SHIPPED metric: deterministic in-run `decision_log`-derived ratios (`dedup_pct = 100·merges/(merges+review-band)`, `completeness_pct = 100·backfills/(backfills+still-missing)`; cycle.sh Step 10 header lines 716-724 + computation lines 755-762), with the explicit limitation that day-0-baseline-relative measurement is NOT implemented (no baseline exists pre-pilot) and is the documented post-pilot enhancement per accepted deviation 6. Thresholds, AND-logic, ESC_GATE_B_MISS trigger unchanged. Code NOT changed. |
+| 4 — §8 build-dependency table materially inaccurate (lines 299, 304-306) | Every row refreshed to actual state with built / fixture-proven / live-credential-gated distinguished: `@ifos/bullhorn` package + CLI bridge BUILT (vitest 52/52; `update-entity` + extended `create-note` per the agreed contract) with live creds the ONLY gap; Sub-decision A RESOLVED 2026-06-02 / B in flight; validate.sh G1-G7 + context.sh + cycle.sh 12-step LIVE (commit `184a2bf`); dedup matcher LIVE; 3 fixtures + 3 suites green; voice classifier not built (honest unscored; G5 warn-when-unscored); LinkedIn NO-OP. Closer reframed: remaining ⏸ items gate LIVE operation, not the build. |
+
+Verification this pass: `bash scripts/build-gate.sh` re-run → PASS (doc-only change, verified anyway).
+
 ## Queued for review / follow-ups
 
 - Codex re-ratification of the full bundle (agent.md §10 state 2) + founder Q1/Q2/Q4/Q5/Q6 approvals; agent.md status flip is founder-gated (not touched).
