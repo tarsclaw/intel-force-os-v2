@@ -204,10 +204,11 @@ SQL
     _ss_input_type="brief_id_fallback_free_text"
     bash "$(_ss_bin parse-brief.sh)" --description "${DESCRIPTION_ARG}" > "${BRIEF_JSON}"
   else
+    # Audit trail: autosend_escalate writes the gating_failed decision_log row.
+    # No validate_gate_a_fail action row here — that action_type is reserved
+    # for Gate A itself (deviation 4, sourcing-scout-summary.md).
     autosend_escalate "ESC_BRIEF_AMBIGUITY" "agent=sourcing-scout" \
       "tenant=${CTX_TENANT_SLUG}" "brief=${BRIEF_SLUG}" "reason=brief_id_not_found_in_entities"
-    hh_decision_action "validate_gate_a_fail" "brief:${BRIEF_SLUG}" "brief-${BRIEF_SLUG}" \
-      "ESC_BRIEF_AMBIGUITY; brief_id_not_found; brief_id:${BRIEF_ID_ARG}" || true
     exit 1
   fi
 else
@@ -217,10 +218,10 @@ fi
 
 _ss_key_dims="$(jq -r '.key_dims // 0' "${BRIEF_JSON}")"
 if [[ "${_ss_key_dims}" -lt 3 ]]; then
+  # Audit trail via autosend_escalate only; validate_gate_a_fail is reserved
+  # for Gate A itself (deviation 4, sourcing-scout-summary.md).
   autosend_escalate "ESC_BRIEF_AMBIGUITY" "agent=sourcing-scout" \
     "tenant=${CTX_TENANT_SLUG}" "brief=${BRIEF_SLUG}" "key_dims=${_ss_key_dims}"
-  hh_decision_action "validate_gate_a_fail" "brief:${BRIEF_SLUG}" "dims-${BRIEF_SLUG}" \
-    "ESC_BRIEF_AMBIGUITY; key_dims:${_ss_key_dims}; required_min:3" || true
   exit 1
 fi
 hh_decision_output "brief_ingested" "brief:${BRIEF_SLUG}" \
