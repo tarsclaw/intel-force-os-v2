@@ -102,12 +102,18 @@ while IFS= read -r line; do
   fi
 done < "${TRANSCRIPT}"
 
+# Privacy (agent.md §7 tone rules): participant emails never enter the
+# narrative — render local parts only ("jane.doe" not "jane.doe@x.test").
+# Any third-party email inside an utterance still surfaces and is caught by
+# the Gate A PII check (that is outside-boundary PII; participants are not).
+PARTICIPANTS_DISPLAY="$(printf '%s' "${PARTICIPANTS}" | tr ',' '\n' | sed -E 's/@.*$//' | paste -sd ', ' -)"
+
 [[ -z "${OBS}" ]] && OBS="- (no taxonomy-cued observations in this transcript)"$'\n'
 [[ -z "${TONE}" ]] && TONE="- (no explicit tone signals detected)"$'\n'
 [[ -z "${QUESTIONS}" ]] && QUESTIONS="- (none captured)"$'\n'
 
 BODY="# Tacit notes — ${CONTEXT:-call ${CALL_ID}}
-**Date:** ${DATE}  **Duration:** ${DURATION:-?} min  **Participants:** ${PARTICIPANTS:-unknown}
+**Date:** ${DATE}  **Duration:** ${DURATION:-?} min  **Participants:** ${PARTICIPANTS_DISPLAY:-unknown}
 
 ## Things observed that don't fit a structured field
 
