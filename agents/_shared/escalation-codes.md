@@ -393,10 +393,10 @@ Source: v1.0 agent.md draft specs across Diagnostic, Janitor, Scribe, Sourcing S
 
 #### `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE`
 - **Severity:** warn
-- **Trigger:** Field extraction (Janitor backfill / Scribe call-summary / Sourcing CV-parse) returned confidence below per-field threshold (default 0.7); writing the field would risk bad data
+- **Trigger:** EITHER (a) per-field: field extraction (Janitor backfill / Scribe call-summary / Sourcing CV-parse) returned confidence below per-field threshold (default 0.7); writing the field would risk bad data — OR (b) aggregate (Scribe Gate A field-count, per spec-002 §5): a call yields fewer than 3 extracted fields at ≥0.6 confidence, so the per-call structured-write contract cannot be met. _(Amended 2026-06-10: aggregate trigger added — spec-002 §4 Step 5/§5 mandates it for the W6 Scribe build; the catalogue predated the spec.)_
 - **Phase:** `gating_failed`
 - **Routing:** `operator_chat_id`
-- **Payload fields:** `entity_type`, `field_name`, `extracted_value`, `confidence_score`, `source` (e.g. `companies-house`, `linkedin`, `cv-pdf`), `agent_name`
+- **Payload fields:** per-field form: `entity_type`, `field_name`, `extracted_value`, `confidence_score`, `source` (e.g. `companies-house`, `linkedin`, `cv-pdf`), `agent_name`. Aggregate form: `entity_type`, `fields_extracted_count`, `confidence_floor` (0.6), `required_minimum`, `agent_name`.
 
 #### `ESC_CANDIDATE_DATA_INCOMPLETE`
 - **Severity:** warn
