@@ -60,6 +60,7 @@ Test idiom mirrors Cash Conductor: registered throwaway tenant (`tenants` FK; DE
 8. **Step 11 tier nuance:** agent.md says "yellow-tier notification" on Gate-B miss, but `operator_notify_telegram` is registered GREEN in autosend-policy.yaml and tiers are policy-owned. The miss state + ≤200-char summary ride in the payload (`gate_b_state:missed`); changing tier-by-content would need a policy change (substrate frozen).
 9. **Fixed a latent skeleton bug:** bare `*2*` glob step-matching mis-matches `"12"` (report-only mode would have run Step 2). Replaced with word-boundary matching. (Same latent pattern exists in CC's cycle.sh — flagged for the orchestrator, not touched per the surgical-changes rule.)
 10. **Marker names follow spec-001 §3** (`janitor_scan`, `janitor_tacit_note_harvest`), superseding skeleton-era names; fixture YAMLs + tools.yaml comments/headers aligned (the Scout-review stale-comment finding pre-empted).
+11. **Step 2 live pull covers 3 of agent.md §4's 6 entity types this slice.** The CLI ships `list-candidates` / `list-contacts` / `list-clients` only; placements, opportunities and contractors have no list command yet, so on the live path they scan via the Postgres `entities` cache only (rows arrive via seeds today, sync later). The cache-count surface already covers all 6 types, so Steps 3-6 are unaffected; the remaining list commands are a post-creds CLI extension. (Registered at the round-2 fix pass per reviewer MINOR 5.)
 
 ## Honest-scope notes (spec-001 §8)
 
@@ -77,6 +78,28 @@ Test idiom mirrors Cash Conductor: registered throwaway tenant (`tenants` FK; DE
 - `agents/recruitment/janitor/sql/{field-completeness.sql, day30-report-metrics.sql}` — new
 - `packages/mcp-connectors/bullhorn/{src/cli.ts (new), src/clients.ts (+updateClient), src/index.ts, tsup.config.ts, tests/capabilities.test.ts}` — owned this cycle
 - `scripts/run-janitor-{dedup,gate-a,report}-test.sh` — new
+
+## Round-2 fix pass (2026-06-10; FIX sub-agent, post-rebase onto `a78a1e2`)
+
+Combined pass over the review-janitor.md findings (reviewer MINORs 1-5 + Codex round-1 findings 1-4) plus the agreed `@ifos/bullhorn` CLI contract (orchestrator ruling in review-scribe.md). Three fix commits, every item mapped:
+
+| Item | Fix | Where |
+|---|---|---|
+| Codex 1 — Gate-A-vs-band contradiction | ONE model everywhere: spec-001 band→action table stated in §1, §4 Steps 3-4 (full table replaces the old "discard <0.85 / discard recent" lines), §5; Gate A G2/G3 explicitly scoped to AUTO-MERGE proposals only (defence-in-depth, not the band mechanism) | `agent.md` (docs commit) |
+| Codex 2 — ESC_DUPLICATE_DETECTED catalogue mismatch | agent.md §6 row aligned to the amended catalogue entry; emitted payloads at cycle.sh Steps 3-4 AND validate.sh G3 now carry `entity_a_id` / `entity_b_id` / `entity_type` / `confidence_score` / `match_basis` / `hold_reason` (`review_band`\|`recency_hold_90d`; matcher verbatim reason in `hold_detail`); fixtures 02/99 + dedup/report suite assertions updated | `agent.md` + `cycle.sh` + `validate.sh` + fixtures + suites |
+| Codex 3 — hh_decision_* coverage | Consolidated audit model documented in agent.md §4 ("Audit coverage" block): Step 1 audits via `bullhorn_auth_refresh` output row + `ESC_BULLHORN_AUTH` gating row; Steps 3-4 audit at Step 9 action rows / per-pair ESC hold rows / `dropped:<N>` tallies in the dedup-pass markers. Verified no held or dropped outcome is traceless → doc-only, no new rows needed | `agent.md` |
+| Codex 4 — §4 capability citations | Steps 3-4 cite `bin/dedup-pairs.sh` via the NEW `janitor_dedup_matcher` tools.yaml declaration; Step 6 cites `companies_house_search` + `companies_house_get_company` with the connector-internal 7d cache + shared 600/5min budget | `agent.md` + `tools.yaml` |
+| MINOR 1 — `grep -c \|\| echo 0` newline bug | Both sites → awk END-counts (`awk 'END{print NR}'` at the enrichable-queue count; `awk '/Review-band/{n++} END{print n+0}'` in the Step 11 message) | `cycle.sh` |
+| MINOR 2 — fixture-5xx coercion on live path | Retry coercion scoped to `IFOS_JANITOR_FIXTURE_WRITE_RESULT=5xx`; a live 4xx-on-retry keeps its own class | `cycle.sh` Step 9 |
+| MINOR 3 — fixture notify tier | 02/99 `operator_notification.tier` yellow → green (policy-owned per deviation 8; miss state rides in `gate_b_state`) | fixtures 02/99 |
+| MINOR 4 — `janitor_last_run` on report-only | Stamp gated on `_step_planned 2` — `--report-only` no longer narrows the next live scan window | `cycle.sh` Step 12 |
+| MINOR 5 — Step 2 entity-type coverage | Registered as deviation 11 above | this file |
+| CLI contract 1 — `refresh` token_state | `'refreshed'\|'fresh'` (fresh = no rotation needed per `shouldRefresh`; honest, no wasted rotation) | `@ifos/bullhorn` cli.ts |
+| CLI contract 2 — `update-entity` | NEW generic command (Candidate\|ClientContact\|JobOrder\|Placement) → `{ok, updated, entity_type, id}`; update-candidate/update-client kept | cli.ts |
+| CLI contract 3 — `create-note` extension | `--person-id` OR `--entity-type`+`--entity-id`; `--body-file` (full body); optional `--title` (prepended line — Note has no subject field); non-Person targets → structured `{ok:false, reason:"unsupported_entity"}`, never faked | cli.ts |
+| CLI contract 4 — test coverage | cli.ts refactored around exported `runCommand(argv, fetchFn)` (entry-point behaviour unchanged); `tests/cli.test.ts` 21 cases, happy + failure per new/changed path; `tsc --noEmit` clean; vitest **52/52** (was 31/31); zero live API calls | cli.ts + tests |
+
+Verification this pass: rebase onto `a78a1e2` clean → `bash scripts/build-gate.sh` **PASS** pre- and post-fix; all 3 janitor DB suites re-run green after the payload-shape change; shellcheck clean on every touched script; `node dist/cli.js` smoke (check-auth / unknown-command / unsupported_entity) confirms stdout + exit-code contracts unchanged.
 
 ## Queued for review / follow-ups
 
