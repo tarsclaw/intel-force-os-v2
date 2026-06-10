@@ -1,7 +1,9 @@
 # Sourcing Scout agent — tools.yaml (capability declarations)
 #
-# Status: Proposed (W5 Day-33 SKELETON; W9 build slice may add per-tenant
-#         overrides + cost ceilings + per-step authz).
+# Status: LIVE (W9 build slice, spec-003) — capability set implemented by the
+#         live cycle.sh; per-tenant overrides + cost ceilings + per-step authz
+#         remain backlog. The agent.md §10 lifecycle status (Proposed) is
+#         founder-gated and separate from this bundle-internal build state.
 # Reading order: agent.md §1 (output contract) + §2 (invocation surface) +
 #         §4 (workflow + capability dependencies) first.
 #
@@ -113,9 +115,9 @@ capabilities:
   # ────────────────────────────────────────────────────────────────────────
 
   # NOTE: linkedin_* capabilities deliberately NOT declared at v1.0. cycle.sh
-  # Step 4 emits "linkedin_search_skipped" audit row instead. v1.1+ supplement
-  # adds the chosen vendor's capability set when commercial signup + MCP
-  # package land.
+  # Step 4 emits a "linkedin_query" no-op audit row ("results:0; no_op")
+  # instead. v1.1+ supplement adds the chosen vendor's capability set when
+  # commercial signup + MCP package land.
 
   # ────────────────────────────────────────────────────────────────────────
   # Voice classifier (Step 9 per-candidate rationale voice scoring)
