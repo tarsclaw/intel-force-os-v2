@@ -110,7 +110,11 @@ expected:
     - phase: action
       action_type: concierge_approval_routed   # orange-adjacent metadata
     - phase: action
-      action_type: gmail_outlook_send_to_candidate   # orange tier post-approval
+      action_type: gmail_outlook_send_to_candidate   # orange tier post-approval — POLICY-AUTHORIZATION record, emitted pre-transport (gating fused with row emission in hook-helpers orange path)
+    - phase: output
+      output_type: send_attempt    # pre-transport attempt row (transport_not_yet_executed)
+    - phase: output
+      output_type: send_confirmed  # provider-confirmed transport success — the only marker that means an email actually left
     - phase: action
       action_type: bullhorn_activity_log_write   # green tier (spec-004 §3 marker name)
     - phase: action

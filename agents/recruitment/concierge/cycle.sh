@@ -649,12 +649,32 @@ fi
 # Transport: MS Graph / Gmail per tenant config — OAuth ABSENT today, so the
 # live send path is gated; IFOS_FORCE_SEND_RESULT=sent proves the chain in
 # fixtures. ESC_SEND_FAIL (warn) on 4xx/5xx after 1 retry.
-# KNOWN GAP (review finding 5, doc-only today): the orange
-# gmail_outlook_send_to_candidate row is emitted BEFORE the transport
-# executes (the only reachable success path today is the forced fixture one,
-# so the row is honest). When the live email connector lands, this MUST move
-# to emit-on-confirmed-send — or emit a correction row on transport failure —
-# so the orange audit row never claims a send that did not happen.
+#
+# Orange-row ordering (Codex 20260610T154203Z-26445 finding 3, incorporated
+# post-run): the orange gmail_outlook_send_to_candidate row is emitted by
+# hh_decision_action, whose orange path FUSES row emission with the gating
+# (policy lookup → tenant red-elevation block → orange row (approval_pending)
+# → ESC_AUTOSEND_NEEDS_REVIEW → approval await) inside the SHARED helper
+# (agents/_shared/hook-helpers.sh — Cash Conductor + every agent). Emitting
+# the orange row only after transport would mean either editing the shared
+# helper or running the tenant red-elevation policy gate AFTER the email
+# left — both dishonest/worse. Closest honest variant implemented instead:
+# the orange row stays pre-transport as the POLICY-AUTHORIZATION record, and
+# transport truth is carried by three output rows:
+#   send_attempt   — pre-transport (transport_not_yet_executed)
+#   send_confirmed — post-transport provider success; the ONLY marker that
+#                    means an email actually left
+#   send_failed    — post-transport failure CORRECTION row: explicitly states
+#                    the orange row did NOT result in a delivered email
+# Invariants: success = exactly 1 orange row + send_confirmed;
+# degraded/timeout/drafts-only = 0 orange rows (unchanged); transport-failure
+# = 1 orange row + send_failed correction + ESC_SEND_FAIL (documented
+# deviation from "failed = 0 orange rows" — the gate fusion makes 0
+# impossible without bypassing the helper). Anti-dup consequence (deliberate):
+# Step 2 / validate.sh G5 read the orange action row as "completed send", so
+# a post-failure webhook re-fire within 24h is suppressed as true-duplicate —
+# recovery is manual per ESC_SEND_FAIL (draft retained in vault), never
+# automated re-send spam.
 # ────────────────────────────────────────────────────────────────────────
 
 SEND_DONE=0
@@ -685,7 +705,11 @@ if _step_on 12 && [[ "${SEND_APPROVED}" -eq 1 ]]; then
 
   if hh_decision_action "gmail_outlook_send_to_candidate" "candidate:${CANDIDATE_ID}" \
        "${PAYLOAD_HASH}" \
-       "event:${EVENT_TYPE}; recipient:${RECIPIENT}; channel:${CTX_EMAIL_CHANNEL:-microsoft-graph}; approval_id:${APPROVAL_ID}"; then
+       "event:${EVENT_TYPE}; recipient:${RECIPIENT}; channel:${CTX_EMAIL_CHANNEL:-microsoft-graph}; approval_id:${APPROVAL_ID}; policy_authorization_pre_transport"; then
+    # Pre-transport attempt row: the orange row above is authorization, not
+    # delivery — this marker records that transport is about to be attempted.
+    hh_decision_output "send_attempt" "${DRAFT_PATH}" \
+      "candidate:${CANDIDATE_ID}:${EVENT_TYPE}; recipient:${RECIPIENT}; channel:${CTX_EMAIL_CHANNEL:-microsoft-graph}; transport:${_transport}; approval_id:${APPROVAL_ID}; transport_not_yet_executed"
     _send_ok=0
     case "${_transport}" in
       forced) _send_ok=1 ;;   # fixture-proved chain; no live transport exists
@@ -705,12 +729,20 @@ if _step_on 12 && [[ "${SEND_APPROVED}" -eq 1 ]]; then
         done ;;
     esac
     if [[ "${_send_ok}" -eq 1 ]]; then
+      # Provider-confirmed transport success — the ONLY marker that means an
+      # email actually left (the orange row alone is policy authorization).
+      hh_decision_output "send_confirmed" "${DRAFT_PATH}" \
+        "candidate:${CANDIDATE_ID}:${EVENT_TYPE}; recipient:${RECIPIENT}; channel:${CTX_EMAIL_CHANNEL:-microsoft-graph}; transport:${_transport}; provider_confirmed"
       SEND_DONE=1
       SENDS_MADE=$((SENDS_MADE + 1))
     else
       autosend_escalate "ESC_SEND_FAIL" "agent=concierge" \
         "tenant=${CTX_TENANT_SLUG}" "candidate=${CANDIDATE_ID}" \
         "channel=${CTX_EMAIL_CHANNEL:-microsoft-graph}" "retries=1"
+      # CORRECTION row: the pre-transport orange gmail_outlook_send_to_candidate
+      # row did NOT result in a delivered email.
+      hh_decision_output "send_failed" "${DRAFT_PATH}" \
+        "candidate:${CANDIDATE_ID}:${EVENT_TYPE}; CORRECTION: orange row ${PAYLOAD_HASH} did NOT result in a delivered email; transport failed after 1 retry; ESC_SEND_FAIL emitted; manual send required"
       _close_run "send_failed"
     fi
   else

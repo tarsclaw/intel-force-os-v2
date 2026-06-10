@@ -223,7 +223,7 @@ capabilities:
 # 2026-06-10 against the policy file):
 #   concierge_email_draft              yellow              [Concierge §3 output contract; emitted Step 8]
 #   concierge_approval_routed          green               [R19 registration; emitted Step 11]
-#   gmail_outlook_send_to_candidate    orange              [TRANSPORT row; emitted Step 12 post-approval]
+#   gmail_outlook_send_to_candidate    orange              [POLICY-AUTHORIZATION row; emitted Step 12 post-approval PRE-transport (gating fused with emission in hook-helpers); transport truth = send_attempt/send_confirmed/send_failed output rows]
 #   bullhorn_note_customer_visible     orange              [canonical orange; alt channel — not yet emitted in v1.0]
 #   bullhorn_activity_log_write        green               [Codex Fbis-R1 closure; emitted Step 13]
 #   concierge_send_complete            green               [emitted Step 14]
