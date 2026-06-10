@@ -35,3 +35,6 @@ build-gate **PASS** (shellcheck ×43; 4 connector suites; 9/9 DB suites) · extr
 
 ## Disposition
 Fix pass on the Scribe branch (F1/F2/F4-F8 + Codex 1-4 + shim reconciliation to the agreed contract) + Janitor fix pass extends the CLI per the contract. Then targeted re-review of F1/F2 + Codex round 2 on both.
+
+## Closure (2026-06-10)
+Round-1 **FAIL** → combined fix pass (`f107268`/`615460b`/`2fcdff8`/`91bc167`, rebased `6ad3503`..`dff9f4c`) → targeted re-review **PASS** (F1-F10 + Codex R1 1-4 all CLOSED; F6 alternative judged strictly better — `recent_edit` is append-only for `ifos_app`, insert moved post-Step-9-settle). Codex trail **4→3→4**: R2 fixed on-branch (`982f76d`/`611f84f` — including the REAL functional bug R2-1: hard-coded ≥3 Gate-A minimum vs only 2 schema-writable Contact fields meant every legitimate Contact call would fail; now per-entity minimum w/ fixtures); final run (session `20260610T154432Z-44557`) REJECTED:4 — doc-precision items incorporated post-run (`f4d98d4`); loop closed at the ≤2-round ceiling. Meta-finding queued on main: build-gate silently skips DB suites when `IFOS_DB_URL` unreachable. **PROPOSED FOR FOUNDER MERGE @ `f4d98d4`.**
