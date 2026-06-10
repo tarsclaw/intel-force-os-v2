@@ -249,8 +249,11 @@ fi
 # ────────────────────────────────────────────────────────────────────────
 # Step 2 — Bullhorn auth refresh (session-level; via bin/bh-bridge.sh)
 # Reference: agent.md §4 Step 2; 2 retries then ESC_BULLHORN_AUTH (blocking;
-# operator + ifos_oncall). Bridge-unavailable (exit 3) is recorded honestly —
-# Gate A G7 then blocks Bullhorn writes (no creds → no writes; never faked).
+# operator + ifos_oncall). The shim runs the NETWORK-FREE check-auth probe
+# before refreshing (agreed CLI contract): creds/token not provisioned →
+# exit 3 'unavailable' (recorded honestly, NO ESC — Gate A G7 then blocks
+# Bullhorn writes; no creds → no writes; never faked); only a genuine
+# refresh failure with provisioned creds reaches the ESC after retries.
 # ────────────────────────────────────────────────────────────────────────
 
 BH_TOKEN_STATE="failed"
@@ -585,8 +588,8 @@ SQL
 
   if [[ -n "${bh_type}" ]]; then
     local _prc=0
-    bash "${_BIN}/bh-bridge.sh" update-entity --type "${bh_type}" --id "${bullhorn_id}" \
-      --fields "${field_map}" >/dev/null 2>&1 || _prc=$?
+    bash "${_BIN}/bh-bridge.sh" update-entity --entity-type "${bh_type}" --id "${bullhorn_id}" \
+      --patch "${field_map}" >/dev/null 2>&1 || _prc=$?
     case "${_prc}" in
       0) push_state="pushed" ;;
       3) push_state="deferred_bridge_unavailable" ;;
@@ -614,31 +617,35 @@ SQL
     "call:${call_id}; fields_written:${valid_count}; bullhorn_push:${push_state}; ingest_mode:${ingest_mode}" || true
   FIELD_WRITES=$((FIELD_WRITES + 1))
 
-  # Gate B edit-rate basis (spec-002 §3 downstream contract): one recent_edit
-  # row per field write, resolution='deferred' until a consultant reviews.
-  if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
-    _psql_t --set=et="${entity_type}" --set=eid="${bullhorn_id}" --set=fm="${field_map}" >/dev/null 2>&1 <<'SQL' || true
-BEGIN;
-SET LOCAL app.current_tenant = :'tenant';
-INSERT INTO recent_edit (tenant_slug, agent_name, action_type, target_entity_type,
-                         target_entity_id, original_text, resolution, resolved_at)
-VALUES (:'tenant', 'scribe', 'bullhorn_scribe_field_write', :'et', :'eid', :'fm', 'deferred', now());
-COMMIT;
-SQL
-  fi
+  # NOTE (review F6): the Gate B recent_edit 'deferred' row for this field
+  # write is inserted AFTER Step 9 settles (below) — recent_edit is
+  # append-only for ifos_app (SELECT+INSERT grants only), so a Step-9-fail
+  # rollback could never delete an already-written row. Deferring the insert
+  # until the write outcome is final keeps the Gate B edit-rate denominator
+  # honest: a rolled-back write never enters it.
 
   # ── Step 9 — Bullhorn note attach (yellow); rollback Step 8 on hard fail ─
-  local _nrc=0
+  local _nrc=0 note_fallback=""
   if [[ -n "${bh_type}" ]]; then
     bash "${_BIN}/bh-bridge.sh" create-note --entity-type "${bh_type}" --entity-id "${bullhorn_id}" \
       --body-file "${note_file_phys}" --title "Scribe tacit notes — ${call_id}" >/dev/null 2>&1 || _nrc=$?
+    # Agreed-contract unsupported_entity (shim exit 5): Bullhorn cannot attach
+    # a Note to this entity type. Person-scoped fallback when the resolved
+    # entity IS a person (candidate/contact — their bullhorn_id IS the person
+    # id); otherwise the case below defers honestly. Never faked.
+    if [[ "${_nrc}" -eq 5 && ( "${entity_type}" == "candidate" || "${entity_type}" == "contact" ) ]]; then
+      _nrc=0
+      bash "${_BIN}/bh-bridge.sh" create-note --person-id "${bullhorn_id}" \
+        --body-file "${note_file_phys}" --title "Scribe tacit notes — ${call_id}" >/dev/null 2>&1 || _nrc=$?
+      [[ "${_nrc}" -eq 0 ]] && note_fallback="person_scoped"
+    fi
   else
     _nrc=4   # opportunity: cache-only entity, no Bullhorn Note target at v1.0
   fi
   case "${_nrc}" in
     0)
       hh_decision_action "bullhorn_note_append_summary" "${entity_type}:${bullhorn_id}" "${body_sha}" \
-        "call:${call_id}; vault_path:${vault_path_logical}; note_payload_hash:${body_sha}; words:${words}" || true
+        "call:${call_id}; vault_path:${vault_path_logical}; note_payload_hash:${body_sha}; words:${words}${note_fallback:+; fallback:${note_fallback}}" || true
       NOTE_ATTACHES=$((NOTE_ATTACHES + 1)) ;;
     3)
       # Bridge unavailable: NO Bullhorn state changed → no yellow action row
@@ -649,6 +656,12 @@ SQL
     4)
       hh_decision_output "note_attach_deferred" "${entity_type}:${bullhorn_id}" \
         "call:${call_id}; vault_path:${vault_path_logical}; reason:opportunity_cache_only_no_note_endpoint" ;;
+    5)
+      # unsupported_entity with no person-resolution path (brief/placement):
+      # honest defer — vault note stays canonical; a consultant attaches
+      # manually until the CLI supports the entity type.
+      hh_decision_output "note_attach_deferred" "${entity_type}:${bullhorn_id}" \
+        "call:${call_id}; vault_path:${vault_path_logical}; reason:unsupported_entity" ;;
     *)
       # Note attach hard-failed → best-effort rollback of Step 8 (agent.md §4
       # Step 9 + §9 Q5 documented mid-state risk).
@@ -664,32 +677,35 @@ SQL
       if [[ -n "${bh_type}" && -n "${prior_data}" ]]; then
         local prior_subset
         prior_subset="$(jq -c --argjson fm "${field_map}" '. as $p | $fm | keys | map({(.): ($p[.] // null)}) | add' <<<"${prior_data}" 2>/dev/null || echo '{}')"
-        bash "${_BIN}/bh-bridge.sh" update-entity --type "${bh_type}" --id "${bullhorn_id}" \
-          --fields "${prior_subset}" >/dev/null 2>&1 || true
+        bash "${_BIN}/bh-bridge.sh" update-entity --entity-type "${bh_type}" --id "${bullhorn_id}" \
+          --patch "${prior_subset}" >/dev/null 2>&1 || true
       fi
-      # Review F6: the Step-8 recent_edit 'deferred' row belongs to a write we
-      # just rolled back — remove it so Gate B's edit-rate denominator isn't
-      # inflated by a write that never landed.
-      if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
-        _psql_t --set=et="${entity_type}" --set=eid="${bullhorn_id}" --set=fm="${field_map}" >/dev/null 2>&1 <<'SQL' || true
-BEGIN;
-SET LOCAL app.current_tenant = :'tenant';
-DELETE FROM recent_edit
-WHERE id = (SELECT id FROM recent_edit
-            WHERE tenant_slug = :'tenant' AND agent_name = 'scribe'
-              AND action_type = 'bullhorn_scribe_field_write'
-              AND target_entity_type = :'et' AND target_entity_id = :'eid'
-              AND resolution = 'deferred' AND original_text = :'fm'
-            ORDER BY id DESC LIMIT 1);
-COMMIT;
-SQL
-      fi
+      # Review F6: no recent_edit row was written yet (the insert is deferred
+      # to after this case settles), so the rolled-back write leaves NO trace
+      # in Gate B's edit-rate denominator.
       autosend_escalate "ESC_BULLHORN_WRITE_FAIL" "agent=scribe" \
         "tenant=${CTX_TENANT_SLUG}" "call=${call_id}" "entity=${entity_type}:${bullhorn_id}" \
         "surface=note_attach" "rollback=step8_reversed_best_effort"
       rm -f "${fields_file}" "${proposal}" 2>/dev/null || true
       return 1 ;;
   esac
+
+  # Gate B edit-rate basis (spec-002 §3 downstream contract): one recent_edit
+  # row per LANDED field write, resolution='deferred' until a consultant
+  # reviews. Written only NOW — after Step 9 settled — because recent_edit is
+  # append-only for ifos_app (SELECT+INSERT grants only) so a rollback could
+  # never remove an earlier row; the Step-9 hard-fail path above returned
+  # before reaching this insert (review F6).
+  if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+    _psql_t --set=et="${entity_type}" --set=eid="${bullhorn_id}" --set=fm="${field_map}" >/dev/null 2>&1 <<'SQL' || true
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+INSERT INTO recent_edit (tenant_slug, agent_name, action_type, target_entity_type,
+                         target_entity_id, original_text, resolution, resolved_at)
+VALUES (:'tenant', 'scribe', 'bullhorn_scribe_field_write', :'et', :'eid', :'fm', 'deferred', now());
+COMMIT;
+SQL
+  fi
 
   rm -f "${fields_file}" "${proposal}" 2>/dev/null || true
 

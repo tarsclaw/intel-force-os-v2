@@ -186,6 +186,97 @@ else
   _fail "vault tacit-note missing or wrong mode"; fails=$((fails + 1))
 fi
 
+# ── 3b. Bridge-contract paths (agreed @ifos/bullhorn CLI contract;
+#        review-scribe.md orchestrator ruling — proven WITHOUT the live CLI) ─
+BB="${CTX_AGENT_DIR}/bin/bh-bridge.sh"
+
+# Shim: entity-scoped create-note hitting unsupported_entity → exit 5 + reason.
+OUT="$(BH_BRIDGE_TEST_MODE=note-unsupported bash "${BB}" create-note \
+  --entity-type JobOrder --entity-id 42 --body-file /dev/null 2>/dev/null)" && rc=0 || rc=$?
+if [[ "${rc}" -eq 5 && "$(jq -r '.reason // ""' <<<"${OUT}")" == "unsupported_entity" ]]; then
+  _ok "shim: unsupported_entity → exit 5 with contract reason"
+else
+  _fail "shim: expected exit 5 + reason unsupported_entity, got exit ${rc}: ${OUT}"; fails=$((fails + 1))
+fi
+
+# Shim: person-scoped create-note succeeds under the same mode (the fallback leg).
+if BH_BRIDGE_TEST_MODE=note-unsupported bash "${BB}" create-note \
+  --person-id 42 --body-file /dev/null >/dev/null 2>&1; then
+  _ok "shim: person-scoped create-note succeeds (fallback leg)"
+else
+  _fail "shim: person-scoped create-note failed under note-unsupported mode"; fails=$((fails + 1))
+fi
+
+# Shim: numeric-id guard (agreed contract: ids numeric) → usage error exit 2.
+BH_BRIDGE_TEST_MODE=ok bash "${BB}" update-entity --entity-type Candidate \
+  --id not-a-number --patch '{}' >/dev/null 2>&1 && rc=0 || rc=$?
+if [[ "${rc}" -eq 2 ]]; then
+  _ok "shim: non-numeric --id rejected (exit 2)"
+else
+  _fail "shim: expected exit 2 for non-numeric id, got ${rc}"; fails=$((fails + 1))
+fi
+
+# cycle.sh Step 9: unsupported_entity on a person entity → person-resolution
+# fallback succeeds; yellow row records fallback:person_scoped.
+if BH_BRIDGE_TEST_MODE=note-unsupported bash "${CTX_AGENT_DIR}/cycle.sh" \
+  --mode replay --call-id meeting-001 >/dev/null 2>&1; then
+  _ok "cycle.sh replay (note-unsupported): exit 0 via person fallback"
+else
+  _fail "cycle.sh replay (note-unsupported): non-zero exit"; fails=$((fails + 1))
+fi
+FB="$(appq <<'SQL' 2>/dev/null | tail -1
+BEGIN; SET LOCAL app.current_tenant = :'tenant';
+SELECT count(*) FROM decision_log WHERE tenant_slug=:'tenant' AND phase='action'
+  AND payload->>'action_type'='bullhorn_note_append_summary'
+  AND payload->>'payload_preview' LIKE '%fallback:person_scoped%';
+COMMIT;
+SQL
+)"
+if [[ "${FB:-0}" -ge 1 ]]; then
+  _ok "cycle.sh: bullhorn_note_append_summary row carries fallback:person_scoped"
+else
+  _fail "cycle.sh: no fallback:person_scoped note row"; fails=$((fails + 1))
+fi
+
+# cycle.sh Step 9 hard fail → Step-8 rollback INCLUDING the recent_edit
+# 'deferred' row (review F6: Gate B denominator not inflated by a rolled-back
+# write). Deferred count must be unchanged across the failed run.
+RE_BEFORE="$(appq <<'SQL' 2>/dev/null | tail -1
+BEGIN; SET LOCAL app.current_tenant = :'tenant';
+SELECT count(*) FROM recent_edit WHERE tenant_slug=:'tenant' AND agent_name='scribe' AND resolution='deferred';
+COMMIT;
+SQL
+)"
+BH_BRIDGE_TEST_MODE=note-fail bash "${CTX_AGENT_DIR}/cycle.sh" \
+  --mode replay --call-id meeting-001 >/dev/null 2>&1 && rc=0 || rc=$?
+if [[ "${rc}" -eq 1 ]]; then
+  _ok "cycle.sh replay (note-fail): exit 1 (note attach hard-failed)"
+else
+  _fail "cycle.sh replay (note-fail): expected exit 1, got ${rc}"; fails=$((fails + 1))
+fi
+RE_AFTER="$(appq <<'SQL' 2>/dev/null | tail -1
+BEGIN; SET LOCAL app.current_tenant = :'tenant';
+SELECT count(*) FROM recent_edit WHERE tenant_slug=:'tenant' AND agent_name='scribe' AND resolution='deferred';
+COMMIT;
+SQL
+)"
+if [[ "${RE_AFTER:-x}" == "${RE_BEFORE:-y}" ]]; then
+  _ok "rollback: recent_edit deferred count unchanged (${RE_BEFORE} → ${RE_AFTER}; F6)"
+else
+  _fail "rollback: recent_edit deferred count ${RE_BEFORE} → ${RE_AFTER} (F6 row not removed)"; fails=$((fails + 1))
+fi
+ESC9="$(appq <<'SQL' 2>/dev/null | tail -1
+BEGIN; SET LOCAL app.current_tenant = :'tenant';
+SELECT outcome FROM decision_log WHERE tenant_slug=:'tenant' AND phase='gating_failed' ORDER BY id DESC LIMIT 1;
+COMMIT;
+SQL
+)"
+if [[ "${ESC9}" == "ESC_BULLHORN_WRITE_FAIL" ]]; then
+  _ok "rollback: ESC_BULLHORN_WRITE_FAIL routed for the note-attach failure"
+else
+  _fail "rollback: expected ESC_BULLHORN_WRITE_FAIL, got '${ESC9}'"; fails=$((fails + 1))
+fi
+
 # ── 4. <3-fields Gate A fail (sparse transcript → ESC + gate row + exit 1) ─
 cat > "${TMPD}/transcript-sparse.txt" <<'EOF'
 [00:05] founder@acme.test: Hi Jane, quick one.

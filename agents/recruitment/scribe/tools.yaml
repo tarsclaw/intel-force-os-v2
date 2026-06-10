@@ -10,8 +10,13 @@
 # BRIDGE NOTE (parallel-conflict rule): every @ifos/bullhorn invocation routes
 # through agents/recruitment/scribe/bin/bh-bridge.sh — the single
 # reconciliation point for the CLI bridge the Janitor build slice owns under
-# packages/mcp-connectors/bullhorn. The shim header documents the exact CLI
-# command surface it expects (refresh / update-entity / create-note).
+# packages/mcp-connectors/bullhorn. The shim conforms to the AGREED CLI
+# contract (orchestrator ruling, review-scribe.md): check-auth (network-free
+# provisioned-probe) / refresh ({ok, oauth_expires_at_ms, token_state}) /
+# update-entity (--entity-type --id --patch) / create-note (--person-id |
+# --entity-type+--entity-id, --body-file, --title; unsupported_entity →
+# person-resolution fallback or honest defer). IFOS_TOKEN_DIR is the
+# per-tenant token-bundle override; ids are numeric.
 #
 # Per ADR-003 agent-bundle pattern: tools.yaml declares every external
 # capability cycle.sh invokes + the autosend-policy action_type each
@@ -95,7 +100,7 @@ capabilities:
     cycle_step: 8
     state_changing: true
     # PENDING upstream: updateContact not yet exported by @ifos/bullhorn —
-    # bin/bh-bridge.sh `update-entity --type ClientContact` is the call site
+    # bin/bh-bridge.sh `update-entity --entity-type ClientContact` is the call site
     # to reconcile when the Janitor bridge lands
 
   - id: bullhorn_update_brief
@@ -105,7 +110,7 @@ capabilities:
     cycle_step: 8
     state_changing: true
     # PENDING upstream: updateBrief not yet exported by @ifos/bullhorn —
-    # bin/bh-bridge.sh `update-entity --type JobOrder` is the call site
+    # bin/bh-bridge.sh `update-entity --entity-type JobOrder` is the call site
 
   - id: bullhorn_update_placement
     package: "@ifos/bullhorn"
@@ -114,7 +119,7 @@ capabilities:
     cycle_step: 8
     state_changing: true
     # PENDING upstream: updatePlacement not yet exported by @ifos/bullhorn —
-    # bin/bh-bridge.sh `update-entity --type Placement` is the call site
+    # bin/bh-bridge.sh `update-entity --entity-type Placement` is the call site
 
   - id: bullhorn_create_note
     package: "@ifos/bullhorn"
@@ -244,8 +249,8 @@ failure_modes:
     surface: "validate.sh exit 1 with G4 or G5 failure"
     escalation: ESC_SCHEMA_VIOLATION   # warn; operator_chat_id per catalogue line 163
 
-  - condition: "Tacit-note word count >800 (validate.sh G7) — output-shape constraint"
-    surface: "validate.sh exit 1 with G7 failure"
+  - condition: "Tacit-note word count >800 (validate.sh G8) — output-shape constraint"
+    surface: "validate.sh exit 1 with G8 failure (G7 is the Bullhorn-auth check)"
     escalation: ESC_AGENT_OUTPUT_SHAPE   # warn; operator_chat_id per catalogue line 184
 
   - condition: "No resolvable target entity at Step 4 (transcript participants don't match any Bullhorn contact/candidate)"
