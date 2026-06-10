@@ -3,7 +3,7 @@
 _Orchestrator refreshes this at every milestone (method doc §5). Founder reads it for an
 at-a-glance view. `git log`/branch diffs are the ground truth._
 
-**Phase:** 0 (pre-fan-out). Gates built; specs authored; substrate-freeze + prove-one pending.
+**Phase:** 1 (PROVE-ONE). Substrate frozen 2026-06-10 (all action_types + schema fields verified; build-gate PASS on main; CV-Library creds re-verified SET). Sourcing Scout pilot in flight.
 
 | Agent | Spec | Phase | Status | Branch | Live-smoke capable now? |
 |---|---|---|---|---|---|
