@@ -23,3 +23,6 @@ build-gate **PASS** (shellcheck ×40; 4 connector suites; 9/9 DB suites) · gate
 
 ## Disposition
 Combined fix pass (Codex 1-4 + findings 1/3/4/6 + deviation-2 recording) → final Codex run → merge proposal. The `list-state-changes`/`list-nurture-due` connector extension + email-connector emit-on-confirmed are post-merge follow-ups tracked in STATUS.
+
+## Closure (2026-06-10)
+Review **PASS** → combined fix pass (`10dfc07`/`997226d`/`b5bf167`/`78ad4e0`: agent.md honesty + bh-bridge reconciliation to Janitor's actual CLI w/ 4 named connector extensions + catalogue-honest ESC usage) → final Codex run (session `20260610T154203Z-26445`) REJECTED:3 → incorporated post-run (`acc5805`/`aea658b`/`1f501dd`): both missing ESC table rows + the Step-12 transport-truth contract (orange row stays pre-transport as the policy-authorization record — `hh_decision_action`'s orange path FUSES gating with emission in frozen `_shared/`, so emit-after-send was impossible honestly; `send_attempt`/`send_confirmed`/`send_failed`-correction output rows carry delivery truth; smoke-verified: happy = exactly 1 orange + confirmed; drafts-only/timeout = 0 orange). Codex trail **4→3**, loop closed at the ≤2-round ceiling. **PROPOSED FOR FOUNDER MERGE @ `1f501dd`.**
