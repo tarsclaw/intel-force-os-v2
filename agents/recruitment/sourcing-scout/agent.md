@@ -105,7 +105,7 @@ LinkedIn current role, or other source-specific evidence.>
 
 Per `decision_log`: one row per source query + one row per candidate proposed + one final aggregate row.
 
-Voice-classified content: only the per-candidate match rationale (Step 9). Voice classifier ≥0.75 against tenant style — **hard-enforced WHEN a tenant voice corpus exists**. When the tenant `voice_corpus` is empty, a score cannot be honestly computed: the rationale is recorded as `unscored`/`no_corpus` (never a faked score) and `validate.sh` G4 warns-and-passes. **Warn-when-unscored is the accepted v1.0 gate behaviour** (spec-003 §5 "hard (warn-when-unscored)" + the Cash Conductor honesty precedent); the gate becomes hard-scoring automatically once a corpus is loaded. A rationale with a computed score that fails after 3 retries → ESC_VOICE_DRIFT → candidate dropped from list + flagged in exception list.
+Voice-classified content: only the per-candidate match rationale (Step 9). Voice classifier ≥0.75 against tenant style is the TARGET contract — **NOT enforced in v1.0, because no voice classifier exists**: `@ifos/voice-classifier` is a W4-5 polish microservice (per tools.yaml + §8 build deps), not built. ALL v1.0 rationales are recorded as `unscored` — reason `no_corpus` (empty tenant `voice_corpus`) or `classifier_unavailable` (corpus active but no classifier; `cycle.sh` Step 9 records this even when `CTX_VOICE_CORPUS_STATE=active`) — never a faked score, and `validate.sh` G4 warns-and-passes on any unscored rationale. **Warn-when-unscored is the accepted v1.0 gate behaviour** (spec-003 §5 "hard (warn-when-unscored)" + the Cash Conductor honesty precedent). The ≥0.75 hard enforcement — including the corpus-exists distinction — ACTIVATES when `@ifos/voice-classifier` ships. The threshold logic itself is live: a real computed score <0.75 after 3 retries → ESC_VOICE_DRIFT → candidate dropped from list + flagged in exception list; ESC_VOICE_DRIFT never fires on `unscored`.
 
 ---
 
@@ -115,7 +115,9 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 
 ```
 0. Session start
-   → context.sh hydrates: tenant config + multi-source auth + voice corpus
+   → context.sh hydrates: tenant config + multi-source auth + voice-corpus
+     STATE (active|absent; tone rules via hh_load_tone_rules — voice
+     SAMPLES are not loaded in v1.0, see §7)
      + DNC list from `tenant_adapters.config.blocked_recipients` (Postgres-
      backed per ADR-002 vault/Postgres split; canonical v0.1 + v0.2 + v0.3
      registered config key)
@@ -226,13 +228,21 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
 9. LLM ranking + rationale generation (per candidate)
    → for top 15 by source-aggregated confidence: generate per-candidate
      rationale ≥50 words
-   → prompt = (brief context + candidate profile + voice corpus + tone rules)
-   → voice classifier scores rationale (≥0.75 — hard-enforced when a tenant
-     voice corpus exists; empty voice_corpus → voice_score recorded as
-     "unscored"/no_corpus, never faked — warn-when-unscored is the accepted
-     v1.0 gate behaviour per spec-003 §5)
-   → ESC_VOICE_DRIFT if a computed classifier score <0.75 after 3 retries;
-     drop candidate from final list
+   → prompt = (brief context + candidate profile + tone rules) — v1.0 uses
+     deterministic rationale templates (accepted deviation 7); voice-corpus
+     samples (hh_load_voice_samples) join the prompt with the documented
+     LLM-rationale enhancement, NOT in v1.0 (see §7)
+   → voice scoring (v1.0 honesty): NO voice classifier exists in v1.0
+     (@ifos/voice-classifier is W4-5 polish, not built) — ALL v1.0
+     rationales record voice_score "unscored" (reason no_corpus when
+     voice_corpus is empty; classifier_unavailable when a corpus is
+     active), never a faked number; warn-when-unscored is the accepted
+     v1.0 gate behaviour per spec-003 §5. The ≥0.75 hard enforcement
+     activates when @ifos/voice-classifier ships.
+   → ESC_VOICE_DRIFT only on a REAL computed classifier score <0.75
+     after 3 retries; drop candidate from final list (the threshold
+     branch is live in cycle.sh Step 9 + validate.sh G4 whenever a
+     numeric score is present; never fired on "unscored")
    → hh_decision_output("candidate_proposed", "candidate:<bullhorn_id|external_ref>",
      "source:<bullhorn|linkedin|reed|cvlibrary>; confidence:<N>; voice_score:<N>; included:<bool>") — emitted PER CANDIDATE per §3 contract (one row per candidate proposed; dropped candidates also get a row with included=false + drop_reason)
 
@@ -272,7 +282,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Sourcing Scout's `
 - **"each has a working contact method"** (email format + MX check OR E.164 phone OR LinkedIn URL OR Bullhorn bullhorn_id-with-contact)
 - **"each has rationale ≥ 50 words"**
 - **"no candidate flagged 'do not contact' in tenant config"** (DNC scan against `tenant_adapters.config.blocked_recipients` Postgres-stored list per ADR-002 vault/Postgres split)
-- All rationales pass voice classifier ≥0.75 — **hard-enforced WHEN a tenant voice corpus exists**. Empty `voice_corpus` → rationales carry `unscored`/`no_corpus` (a score is never faked) and G4 warns-and-passes: **warn-when-unscored is the accepted v1.0 gate behaviour** (spec-003 §5 "hard (warn-when-unscored)" + the Cash Conductor honesty precedent); G4 becomes hard-scoring once a corpus is loaded
+- All rationales pass voice classifier ≥0.75 — the TARGET contract; **NOT hard-enforced in v1.0, because no voice classifier exists** (`@ifos/voice-classifier` is W4-5 polish, not built). ALL v1.0 rationales carry `unscored` (`no_corpus` or `classifier_unavailable` — a score is never faked, even when `CTX_VOICE_CORPUS_STATE=active`) and G4 warns-and-passes on any non-numeric score: **warn-when-unscored is the accepted v1.0 gate behaviour** (spec-003 §5 "hard (warn-when-unscored)" + the Cash Conductor honesty precedent). G4's hard-fail branch is live for any real numeric score <0.75 (→ ESC_VOICE_DRIFT); the ≥0.75 hard enforcement activates when `@ifos/voice-classifier` ships
 - No PII outside firm boundary in rationale text → fires `ESC_PII_LEAKAGE_RISK` (BLOCKING per catalogue §2.5 lines 148-154; halts immediately, not warn-only output-shape)
 - No enabled live source returns 0 candidates WITHOUT a recorded degradation exception note (sources in degraded mode per §4 Step 2 are expected to return 0 and don't trip Gate A)
 
@@ -307,7 +317,7 @@ Sourcing Scout uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_CVLIBRARY_AUTH` | CV-Library API OAuth fail | **blocking** (per catalogue §2.7) | operator + ifos_oncall |
 | `ESC_RATE_LIMIT_HIT` | Any source 429 (payload.upstream identifies which: bullhorn / reed / cv-library; linkedin reserved for v1.1+) | warn | operator_chat_id |
 | `ESC_BRIEF_AMBIGUITY` | LLM brief-parse yields <3 key dimensions (canonical code per catalogue §2.5) | warn | operator_chat_id |
-| `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries | warn | operator_chat_id |
+| `ESC_VOICE_DRIFT` | Per-candidate rationale voice classifier <0.75 after 3 retries — REAL computed score only; never fired on `unscored` (no classifier in v1.0, so this code does not fire until `@ifos/voice-classifier` ships) | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary in rationale | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (output-shape constraint per catalogue line 184) | warn | operator_chat_id |
 | `ESC_GATE_B_MISS` | Below 6-of-10 for 30 consecutive days | warn | operator_chat_id (per catalogue routing) |
@@ -324,15 +334,15 @@ Sourcing Scout does NOT use:
 
 ## §7 — Voice + tone constraints
 
-Step 9 (per-candidate rationale generation) is voice-classified. The agent integrates with `_shared/voice-loader.sh`:
+Step 9 (per-candidate rationale generation) is voice-constrained — tone rules are LIVE; classifier scoring + voice-sample retrieval are PENDING (no classifier in v1.0; see below). The agent integrates with `_shared/voice-loader.sh`:
 
 - **`hh_load_tone_rules` filtered by `applies_to_agents` containing `sourcing_scout`** — surfaces rules like:
   - No demographic inference (age, gender, nationality, ethnicity, family status) — Equality Act 2010 compliance
   - No salary-band reference unless explicitly supplied by candidate
   - No claims about candidate intent ("looking to leave their role") without evidence in source data
   - No mention of competing agency placements except in risk-flag context
-- **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "candidate sourcing rationale" task context.
-- **Voice-drift detection (classifier-only):** per `vertical-schema.v0.3-supplement.yaml` lines 597-606 (§2a access-list amendment) + 728-737 (access matrix), Sourcing Scout has `recent_edit` access of **W** (writes its rationale drafts) but **not R**, so it does NOT read consultant edit history via `hh_load_recent_edits`. Per-run `ESC_VOICE_DRIFT` fires when a per-candidate rationale voice classifier score is below 0.75 after 3 retries; scores are only computed when the tenant voice corpus is non-empty — empty corpus → `unscored`/`no_corpus` recorded and `validate.sh` G4 warns-and-passes (the accepted v1.0 warn-when-unscored gate behaviour per spec-003 §5; hard-scoring resumes once a corpus is loaded). Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Sourcing Scout does NOT fire `_TENANT` directly. The cron — not Sourcing Scout — reads edit history for analytics + canary threshold tuning.
+- **`hh_load_voice_samples` ANN query against tenant voice_corpus** (top-5 chunks matching "candidate sourcing rationale" task context) — **PENDING, NOT wired in v1.0**: `context.sh` calls `hh_load_tone_rules` only, and the deterministic v1.0 rationale templates (accepted deviation 7) do not consume voice samples. The `hh_load_voice_samples` integration lands together with the documented LLM-rationale enhancement + `@ifos/voice-classifier`.
+- **Voice-drift detection (classifier-only):** per `vertical-schema.v0.3-supplement.yaml` lines 597-606 (§2a access-list amendment) + 728-737 (access matrix), Sourcing Scout has `recent_edit` access of **W** (writes its rationale drafts) but **not R**, so it does NOT read consultant edit history via `hh_load_recent_edits`. Per-run `ESC_VOICE_DRIFT` fires when a per-candidate rationale voice classifier score is below 0.75 after 3 retries — REAL computed scores only; NO scores are computed in v1.0 (no classifier built — `@ifos/voice-classifier` is W4-5 polish): every v1.0 rationale records `unscored` (`no_corpus` when the corpus is empty; `classifier_unavailable` when a corpus is active) and `validate.sh` G4 warns-and-passes (the accepted v1.0 warn-when-unscored gate behaviour per spec-003 §5; hard-scoring activates when the classifier ships). Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Sourcing Scout does NOT fire `_TENANT` directly. The cron — not Sourcing Scout — reads edit history for analytics + canary threshold tuning.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
@@ -358,6 +368,7 @@ Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 | Per-tenant source credentials in `_secrets.env` | Tenant onboarding | ⏸ |
 | Tenant DNC list populated in `tenant_adapters.config.blocked_recipients` (Postgres-backed structured state per ADR-002 vault/Postgres split) | Tenant onboarding | ⏸ |
 | Voice corpus seeded for first pilot tenant | Tenant-admin onboarding | ⏸ |
+| `@ifos/voice-classifier` microservice (Step 9 scoring + G4 ≥0.75 hard enforcement) | W4-5 polish backlog (per tools.yaml) | ⏸ NOT BUILT — all v1.0 rationales record `unscored` |
 | `validate.sh` Gate A logic | W9 build slice (spec-003 §5; G1-G7) | ✅ |
 | `context.sh` hydration | W9 build slice (canonical `tenant_adapters` SELECTs) | ✅ |
 | `cycle.sh` orchestration (11-step) | W9 build slice (spec-003 §4) | ✅ |
