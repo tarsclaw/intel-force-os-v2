@@ -68,7 +68,7 @@ Test idiom mirrors Cash Conductor: throwaway tenant registered in `tenants` (dec
 
 - Codex re-ratification of the full bundle (agent.md §10 state 2) + founder Q1/Q3/Q5/Q6 approvals.
 - Reconcile `bin/fuzzy-match.sh` with the Janitor matcher when it lands (deviation 1).
-- Register `sourcing_scout_cleanup` (+ the three `*_oauth` green action_types) in autosend-policy.yaml, then switch cleanup.sh to `hh_decision_action`.
+- Registration of `sourcing_scout_cleanup` (+ the three `*_oauth` names) in autosend-policy.yaml is a FOUNDER-GATED policy decision (per Codex R2 finding 3 — declared as `future_registration` in tools.yaml, not action_type claims); if/when approved, switch cleanup.sh to `hh_decision_action`.
 - Source-abstraction ADR (agent.md §9 Q6) still to be authored.
 - Orchestrator live smoke: verify CV-Library cred values actually exist (see discrepancy note), build `@ifos/cv-library` (`pnpm --filter @ifos/cv-library build`), then run cycle.sh without fixture overrides against a real brief.
 
@@ -83,3 +83,12 @@ Test idiom mirrors Cash Conductor: throwaway tenant registered in `tenants` (dec
 | 5 | tools.yaml stale NOTE: Step 4 "emits `linkedin_search_skipped`" | Corrected to the live `linkedin_query` no-op marker |
 | 6 | tools.yaml header "Status: Proposed (W5 Day-33 SKELETON…)" vs README LIVE | Header now "Status: LIVE (W9 build slice, spec-003)" with explicit note that the agent.md §10 lifecycle flip is founder-gated and separate |
 | A5 | Advisory: cycle.sh Step-1 ESC_BRIEF_AMBIGUITY paths emitted `validate_gate_a_fail` action rows, contradicting deviation 4 (reserved for Gate A) | Code aligned to the `autosend_escalate`-only idiom (the escalation itself writes the `gating_failed` decision_log row, so the audit trail stands); no fixture/test asserted the removed rows; gate re-run GREEN |
+
+### Codex R2 fix pass (2026-06-10 — round-2 REJECT on the bundle, 4 new findings; final pass under the ≤2-round ceiling)
+
+| # | Finding | Fix |
+|---|---|---|
+| R2-1 | tools.yaml boundary-check comment literally named the forbidden adapters (negative assertion still violates the adapter-boundary letter) | Comment reworded generically: "No forbidden third-party adapter references anywhere in this file (adapter boundary, CLAUDE.md boundary 2)". Cash-conductor's identical comment left untouched (out of scope; orchestrator tracks the follow-up) |
+| R2-2 | agent.md asserted rationale voice ≥0.75 as unconditionally hard-enforced; validate.sh G4 (correctly, per spec-003 §5 "hard (warn-when-unscored)" + Cash Conductor honesty precedent) warns-and-passes on empty `voice_corpus` | agent.md §3/§4 Step 9/§5 Gate A/§7 amended: ≥0.75 hard-enforced WHEN a tenant voice corpus exists; empty corpus → `unscored`/`no_corpus` recorded (never a faked score) and G4 warns-and-passes — the accepted v1.0 gate behaviour; hard-scoring resumes once a corpus loads. validate.sh untouched (code is the contract-correct side) |
+| R2-3 | tools.yaml declared `bullhorn_oauth`/`reed_oauth`/`cvlibrary_oauth`/`sourcing_scout_cleanup` as `action_type:` though none is registered in autosend-policy.yaml | Re-declared as `future_registration:` entries — explicitly NOT action_type claims; registration is a founder-gated policy decision; until then the code paths use hh_decision_output / degraded-skip. Header + cross-reference block + boundary bullet aligned; agent.md reading-discipline note aligned. VERIFIED in code: cycle.sh's only `hh_decision_action` rows are `scout_run_complete` + `operator_notify_telegram` + `validate_gate_a_fail` (all REGISTERED); cleanup.sh emits `hh_decision_output` only — no unregistered action_type row is emitted anywhere |
+| R2-4 | agent.md §10 internally contradictory lifecycle (Accepted both requiring and omitting "first production run"; "Until W9 build" though W9 complete) | §10 rewritten to ONE post-W9 criteria set: Proposed (current) → Accepted (Codex ratification of built bundle + founder Q1/Q3/Q5/Q6; NO production-run requirement) → In Force (first production run + live-smoke evidence; creds founder-gated). Ratified-as-Scaffold noted as the superseded pre-build state; §8 cross-reference aligned. Status field stays Proposed — flip founder-gated |

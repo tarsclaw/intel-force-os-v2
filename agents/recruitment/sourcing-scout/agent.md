@@ -2,7 +2,7 @@
 
 **Status:** Proposed.
 **Build state:** W9 build slice COMPLETE (spec-003; branch `worktree-agent-a45354564e8f66257`, 2026-06-10) — all 6 sibling bundle files + 3 fixtures LIVE; build-gate GREEN; three deterministic DB-backed fixture suites green. Prior contract history: Day-20 W4 bilateral pass + R19 substantive fix; R9 added §10 three-state lifecycle clarification (Proposed → Ratified-as-Scaffold → Accepted → In Force; ratification ≠ acceptance per agent-bundle skill) + §4 Step 8 + Schema-key block rewrite for `blocked_recipients`; R19 (2026-05-24) added the `blocked_recipients` declaration to v0.3 supplement §4 tenant_adapters_config_additions per Codex Finding 1. Still awaits: Q1 LOI + Bullhorn Sub-decision B (Sub-decision A RESOLVED 2026-06-02 per `docs/decisions/bullhorn-integration-path.md` — direct API per-tenant OAuth; marketplace deferred to v1.1+) + Reed + CV-Library commercial signups (creds EMPTY; live smoke founder-gated) + Codex re-ratification of the built bundle + founder approvals per §10.
-**Reading-discipline note (updated 2026-06-10 at W9 build; originally added 2026-06-03 per CC + Concierge + Janitor + Scribe precedent):** this `agent.md` is the **CONTRACT** that the W9 build slice implemented against. The 6 sibling bundle files (`cycle.sh` + `validate.sh` + `context.sh` + `cleanup.sh` + `tools.yaml` + `README.md`) + 3 fixtures are **LIVE** — the W9 build slice (spec-003, this branch) replaced every `TODO(W9)` marker with live implementation; three deterministic DB-backed fixture suites (`scripts/run-scout-{dedupe,gate-a,degraded}-test.sh`) are green under build-gate. **Per-component build state, honestly stated:** `@ifos/bullhorn` — implemented connector package (`packages/mcp-connectors/bullhorn`); the Sourcing-Scout OAuth CLI bridge is not built and creds are EMPTY → cycle.sh Step 2 degraded-skip. `@ifos/reed` — implemented connector package (`packages/mcp-connectors/reed`, v0.1.0, tests green); creds EMPTY → degraded-skip until founder signup. `@ifos/cv-library` — implemented connector package + built `dist/cli.js` bridge (`packages/mcp-connectors/cv-library`, v0.1.0); the designated v1.0 live source, but creds EMPTY at last names-only verification → live smoke founder-gated. None of the three is production-proven: no live API call has been made by this bundle; all coverage is fixture-driven (`IFOS_SCOUT_FIXTURE_*`). **VENDOR NOTE:** the v1.0 contract is THREE active sources (Bullhorn + Reed + CV-Library); LinkedIn is structurally present as an explicit NO-OP only — cycle.sh Step 4 emits `linkedin_query` (`results:0; no_op`) per the Janitor Step 7 NO-OP pattern; vendor selection deferred to v1.1+ per the caveat at lines 6-8. **Live audit-marker set emitted by cycle.sh:** `session_start`, `brief_ingested`, `auth_refresh_complete`, `bullhorn_query`, `linkedin_query` (no-op), `reed_query`, `cvlibrary_query`, `aggregate_dedupe`, `dnc_filter`, `candidate_proposed` (one row PER candidate), `scout_report`, `scout_run_complete`, plus `validate_gate_a_fail` (Gate A failure only) and `operator_notify_telegram` (when configured). Pure read+report agent — no yellow/orange/red action_types; the only cleanup action_type is `sourcing_scout_cleanup` (green; still QUEUED for autosend-policy registration — `cleanup.sh` emits `hh_decision_output` until it lands). `context.sh` uses the canonical `tenant_adapters` SELECT path (with `IFOS_FORCE_*` fixture fallbacks retained for tests) — `bullhorn_corporation_id` v0.4-allowlisted (LIVE on VPS commit `a1bbcf6`) + `blocked_recipients` v0.3-allowlisted (LIVE on VPS). §10 lifecycle status remains **Proposed** pending Codex re-ratification of the built bundle + founder approvals — the status flip is founder-gated.
+**Reading-discipline note (updated 2026-06-10 at W9 build; originally added 2026-06-03 per CC + Concierge + Janitor + Scribe precedent):** this `agent.md` is the **CONTRACT** that the W9 build slice implemented against. The 6 sibling bundle files (`cycle.sh` + `validate.sh` + `context.sh` + `cleanup.sh` + `tools.yaml` + `README.md`) + 3 fixtures are **LIVE** — the W9 build slice (spec-003, this branch) replaced every `TODO(W9)` marker with live implementation; three deterministic DB-backed fixture suites (`scripts/run-scout-{dedupe,gate-a,degraded}-test.sh`) are green under build-gate. **Per-component build state, honestly stated:** `@ifos/bullhorn` — implemented connector package (`packages/mcp-connectors/bullhorn`); the Sourcing-Scout OAuth CLI bridge is not built and creds are EMPTY → cycle.sh Step 2 degraded-skip. `@ifos/reed` — implemented connector package (`packages/mcp-connectors/reed`, v0.1.0, tests green); creds EMPTY → degraded-skip until founder signup. `@ifos/cv-library` — implemented connector package + built `dist/cli.js` bridge (`packages/mcp-connectors/cv-library`, v0.1.0); the designated v1.0 live source, but creds EMPTY at last names-only verification → live smoke founder-gated. None of the three is production-proven: no live API call has been made by this bundle; all coverage is fixture-driven (`IFOS_SCOUT_FIXTURE_*`). **VENDOR NOTE:** the v1.0 contract is THREE active sources (Bullhorn + Reed + CV-Library); LinkedIn is structurally present as an explicit NO-OP only — cycle.sh Step 4 emits `linkedin_query` (`results:0; no_op`) per the Janitor Step 7 NO-OP pattern; vendor selection deferred to v1.1+ per the caveat at lines 6-8. **Live audit-marker set emitted by cycle.sh:** `session_start`, `brief_ingested`, `auth_refresh_complete`, `bullhorn_query`, `linkedin_query` (no-op), `reed_query`, `cvlibrary_query`, `aggregate_dedupe`, `dnc_filter`, `candidate_proposed` (one row PER candidate), `scout_report`, `scout_run_complete`, plus `validate_gate_a_fail` (Gate A failure only) and `operator_notify_telegram` (when configured). Pure read+report agent — no yellow/orange/red action_types; the cleanup action name `sourcing_scout_cleanup` is NOT a registered autosend-policy action_type — registration is a founder-gated policy decision (a `future_registration` entry in tools.yaml, not an action_type claim); `cleanup.sh` emits `hh_decision_output` until it lands. `context.sh` uses the canonical `tenant_adapters` SELECT path (with `IFOS_FORCE_*` fixture fallbacks retained for tests) — `bullhorn_corporation_id` v0.4-allowlisted (LIVE on VPS commit `a1bbcf6`) + `blocked_recipients` v0.3-allowlisted (LIVE on VPS). §10 lifecycle status remains **Proposed** pending Codex re-ratification of the built bundle + founder approvals — the status flip is founder-gated.
 
 **v1.0 readiness caveat — LinkedIn deep-data vendor (added 2026-06-02):** the original v1.0 design listed **Proxycurl** as the LinkedIn deep-data source (one of FOUR sources in the §1 output contract). **Proxycurl was shut down in 2025** following LinkedIn's January 2025 lawsuit against Nubela (Proxycurl's parent; ~50% of their revenue came from LinkedIn scraping; see https://nubela.co/blog/goodbye-proxycurl/). The successor product **NinjaPear** (same team) explicitly does NOT carry LinkedIn data — it is a B2B competitive-intelligence platform sourced from non-LinkedIn channels. Net: the LinkedIn-via-Proxycurl path in the original four-source design **does not have a legally-clear vendor as of 2026-06-02**; §1 + §3 + §4 Step 4 + §6 below are written to the three-source v1.0 contract with LinkedIn as an explicit NO-OP row.
 
@@ -105,7 +105,7 @@ LinkedIn current role, or other source-specific evidence.>
 
 Per `decision_log`: one row per source query + one row per candidate proposed + one final aggregate row.
 
-Voice-classified content: only the per-candidate match rationale (Step 9). Voice classifier ≥0.75 against tenant style. Rationale that fails after 3 retries → ESC_VOICE_DRIFT → candidate dropped from list + flagged in exception list.
+Voice-classified content: only the per-candidate match rationale (Step 9). Voice classifier ≥0.75 against tenant style — **hard-enforced WHEN a tenant voice corpus exists**. When the tenant `voice_corpus` is empty, a score cannot be honestly computed: the rationale is recorded as `unscored`/`no_corpus` (never a faked score) and `validate.sh` G4 warns-and-passes. **Warn-when-unscored is the accepted v1.0 gate behaviour** (spec-003 §5 "hard (warn-when-unscored)" + the Cash Conductor honesty precedent); the gate becomes hard-scoring automatically once a corpus is loaded. A rationale with a computed score that fails after 3 retries → ESC_VOICE_DRIFT → candidate dropped from list + flagged in exception list.
 
 ---
 
@@ -227,9 +227,12 @@ Voice-classified content: only the per-candidate match rationale (Step 9). Voice
    → for top 15 by source-aggregated confidence: generate per-candidate
      rationale ≥50 words
    → prompt = (brief context + candidate profile + voice corpus + tone rules)
-   → voice classifier scores rationale (≥0.75)
-   → ESC_VOICE_DRIFT if classifier <0.75 after 3 retries; drop candidate
-     from final list
+   → voice classifier scores rationale (≥0.75 — hard-enforced when a tenant
+     voice corpus exists; empty voice_corpus → voice_score recorded as
+     "unscored"/no_corpus, never faked — warn-when-unscored is the accepted
+     v1.0 gate behaviour per spec-003 §5)
+   → ESC_VOICE_DRIFT if a computed classifier score <0.75 after 3 retries;
+     drop candidate from final list
    → hh_decision_output("candidate_proposed", "candidate:<bullhorn_id|external_ref>",
      "source:<bullhorn|linkedin|reed|cvlibrary>; confidence:<N>; voice_score:<N>; included:<bool>") — emitted PER CANDIDATE per §3 contract (one row per candidate proposed; dropped candidates also get a row with included=false + drop_reason)
 
@@ -269,7 +272,7 @@ Per master brief §8.1 Change 2 + autosend-safety-policy §4. Sourcing Scout's `
 - **"each has a working contact method"** (email format + MX check OR E.164 phone OR LinkedIn URL OR Bullhorn bullhorn_id-with-contact)
 - **"each has rationale ≥ 50 words"**
 - **"no candidate flagged 'do not contact' in tenant config"** (DNC scan against `tenant_adapters.config.blocked_recipients` Postgres-stored list per ADR-002 vault/Postgres split)
-- All rationales pass voice classifier ≥0.75
+- All rationales pass voice classifier ≥0.75 — **hard-enforced WHEN a tenant voice corpus exists**. Empty `voice_corpus` → rationales carry `unscored`/`no_corpus` (a score is never faked) and G4 warns-and-passes: **warn-when-unscored is the accepted v1.0 gate behaviour** (spec-003 §5 "hard (warn-when-unscored)" + the Cash Conductor honesty precedent); G4 becomes hard-scoring once a corpus is loaded
 - No PII outside firm boundary in rationale text → fires `ESC_PII_LEAKAGE_RISK` (BLOCKING per catalogue §2.5 lines 148-154; halts immediately, not warn-only output-shape)
 - No enabled live source returns 0 candidates WITHOUT a recorded degradation exception note (sources in degraded mode per §4 Step 2 are expected to return 0 and don't trip Gate A)
 
@@ -329,7 +332,7 @@ Step 9 (per-candidate rationale generation) is voice-classified. The agent integ
   - No claims about candidate intent ("looking to leave their role") without evidence in source data
   - No mention of competing agency placements except in risk-flag context
 - **`hh_load_voice_samples` ANN query against tenant voice_corpus**: top-5 chunks matching "candidate sourcing rationale" task context.
-- **Voice-drift detection (classifier-only):** per `vertical-schema.v0.3-supplement.yaml` lines 597-606 (§2a access-list amendment) + 728-737 (access matrix), Sourcing Scout has `recent_edit` access of **W** (writes its rationale drafts) but **not R**, so it does NOT read consultant edit history via `hh_load_recent_edits`. Per-run `ESC_VOICE_DRIFT` fires when a per-candidate rationale voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Sourcing Scout does NOT fire `_TENANT` directly. The cron — not Sourcing Scout — reads edit history for analytics + canary threshold tuning.
+- **Voice-drift detection (classifier-only):** per `vertical-schema.v0.3-supplement.yaml` lines 597-606 (§2a access-list amendment) + 728-737 (access matrix), Sourcing Scout has `recent_edit` access of **W** (writes its rationale drafts) but **not R**, so it does NOT read consultant edit history via `hh_load_recent_edits`. Per-run `ESC_VOICE_DRIFT` fires when a per-candidate rationale voice classifier score is below 0.75 after 3 retries; scores are only computed when the tenant voice corpus is non-empty — empty corpus → `unscored`/`no_corpus` recorded and `validate.sh` G4 warns-and-passes (the accepted v1.0 warn-when-unscored gate behaviour per spec-003 §5; hard-scoring resumes once a corpus is loaded). Aggregate `ESC_VOICE_DRIFT_TENANT` is fired by the nightly voice-drift cron per `escalation-codes.md` §2.5 (≥N `ESC_VOICE_DRIFT` rows from the same tenant in rolling 7d window); Sourcing Scout does NOT fire `_TENANT` directly. The cron — not Sourcing Scout — reads edit history for analytics + canary threshold tuning.
 
 Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
@@ -360,7 +363,7 @@ Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 | `cycle.sh` orchestration (11-step) | W9 build slice (spec-003 §4) | ✅ |
 | 3 fixtures with golden outputs | W9 build slice + 3 DB-backed test suites | ✅ |
 
-**Post-W9-build note:** the four sibling-bundle deliverables (validate.sh, context.sh, cycle.sh, fixtures) WERE the W9 build slice and are delivered on this branch; the W9 build proceeded against deterministic fixtures per spec-003 §8 honest scope. The remaining ⏸ rows are FOUNDER/TENANT-ADMIN actions (commercial signups, creds, DNC population, voice corpus, ratifications) — they gate the first LIVE run and the §10 lifecycle transitions (Ratified-as-Scaffold → Accepted), not the fixture-backed build.
+**Post-W9-build note:** the four sibling-bundle deliverables (validate.sh, context.sh, cycle.sh, fixtures) WERE the W9 build slice and are delivered on this branch; the W9 build proceeded against deterministic fixtures per spec-003 §8 honest scope. The remaining ⏸ rows are FOUNDER/TENANT-ADMIN actions (commercial signups, creds, DNC population, voice corpus, ratifications) — they gate the first LIVE run and the §10 lifecycle transitions (Proposed → Accepted → In Force per the rewritten §10), not the fixture-backed build.
 
 ---
 
@@ -390,24 +393,22 @@ Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
 ## §10 — When this document ratifies
 
-Per `.codex/ratification/review-agent-bundle.md` skill (built 2026-05-24, commit `825ebd4`): this agent.md ratifies when Codex review-agent-bundle returns RATIFIED verdict on the SCAFFOLD shape (output contract + workflow + gates + escalation + dependencies). **Ratification of the scaffold does NOT make it Accepted.** Per the agent-bundle skill, Accepted means production-ready — which requires all sibling bundle files + fixtures + first production run.
+Per `.codex/ratification/review-agent-bundle.md` skill (built 2026-05-24, commit `825ebd4`). **Single post-W9 criteria set (rewritten 2026-06-10).** The pre-build "Ratified-as-Scaffold" intermediate state (introduced at R9) applied to the scaffold-only document; the W9 build slice is COMPLETE on this branch, so the unit that ratifies now is the BUILT bundle (this agent.md + 6 sibling files + 3 fixtures), not the scaffold. Lifecycle:
 
-**Three-state lifecycle:**
+1. **Proposed** — CURRENT state. W9 build slice complete; build-gate GREEN; three deterministic DB-backed fixture suites green. No live API call has been made by this bundle; creds EMPTY.
 
-1. **Proposed → Ratified-as-Scaffold** when Codex review-agent-bundle returns RATIFIED on this agent.md alone. Pre-build scaffold confirmed shape-correct; the document is a binding contract for the W9 build slice.
-
-2. **Ratified-as-Scaffold → Accepted** when ALL:
-   - W9 build slice produces all 5 sibling bundle files (`tools.yaml`, `context.sh`, `validate.sh`, `cycle.sh`, `cleanup.sh`) + 3 fixtures with golden outputs
-   - Codex re-ratifies the full bundle (agent.md + siblings + fixtures) post-build
-   - Founder approves §9 Q1 (3 sources vs 2) + Q3 (DNC source) + Q5 (Gate B UX)
-   - Q2 cost model approved with per-tenant budget cap
+2. **Proposed → Accepted** when ALL of:
+   - Codex review-agent-bundle returns RATIFIED on the built bundle (this agent.md + `tools.yaml` + `context.sh` + `validate.sh` + `cycle.sh` + `cleanup.sh` + `README.md` + 3 fixtures)
+   - Founder approves §9 Q1 (3 sources vs 2) + Q3 (DNC source) + Q5 (Gate B feedback UX)
    - Q6: source-abstraction-layer ADR drafted + ratified (new ADR — not the same as ADR-006 which is Diagnostic Gate A; number assigned at authoring time)
 
-3. **Accepted → In Force** when:
-   - First production brief processed end-to-end against migration-test tenant
+   **No production-run requirement at this state** — Accepted certifies the built, Codex-ratified, founder-approved bundle. (Q2 — LinkedIn vendor cost model — is deferred to v1.1+ vendor selection per §9 and does not gate Accepted.)
+
+3. **Accepted → In Force** when ALL of:
+   - First production brief processed end-to-end against the migration-test tenant, with live-smoke evidence (live smoke is founder-gated: Reed + CV-Library commercial signups + Bullhorn Sub-decision B + creds provisioned)
    - Gate B feedback loop operational (Telegram /scout-feedback path; Brain UI in v1.1)
    - First production render against a pilot tenant succeeds (per ADR-003 §4 + ADR-004 Decision 7 audit row)
 
-Until W9 build: this document is a forward-looking scaffold.
+The **Status** field at the top of this document remains **Proposed** — every lifecycle flip is founder-gated.
 
 *End of Sourcing Scout agent.md draft.*
