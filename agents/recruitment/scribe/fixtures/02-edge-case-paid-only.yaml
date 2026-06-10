@@ -18,7 +18,14 @@
 # + get_meeting_transcript. Scribe doesn't use list_meeting_folders. This
 # fixture only exercises get_meeting_transcript blocking.
 #
-# Status: Proposed (W5 Day-32 SKELETON).
+# Status: built (W6 build slice). IMPORTANT — ESC_GRANOLA_PLAN_TIER is QUEUED
+#         for catalogue registration (not in escalation-codes.md yet); firing
+#         an unregistered code through autosend_escalate would produce a
+#         fail-safe-red meta row, so the built cycle.sh records the plan-tier
+#         degradation HONESTLY on the audit rows instead (transcript_fetched
+#         carries ingest_mode:notes_only_degraded + plan_tier). The
+#         esc_codes_emitted block below documents the POST-registration
+#         contract; audit_rows_emitted reflects the built behaviour.
 
 fixture_id: 02-edge-case-paid-only
 description: Granola Free workspace → getTranscript pre-guarded → ESC_GRANOLA_PLAN_TIER → degrade to notes-only ingest → 3 fields extracted from notes_markdown
@@ -106,9 +113,9 @@ expected:
     meetings_with_transcripts: 0   # has_transcript:true upstream but Scribe couldn't fetch (plan-tier block)
     plan_tier_resolved: "free"
   transcript_fetch_skipped:
-    reason: "GranolaPlanTierInsufficientError pre-guard (plan_tier_hint='free')"
-    esc_fired: ESC_GRANOLA_PLAN_TIER
-    severity: warn
+    reason: "PAID_PLAN_TOOLS pre-guard (plan_tier='free') — no wire round-trip"
+    esc_fired: none   # ESC_GRANOLA_PLAN_TIER QUEUED for catalogue; degradation recorded on audit rows until it lands
+    severity: n/a
   field_extraction:
     fields_above_threshold: 5
     source: "notes_markdown_degraded"   # notes_only ingest mode
@@ -131,7 +138,10 @@ expected:
         vault_path: "/vault/migration-test/scribe-notes/meeting-002-2026-06-03.md"
         source_disclaimer: "transcript_unavailable_free_plan_workspace"
   esc_codes_emitted:
+    # POST catalogue-registration contract — NOT fired by the current build
+    # (see Status note): the code is QUEUED in escalation-codes.md.
     - code: ESC_GRANOLA_PLAN_TIER
+      status: QUEUED_NOT_YET_FIRED
       severity: warn
       routing: operator_chat_id
       payload_includes:
@@ -144,13 +154,26 @@ expected:
     - phase: trigger
       action_type: session_start
     - phase: output
+      output_type: webhook_verified          # poll trigger → signature:not_applicable (spec-002 §3)
+    - phase: output
       output_type: granola_meetings_polled
-      payload_contains: "meetings_with_transcripts:0; plan_tier:free"
-    - phase: action
-      action_type: validate_gate_a_fail   # records the pre-guard rejection (not a Gate A failure; SUCCESS-path guard)
-      payload_contains: "ESC_GRANOLA_PLAN_TIER; degradation:notes_only_ingest"
+    - phase: output
+      output_type: bullhorn_auth_refreshed   # spec-002 §3 name
+    - phase: output
+      output_type: transcript_fetched
+      payload_contains: "ingest_mode:notes_only_degraded; plan_tier:free"   # the honest pre-guard record
+    - phase: output
+      output_type: entity_resolved
+    - phase: output
+      output_type: fields_extracted
+      payload_contains: "ingest_mode:notes_only_degraded"
+    - phase: output
+      output_type: tacit_note_rendered
+    - phase: output
+      output_type: fields_validated
     - phase: action
       action_type: bullhorn_scribe_field_write
+      payload_contains: "ingest_mode:notes_only_degraded"
     - phase: action
       action_type: bullhorn_note_append_summary
     - phase: action

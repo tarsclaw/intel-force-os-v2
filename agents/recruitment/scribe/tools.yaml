@@ -1,9 +1,17 @@
 # Scribe agent — tools.yaml (capability declarations)
 #
-# Status: Proposed (W5 Day-32 SKELETON; W6 build slice may add per-tenant
-#         overrides + cost ceilings + per-step authz).
+# Status: built (W6 build slice; cycle.sh/validate.sh/context.sh/cleanup.sh
+#         are LIVE against these declarations. Live Bullhorn + Granola smoke
+#         remains founder-gated: Bullhorn dev creds EMPTY + Granola IFOS-side
+#         OAuth token not on disk + 0 recorded meetings — spec-002 §8/§9).
 # Reading order: agent.md §1 (output contract) + §2 (invocation surface) +
 #         §4 (workflow + capability dependencies) first.
+#
+# BRIDGE NOTE (parallel-conflict rule): every @ifos/bullhorn invocation routes
+# through agents/recruitment/scribe/bin/bh-bridge.sh — the single
+# reconciliation point for the CLI bridge the Janitor build slice owns under
+# packages/mcp-connectors/bullhorn. The shim header documents the exact CLI
+# command surface it expects (refresh / update-entity / create-note).
 #
 # Per ADR-003 agent-bundle pattern: tools.yaml declares every external
 # capability cycle.sh invokes + the autosend-policy action_type each
@@ -18,9 +26,11 @@
 #
 # Action types referenced below MUST exist in agents/_shared/autosend-policy.yaml.
 # Scribe's 2 yellow-tier write action_types (bullhorn_scribe_field_write +
-# bullhorn_note_append_summary) are both already REGISTERED in autosend-policy.yaml
-# (verified 2026-06-03 — lines 240 + 212 respectively). scribe_cleanup is
-# QUEUED for registration at W6 build start (matches CC + Janitor pattern).
+# bullhorn_note_append_summary) are REGISTERED in autosend-policy.yaml
+# (re-verified 2026-06-10 — lines 240 + 212 respectively). scribe_cleanup /
+# bullhorn_oauth / granola_oauth remain QUEUED (registering them needs an
+# agents/_shared edit — outside this build slice's boundary; see the
+# registration-status footer for how each is recorded meanwhile).
 
 version: "0.1"
 agent: scribe
@@ -28,9 +38,13 @@ agent: scribe
 capabilities:
 
   # ────────────────────────────────────────────────────────────────────────
-  # Bullhorn ATS (W on Candidate via updateCandidate; W on Note via createNote;
-  # Contact/Brief/Placement updates require @ifos/bullhorn v0.2+; declared
-  # here with TODO(W6-7) markers for ratification continuity).
+  # Bullhorn ATS — invoked via bin/bh-bridge.sh (see BRIDGE NOTE above).
+  # cycle.sh Step 8 maps entity_type → Bullhorn type (candidate→Candidate,
+  # contact→ClientContact, brief→JobOrder, placement→Placement); opportunity
+  # is IFOS-cached-Postgres-only per agent.md §3 (no v1.0 Bullhorn endpoint).
+  # While the bridge CLI is unbuilt, Step 8 writes the IFOS entities cache and
+  # records bullhorn_push:deferred_bridge_unavailable on the action row;
+  # Step 9 defers the note attach (note_attach_deferred output row).
   # Reference: bullhorn-integration-path.md §4.1 A3 (Scribe scope).
   # Schema-clean post v0.4 supplement (LIVE on VPS 2026-06-03; commit a1bbcf6).
   # ────────────────────────────────────────────────────────────────────────
@@ -80,7 +94,9 @@ capabilities:
     action_type: bullhorn_scribe_field_write  # yellow tier; REGISTERED
     cycle_step: 8
     state_changing: true
-    # TODO(W6-7): add updateContact to @ifos/bullhorn before live wiring
+    # PENDING upstream: updateContact not yet exported by @ifos/bullhorn —
+    # bin/bh-bridge.sh `update-entity --type ClientContact` is the call site
+    # to reconcile when the Janitor bridge lands
 
   - id: bullhorn_update_brief
     package: "@ifos/bullhorn"
@@ -88,7 +104,8 @@ capabilities:
     action_type: bullhorn_scribe_field_write  # yellow tier; REGISTERED
     cycle_step: 8
     state_changing: true
-    # TODO(W6-7): add updateBrief to @ifos/bullhorn before live wiring
+    # PENDING upstream: updateBrief not yet exported by @ifos/bullhorn —
+    # bin/bh-bridge.sh `update-entity --type JobOrder` is the call site
 
   - id: bullhorn_update_placement
     package: "@ifos/bullhorn"
@@ -96,7 +113,8 @@ capabilities:
     action_type: bullhorn_scribe_field_write  # yellow tier; REGISTERED
     cycle_step: 8
     state_changing: true
-    # TODO(W6-7): add updatePlacement to @ifos/bullhorn before live wiring
+    # PENDING upstream: updatePlacement not yet exported by @ifos/bullhorn —
+    # bin/bh-bridge.sh `update-entity --type Placement` is the call site
 
   - id: bullhorn_create_note
     package: "@ifos/bullhorn"
@@ -246,18 +264,28 @@ failure_modes:
 # Action-type registration status (cross-reference autosend-policy.yaml)
 # ──────────────────────────────────────────────────────────────────────────────
 #
-# Already REGISTERED in agents/_shared/autosend-policy.yaml (verified 2026-06-03):
-#   bullhorn_scribe_field_write     line 240   yellow
-#   bullhorn_note_append_summary    line 212   yellow
+# Already REGISTERED in agents/_shared/autosend-policy.yaml (re-verified 2026-06-10):
+#   bullhorn_scribe_field_write     line 240   yellow   (emitted by cycle.sh Step 8)
+#   bullhorn_note_append_summary    line 212   yellow   (emitted by cycle.sh Step 9)
+#   validate_gate_a_fail            line 119   green    (emitted by validate.sh + cycle.sh gates)
+#   scribe_run_complete             line  83   green    (emitted by cycle.sh Step 10)
 #
-# QUEUED for registration at W6 build start:
-#   bullhorn_oauth                  green
+# Still QUEUED for registration (agents/_shared edits are outside this build
+# slice's boundary; until registered these audit rows use hh_decision_output):
+#   bullhorn_oauth                  green   (auth refresh is recorded as the
+#                                            bullhorn_auth_refreshed output row)
 #   granola_oauth                   green
-#   scribe_cleanup                  green
+#   scribe_cleanup                  green   (cleanup.sh emits output row)
 #
-# QUEUED for catalogue (escalation-codes.md) extension at W6:
-#   ESC_GRANOLA_AUTH                blocking-equivalent
-#   ESC_GRANOLA_PLAN_TIER           warn
+# Still QUEUED for catalogue (escalation-codes.md) extension — NOT fired by
+# the built cycle.sh (firing unregistered codes would produce fail-safe-red
+# meta rows; the conditions are recorded honestly on audit rows instead):
+#   ESC_GRANOLA_AUTH                blocking-equivalent (granola token state
+#                                    recorded by context.sh; fetch failures
+#                                    route via catalogue ESC_PROVIDER_FETCH_FAIL
+#                                    with upstream=granola per agent.md §6)
+#   ESC_GRANOLA_PLAN_TIER           warn (free-tier degradation recorded as
+#                                    ingest_mode:notes_only_degraded)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Boundary check (per master brief §3 + review-mcp-connector.md §8)
