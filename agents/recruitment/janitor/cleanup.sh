@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Janitor agent — cleanup.sh (post-run state purge; W5 Day-31 SKELETON)
+# Janitor agent — cleanup.sh (post-run state purge; W6-7 LIVE)
 #
-# Status: Proposed (W5 Day-31 SKELETON; W6-7 build slice replaces stubs with
-#         live cache-purge calls).
+# Status: LIVE per spec-001 §4 (W6-7 build slice).
 # Reading order: agent.md §4 Step 12 (session close) + §6 ESC code mappings first.
 #
 # Per agent.md §3 actions list: Janitor's cleanup action_type is
 # `janitor_cleanup` (green tier — internal-only audit row recording
 # cache-purge status + workspace cleanup; no external comms).
 #
-# Per agents/_shared/autosend-policy.yaml: `janitor_cleanup` is QUEUED for
-# registration at W6-7 build start (per tools.yaml status table below). Once
-# registered + the W6-7 build wires the real purge logic, this script emits
-# the action row + green-tier classification.
+# Per agents/_shared/autosend-policy.yaml: `janitor_cleanup` is NOT yet
+# registered (QUEUED per tools.yaml status table — registration is a
+# substrate-owner change; agents/_shared/ is frozen for this build slice per
+# the parallel-conflict rule). The audit row therefore stays
+# hh_decision_output; switch to hh_decision_action once registered
+# (CC + Scout cleanup precedent).
 #
 # Invocation contract:
 #   bash cleanup.sh
@@ -20,14 +21,13 @@
 # Inputs (env):
 #   CTX_AGENT_DIR, CTX_TENANT_SLUG, CTX_AGENT_NAME (already set by context.sh + cycle.sh)
 #
-# Side effects (W6-7 build slice):
-#   - Purge ~/.ifos-cache/bullhorn/* older than 24h (transient HTTP cache; keeps
-#     token files at ~/.ifos-local-vault/<tenant>/bullhorn-tokens-<corp>.json)
-#   - Purge ~/.ifos-cache/companies-house/* older than 7d (CRN lookup cache TTL
-#     longer per agent.md §4 Step 6)
-#   - Reset in-process rate-limit buckets via @ifos/bullhorn resetRateLimit()
-#     + @ifos/companies-house resetRateLimit() — but rate-limit is per-process
-#     so process-exit handles it; cleanup.sh is mostly disk-cache-side
+# Side effects:
+#   - Purge ~/.ifos-cache/bullhorn/* older than 24h (transient HTTP cache;
+#     token files live in the vault and are NEVER touched here)
+#   - Purge ~/.ifos-cache/companies-house/* older than 7d (CRN lookup cache;
+#     longer TTL per agent.md §4 Step 6 — the connector relies on warm 7d hits)
+#   - Remove stale janitor run workspaces under /tmp older than 24h (cycle.sh
+#     traps its own; this catches crashed-run leftovers)
 #
 # What cleanup.sh does NOT touch:
 #   - Token files at ~/.ifos-local-vault/<tenant>/bullhorn-tokens-*.json (load-bearing)
@@ -74,44 +74,45 @@ source "${_SHARED_DIR}/hook-helpers.sh"
 # Step 1 — Transient HTTP cache purge (per-provider; older-than-TTL entries only)
 # ────────────────────────────────────────────────────────────────────────
 
-# Exported so the W6-7 build-slice can extend the find -delete logic via
-# child processes without re-resolving the env var fallback chain.
 export BULLHORN_CACHE_DIR="${IFOS_BULLHORN_CACHE_DIR:-${HOME}/.ifos-cache/bullhorn}"
 export COMPANIES_HOUSE_CACHE_DIR="${IFOS_COMPANIES_HOUSE_CACHE_DIR:-${HOME}/.ifos-cache/companies-house}"
 
-# TODO(W6-7): replace these STUB counts with actual find -delete invocations
-# that prune entries older than the per-provider TTL. Skeleton emits zero so
-# the audit row shape is preserved for the build-slice author.
-BULLHORN_PURGED=0
-CH_PURGED=0
-# When ready, replace with the real purge logic:
-#   if [[ -d "${BULLHORN_CACHE_DIR}" ]]; then
-#     BULLHORN_PURGED=$(find "${BULLHORN_CACHE_DIR}" -type f -mtime +1 -delete -print 2>/dev/null | wc -l | tr -d ' ')
-#   fi
-#   if [[ -d "${COMPANIES_HOUSE_CACHE_DIR}" ]]; then
-#     CH_PURGED=$(find "${COMPANIES_HOUSE_CACHE_DIR}" -type f -mtime +7 -delete -print 2>/dev/null | wc -l | tr -d ' ')
-#   fi
+_jn_purge_dir() {  # <dir> <mtime_days>
+  local dir="$1" days="$2"
+  [[ -d "${dir}" ]] || { echo 0; return 0; }
+  find "${dir}" -type f -mtime "+${days}" -delete -print 2>/dev/null | wc -l | tr -d ' '
+}
+BULLHORN_PURGED="$(_jn_purge_dir "${BULLHORN_CACHE_DIR}" 1)"          # 24h TTL
+CH_PURGED="$(_jn_purge_dir "${COMPANIES_HOUSE_CACHE_DIR}" 7)"         # 7d TTL per agent.md §4 Step 6
+
+# Stale run workspaces from crashed runs (cycle.sh traps its own on exit).
+TMP_PURGED=0
+while IFS= read -r _stale; do
+  [[ -z "${_stale}" ]] && continue
+  rm -rf "${_stale}" 2>/dev/null || continue
+  TMP_PURGED=$((TMP_PURGED + 1))
+done < <(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name 'janitor-run-*' -mtime +1 2>/dev/null || true)
 
 # ────────────────────────────────────────────────────────────────────────
-# Step 2 — Optional: emit ESC_RATE_LIMIT_HIT analytical signal if cache shows
-# evidence of saturation (many entries from same minute window).
-# Deferred to W6-7 build (analytical signal; not blocking).
+# Step 2 — Rate-limit saturation signal: deferred (analytical, not blocking).
+# The @ifos/bullhorn + @ifos/companies-house connectors already gate at their
+# own budgets in-process; a disk-cache-derived saturation heuristic adds no
+# enforcement and is left to the canary cron (v1.1 analytics).
 # ────────────────────────────────────────────────────────────────────────
 
 # ────────────────────────────────────────────────────────────────────────
 # Step 3 — Emit green-tier audit row (per agent.md §3 actions list)
 # ────────────────────────────────────────────────────────────────────────
 
-TOTAL_PURGED=$((BULLHORN_PURGED + CH_PURGED))
+TOTAL_PURGED=$((BULLHORN_PURGED + CH_PURGED + TMP_PURGED))
 
-# TODO(W6-7): once janitor_cleanup action_type is registered in
-# autosend-policy.yaml (currently QUEUED per tools.yaml status table), switch
-# from hh_decision_output to hh_decision_action for proper tier classification.
+# Stays hh_decision_output until janitor_cleanup is registered in
+# autosend-policy.yaml (substrate-owner change; see header).
 hh_decision_output "janitor_cleanup" "tenant:${CTX_TENANT_SLUG}" \
-  "bullhorn_cache_purged:${BULLHORN_PURGED}; companies_house_cache_purged:${CH_PURGED}; total:${TOTAL_PURGED}; mode:SKELETON"
+  "bullhorn_cache_purged:${BULLHORN_PURGED}; companies_house_cache_purged:${CH_PURGED}; stale_run_dirs_purged:${TMP_PURGED}; total:${TOTAL_PURGED}"
 
 # Operator-readable trace
-printf '[janitor cleanup.sh] tenant=%s purged total=%d (bullhorn=%d companies_house=%d) mode=SKELETON\n' \
-  "${CTX_TENANT_SLUG}" "${TOTAL_PURGED}" "${BULLHORN_PURGED}" "${CH_PURGED}"
+printf '[janitor cleanup.sh] tenant=%s purged total=%d (bullhorn=%d companies_house=%d stale_tmp=%d)\n' \
+  "${CTX_TENANT_SLUG}" "${TOTAL_PURGED}" "${BULLHORN_PURGED}" "${CH_PURGED}" "${TMP_PURGED}"
 
 exit 0
