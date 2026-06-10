@@ -3,8 +3,13 @@
 #
 # Exercises agents/recruitment/scribe/validate.sh against hand-crafted
 # proposals covering the PASS path + each fail class (webhook-sig,
-# field-count, voice, schema name, schema type, PII, auth, word-cap),
-# asserting exit codes AND the per-class ESC routing in decision_log.
+# field-count, voice, schema name, schema type, PII — preview-range AND
+# beyond-preview tail, auth, word-cap), asserting exit codes AND the
+# per-class ESC routing in decision_log.
+#
+# G6 scans the FULL physical note body resolved from tacit_note.vault_path
+# (review F1), so every proposal here also writes the physical vault note
+# under a throwaway IFOS_VAULT_ROOT.
 #
 # CC fixture pattern (run-gate-a-test.sh): the test tenant is registered in
 # `tenants` first because decision_log has a FK → tenants (ON DELETE CASCADE)
@@ -30,6 +35,10 @@ command -v psql >/dev/null 2>&1 || { _fail "psql not on PATH"; exit 1; }
 command -v jq   >/dev/null 2>&1 || { _fail "jq not on PATH"; exit 1; }
 [[ -f "${VALIDATE}" ]] || { _fail "validate.sh missing"; exit 1; }
 TMPD="$(mktemp -d)"
+export IFOS_VAULT_ROOT="${TMPD}/vault"
+NOTE_DIR="${IFOS_VAULT_ROOT}/${TENANT}/scribe-notes"
+NOTE_PHYS="${NOTE_DIR}/meeting-ga-2026-06-10.md"
+mkdir -p "${NOTE_DIR}"
 
 appq() { psql "${IFOS_DB_URL}" -tAq -v ON_ERROR_STOP=1 --set=tenant="${TENANT}"; }
 
@@ -75,9 +84,11 @@ SQL
   fi
 }
 
-# Proposal builder. Args: file sig_state voice_score word_count preview fields_json
+# Proposal builder. Args: file sig_state voice_score word_count preview fields_json [body]
+# Also writes the PHYSICAL vault note (frontmatter + body) that G6 full-body
+# scans; body defaults to the preview text (the preview itself is audit-only).
 mkproposal() {
-  local file="$1" sig="$2" voice="$3" words="$4" preview="$5" fields="$6"
+  local file="$1" sig="$2" voice="$3" words="$4" preview="$5" fields="$6" body="${7:-$5}"
   jq -nc --arg sig "${sig}" --arg voice "${voice}" --argjson words "${words}" \
      --arg pv "${preview}" --argjson fields "${fields}" '{
     call_id: "meeting-ga", entity_type: "candidate", bullhorn_id: "1001",
@@ -85,6 +96,8 @@ mkproposal() {
     tacit_note: { vault_path: "/vault/scribe-gate-a-fixture/scribe-notes/meeting-ga-2026-06-10.md",
                   body_sha256: "abc123", voice_score: $voice, voice_reason: "test",
                   narrative_word_count: $words, narrative_body_preview: $pv } }' > "${file}"
+  printf -- '---\ncall_id: meeting-ga\ndate: 2026-06-10\nvoice_score: %s\n---\n\n%s\n' \
+    "${voice}" "${body}" > "${NOTE_PHYS}"
 }
 
 GOOD_FIELDS='[{"field_name":"location","value":"Leeds","confidence":0.9},
@@ -150,10 +163,29 @@ mkproposal "${TMPD}/badtype.json" verified 0.82 200 "clean text" "${BAD_TYPE_FIE
 run_case "FAIL G5: enum + integer type violations" 1 "${TMPD}/badtype.json"
 assert_esc ESC_SCHEMA_VIOLATION
 
-# ── G6: PII outside firm boundary in narrative preview ────────────────────
+# ── G6: PII outside firm boundary in narrative (within preview range) ─────
 mkproposal "${TMPD}/pii.json" verified 0.82 200 \
   "candidate mentioned reach me at random.person@gmail.com about the role" "${GOOD_FIELDS}"
 run_case "FAIL G6: external email in narrative" 1 "${TMPD}/pii.json"
+assert_esc ESC_PII_LEAKAGE_RISK
+
+# ── G6 tail (review F1 blocker case): PII BEYOND the 500-char preview ─────
+# The note body is >500 chars with a clean head; the external email sits in
+# the tail that the old preview-only scan never covered. The preview handed
+# to validate.sh is the clean first 500 chars — only a full-body scan fails.
+TAIL_BODY="$(printf 'clean observation line about process friction and culture fit. %.0s' {1..10})candidate said best to reach their referee on holiday at private.referee@gmail.com for the reference"
+TAIL_PREVIEW="$(printf '%s' "${TAIL_BODY}" | head -c 500)"
+if printf '%s' "${TAIL_PREVIEW}" | grep -q '@'; then
+  _fail "tail-PII case construction: preview is supposed to be clean"; fails=$((fails + 1))
+fi
+mkproposal "${TMPD}/pii-tail.json" verified 0.82 200 "${TAIL_PREVIEW}" "${GOOD_FIELDS}" "${TAIL_BODY}"
+run_case "FAIL G6 tail: PII beyond 500-char preview (full-body scan)" 1 "${TMPD}/pii-tail.json"
+assert_esc ESC_PII_LEAKAGE_RISK
+
+# ── G6 fail-closed: physical note body unreadable → blocked ───────────────
+mkproposal "${TMPD}/nobody.json" verified 0.82 200 "clean text" "${GOOD_FIELDS}"
+rm -f "${NOTE_PHYS}"
+run_case "FAIL G6 fail-closed: note body unreadable"  1 "${TMPD}/nobody.json"
 assert_esc ESC_PII_LEAKAGE_RISK
 
 # ── G8: tacit-note word count over the 800 cap ─────────────────────────────
@@ -169,15 +201,15 @@ SELECT count(*) FROM decision_log WHERE tenant_slug = :'tenant'
 COMMIT;
 SQL
 )"
-if [[ "${GF_COUNT:-0}" -ge 8 ]]; then
+if [[ "${GF_COUNT:-0}" -ge 10 ]]; then
   _ok "validate_gate_a_fail action row written for all ${GF_COUNT} fail cases"
 else
-  _fail "expected ≥8 validate_gate_a_fail rows, got ${GF_COUNT:-0}"; fails=$((fails + 1))
+  _fail "expected ≥10 validate_gate_a_fail rows, got ${GF_COUNT:-0}"; fails=$((fails + 1))
 fi
 
 printf '\n'
 if [[ "${fails}" -eq 0 ]]; then
-  _ok "all Gate A assertions passed (2 pass paths + 8 fail classes + ESC routes)"
+  _ok "all Gate A assertions passed (2 pass paths + 10 fail cases incl. G6 tail-PII + fail-closed + ESC routes)"
   exit 0
 fi
 _fail "${fails} assertion(s) failed"

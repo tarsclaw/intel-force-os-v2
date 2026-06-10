@@ -161,6 +161,20 @@ FIELD_WRITES=0
 NOTE_ATTACHES=0
 WORST_SLA_CLASS="n/a"
 
+# Severity rank for SLA classes (bin/sla-class.sh output set) — Step 10
+# records the WORST class across a multi-meeting sweep, not the last
+# (review F5). Higher = worse.
+_sla_rank() {
+  case "$1" in
+    note_attach_miss)    echo 5 ;;
+    summary_render_miss) echo 4 ;;
+    gate_b_10min_miss)   echo 3 ;;
+    info_5_10_min)       echo 2 ;;
+    under_5_min)         echo 1 ;;
+    *)                   echo 0 ;;   # n/a (no call completed yet)
+  esac
+}
+
 # ────────────────────────────────────────────────────────────────────────
 # Step 0 — Session start
 # ────────────────────────────────────────────────────────────────────────
@@ -294,6 +308,15 @@ process_call() {
   # ingest. (ESC_GRANOLA_PLAN_TIER is QUEUED for catalogue registration; the
   # degradation is recorded on the audit rows until it lands — never a fake
   # ESC through an unregistered code.)
+  # DECLARED DEVIATION 10 (review F2): spec-002 §4 row 3 lists a transcript-
+  # side ESC_PII_LEAKAGE_RISK at this step; NOT implemented by design.
+  # Transcripts inherently contain third-party contact data (every external
+  # attendee email is "PII outside the firm boundary" by the gate's own
+  # definition), so a transcript-wide scan would fire on every call. The
+  # transcript never leaves the firm boundary: it lives at /tmp mode 0600 and
+  # is purged ≤24h by cleanup.sh. The correct control point for what DOES
+  # leave (the note body Step 9 exports to Bullhorn) is Gate A G6's
+  # full-note-body scan in validate.sh.
   local tx_source="" ingest_mode="transcript"
   rm -f "${tmp_tx}" 2>/dev/null || true
 
@@ -308,10 +331,15 @@ process_call() {
       local _gj
       if _gj="$(node "${GRANOLA_CLI}" get-transcript --meeting "${call_id}" 2>/dev/null)" \
            && jq -e '.segments | type=="array"' <<<"${_gj}" >/dev/null 2>&1; then
-        # Normalise granola segments → "[MM:SS] speaker: text" lines
-        jq -r '.segments[] | "[" + ((.start_seconds // 0) / 60 | floor | tostring) + ":" +
-               (((.start_seconds // 0) % 60 | floor | tostring) | if length < 2 then "0" + . else . end) + "] " +
-               (.speaker // "unknown") + ": " + (.text // "")' <<<"${_gj}" > "${tmp_tx}.cli" 2>/dev/null || return 1
+        # Normalise granola segments → "[MM:SS] speaker: text" lines.
+        # 0600 from birth (umask 177 subshell — review F4): the normalised
+        # transcript never exists on disk with default perms.
+        if ! ( umask 177
+               jq -r '.segments[] | "[" + ((.start_seconds // 0) / 60 | floor | tostring) + ":" +
+                      (((.start_seconds // 0) % 60 | floor | tostring) | if length < 2 then "0" + . else . end) + "] " +
+                      (.speaker // "unknown") + ": " + (.text // "")' <<<"${_gj}" > "${tmp_tx}.cli" 2>/dev/null ); then
+          return 1
+        fi
         tx_source="${tmp_tx}.cli"; return 0
       fi
       return 1
@@ -482,6 +510,9 @@ SQL
     "call:${call_id}; valid:${valid_count} of $(jq 'length' "${fields_file}") extracted; dropped:${dropped_count}"
 
   # Build the Gate A proposal + run validate.sh (hard gate between Step 7 and 8).
+  # narrative_body_preview (first 500 chars) is the AUDIT ROW artefact only —
+  # validate.sh G6 scans the FULL physical body it resolves from
+  # tacit_note.vault_path (review F1 fix; Step 9 exports the full body).
   local proposal="${tmp_tx%.txt}-proposal.json" preview
   preview="$(sed -n '/^---$/,/^---$/!p' "${note_file_phys}" | head -c 500 | tr '\n' ' ')"
   jq -nc --arg call_id "${call_id}" --arg et "${entity_type}" --arg bid "${bullhorn_id}" \
@@ -636,6 +667,23 @@ SQL
         bash "${_BIN}/bh-bridge.sh" update-entity --type "${bh_type}" --id "${bullhorn_id}" \
           --fields "${prior_subset}" >/dev/null 2>&1 || true
       fi
+      # Review F6: the Step-8 recent_edit 'deferred' row belongs to a write we
+      # just rolled back — remove it so Gate B's edit-rate denominator isn't
+      # inflated by a write that never landed.
+      if [[ -n "${IFOS_DB_URL:-}" ]] && command -v psql >/dev/null 2>&1; then
+        _psql_t --set=et="${entity_type}" --set=eid="${bullhorn_id}" --set=fm="${field_map}" >/dev/null 2>&1 <<'SQL' || true
+BEGIN;
+SET LOCAL app.current_tenant = :'tenant';
+DELETE FROM recent_edit
+WHERE id = (SELECT id FROM recent_edit
+            WHERE tenant_slug = :'tenant' AND agent_name = 'scribe'
+              AND action_type = 'bullhorn_scribe_field_write'
+              AND target_entity_type = :'et' AND target_entity_id = :'eid'
+              AND resolution = 'deferred' AND original_text = :'fm'
+            ORDER BY id DESC LIMIT 1);
+COMMIT;
+SQL
+      fi
       autosend_escalate "ESC_BULLHORN_WRITE_FAIL" "agent=scribe" \
         "tenant=${CTX_TENANT_SLUG}" "call=${call_id}" "entity=${entity_type}:${bullhorn_id}" \
         "surface=note_attach" "rollback=step8_reversed_best_effort"
@@ -657,7 +705,9 @@ SQL
     autosend_escalate "${esc_code}" "agent=scribe" \
       "tenant=${CTX_TENANT_SLUG}" "call=${call_id}" "sla_type=${sla_type}" "elapsed_seconds=${elapsed}"
   fi
-  WORST_SLA_CLASS="${sla_class}"
+  if (( $(_sla_rank "${sla_class}") > $(_sla_rank "${WORST_SLA_CLASS}") )); then
+    WORST_SLA_CLASS="${sla_class}"
+  fi
   LAST_CALL_ELAPSED="${elapsed}"
   return 0
 }

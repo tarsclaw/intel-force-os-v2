@@ -32,11 +32,15 @@
 #             "voice_score": <0.0-1.0> | "unscored",
 #             "voice_reason": "...",
 #             "narrative_word_count": <int>,
-#             "narrative_body_preview": "..."  // first 500 chars for PII regex pass
+#             "narrative_body_preview": "..."  // first 500 chars — AUDIT ROW ONLY;
+#                                              // G6 scans the FULL physical body
+#                                              // resolved from vault_path
 #           }
 #         }
 #   - env: CTX_TENANT_SLUG, CTX_AGENT_NAME, CTX_AGENT_DIR,
-#          CTX_FIRM_DOMAIN_WHITELIST (comma-separated; for the PII check)
+#          CTX_FIRM_DOMAIN_WHITELIST (comma-separated; for the PII check),
+#          IFOS_VAULT_ROOT (physical vault root for resolving vault_path;
+#          default ~/.ifos-local-vault — must match cycle.sh)
 #
 # Exit codes:
 #   0  All Gate A checks pass; cycle.sh proceeds to Steps 8 + 9 writes
@@ -50,6 +54,8 @@
 #   G4 — field-names: exist in target entity schema         ESC_SCHEMA_VIOLATION  hard
 #   G5 — field-types: per-field type/range valid; ≥3 valid  ESC_SCHEMA_VIOLATION  hard
 #   G6 — PII: none outside firm boundary in note narrative  ESC_PII_LEAKAGE_RISK  hard (blocking)
+#        (FULL physical body from tacit_note.vault_path — Step 9 exports the
+#        full body to Bullhorn, so the gate scans everything that leaves)
 #   G7 — auth: Bullhorn refresh succeeded this session      ESC_BULLHORN_AUTH  hard
 #   G8 — word-cap: tacit-note ≤800 words (agent.md §3)      ESC_AGENT_OUTPUT_SHAPE  hard
 
@@ -222,35 +228,51 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────
-# G6 — No PII outside firm boundary in the tacit-note narrative (regex pass
-# over narrative_body_preview against CTX_FIRM_DOMAIN_WHITELIST).
+# G6 — No PII outside firm boundary in the tacit-note narrative.
+# Scans the FULL physical note body resolved from tacit_note.vault_path
+# (review F1 fix): Step 9 exports the full body to Bullhorn via
+# `create-note --body-file`, so the gate must cover everything that leaves
+# the firm boundary. narrative_body_preview is the AUDIT ROW artefact only —
+# it is never the scan surface. Fail-closed: a body that cannot be read
+# cannot be certified PII-clean, so it blocks.
 # Blocking severity per agent.md §6 ESC_PII_LEAKAGE_RISK.
 # ────────────────────────────────────────────────────────────────────────
 
-_preview="$(jq -r '.tacit_note.narrative_body_preview // ""' "${PROPOSAL}")"
-_whitelist="${CTX_FIRM_DOMAIN_WHITELIST:-${CTX_TENANT_SLUG}.test}"
-_pii_hit=0
-_body_emails="$(printf '%s' "${_preview}" | grep -oiE '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' | sort -u || true)"
-if [[ -n "${_body_emails}" ]]; then
-  while IFS= read -r _em; do
-    [[ -z "${_em}" ]] && continue
-    _dom="${_em##*@}"
-    _allowed=0
-    for _fd in ${_whitelist//,/ }; do
-      [[ "${_dom,,}" == "${_fd,,}" ]] && _allowed=1
-    done
-    [[ "${_allowed}" -eq 0 ]] && _pii_hit=1
-  done <<<"${_body_emails}"
+_vault_path="$(jq -r '.tacit_note.vault_path // ""' "${PROPOSAL}")"
+_note_phys=""
+if [[ "${_vault_path}" == /vault/* ]]; then
+  _note_phys="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${_vault_path#/vault/}"
 fi
-# UK NI numbers + phone-number shapes are also outside-boundary PII in a narrative.
-if printf '%s' "${_preview}" | grep -qiE '\b[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]\b'; then
-  _pii_hit=1
-fi
-if [[ "${_pii_hit}" -eq 1 ]]; then
-  _fail "G6: PII outside firm boundary detected in tacit-note narrative — write blocked; vault draft held for review"
+if [[ -z "${_note_phys}" || ! -r "${_note_phys}" ]]; then
+  _fail "G6: tacit-note body unreadable (vault_path:'${_vault_path:-missing}') — cannot certify PII boundary; write blocked"
   ESC_CLASS="ESC_PII_LEAKAGE_RISK"
 else
-  _ok "G6: no PII outside firm boundary in narrative preview"
+  # Frontmatter excluded (metadata only — call_id/date/voice keys, no narrative).
+  _note_body="$(sed -n '/^---$/,/^---$/!p' "${_note_phys}")"
+  _whitelist="${CTX_FIRM_DOMAIN_WHITELIST:-${CTX_TENANT_SLUG}.test}"
+  _pii_hit=0
+  _body_emails="$(printf '%s' "${_note_body}" | grep -oiE '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' | sort -u || true)"
+  if [[ -n "${_body_emails}" ]]; then
+    while IFS= read -r _em; do
+      [[ -z "${_em}" ]] && continue
+      _dom="${_em##*@}"
+      _allowed=0
+      for _fd in ${_whitelist//,/ }; do
+        [[ "${_dom,,}" == "${_fd,,}" ]] && _allowed=1
+      done
+      [[ "${_allowed}" -eq 0 ]] && _pii_hit=1
+    done <<<"${_body_emails}"
+  fi
+  # UK NI numbers + phone-number shapes are also outside-boundary PII in a narrative.
+  if printf '%s' "${_note_body}" | grep -qiE '\b[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]\b'; then
+    _pii_hit=1
+  fi
+  if [[ "${_pii_hit}" -eq 1 ]]; then
+    _fail "G6: PII outside firm boundary detected in tacit-note narrative (full-body scan) — write blocked; vault draft held for review"
+    ESC_CLASS="ESC_PII_LEAKAGE_RISK"
+  else
+    _ok "G6: no PII outside firm boundary in full note body ($(printf '%s' "${_note_body}" | wc -c | tr -d ' ') bytes scanned)"
+  fi
 fi
 
 # ────────────────────────────────────────────────────────────────────────

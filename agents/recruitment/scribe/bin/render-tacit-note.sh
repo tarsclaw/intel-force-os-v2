@@ -105,7 +105,9 @@ done < "${TRANSCRIPT}"
 # Privacy (agent.md §7 tone rules): participant emails never enter the
 # narrative — render local parts only ("jane.doe" not "jane.doe@x.test").
 # Any third-party email inside an utterance still surfaces and is caught by
-# the Gate A PII check (that is outside-boundary PII; participants are not).
+# the Gate A G6 check, which scans the FULL rendered note body resolved from
+# tacit_note.vault_path — not just a preview (that is outside-boundary PII;
+# participants are not).
 PARTICIPANTS_DISPLAY="$(printf '%s' "${PARTICIPANTS}" | tr ',' '\n' | sed -E 's/@.*$//' | paste -sd ', ' -)"
 
 [[ -z "${OBS}" ]] && OBS="- (no taxonomy-cued observations in this transcript)"$'\n'
