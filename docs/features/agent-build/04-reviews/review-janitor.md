@@ -34,3 +34,6 @@ build-gate **PASS** (shellcheck ×40; 4 connector suites; 9 DB suites) · dedup 
 
 ## Post-creds live-smoke checklist (carry forward)
 Findings 4/5/7/10 + Bullhorn OAuth consent bootstrap + Steps 1/2/9 live smoke.
+
+## Closure (2026-06-10)
+Codex trail **4→4→3**, loop closed at the ≤2-round ceiling. R1 fixed on-branch (`a1cc02f`/`2938b20`); R2 build-state honesty fixed (`01b07f0`); final run (session `20260610T142308Z-65943`) REJECTED:3 — Composio comment idiom, G1 wording, Step-11 tier — incorporated post-run (`b505ae9`). Reviewer MINORs 1-5 all folded. CLI contract delivered: `update-entity` + extended `create-note` + `token_state`, bullhorn vitest 52/52. **PROPOSED FOR FOUNDER MERGE @ `b505ae9`.**
