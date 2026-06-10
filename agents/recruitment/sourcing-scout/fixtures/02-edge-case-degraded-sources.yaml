@@ -1,5 +1,13 @@
 # Sourcing Scout fixture — 02-edge-case-degraded-sources
 #
+# W9 BUILD-SLICE ALIGNMENT (spec-003): the auth_refresh_complete marker uses
+# the spec-003 §4 format "sources_ok:N/4; degraded:<list>". Reed is live at
+# Step-2 refresh time (key present) and degrades AT STEP 5 on the 429 — so the
+# Step-2 marker reads sources_ok:2/4; degraded:bullhorn, and the reed entry
+# joins sources_degraded when the 429 fires. Per-source ESC codes are emitted
+# as phase='gating_failed' rows via autosend_escalate (the CC idiom);
+# validate_gate_a_fail action rows are reserved for Gate A itself.
+#
 # Edge case. Tests the multi-source degraded-mode path per agent.md §4 Step 2
 # catalogue interpretation. When TWO sources are in degraded mode (Bullhorn
 # auth failed + Reed quota hit) and the remaining live source (CV-Library)
@@ -141,32 +149,29 @@ expected:
       output_type: brief_ingested
     - phase: output
       output_type: auth_refresh_complete
-      payload_contains: "sources_active:1; degraded:bullhorn,reed"
-    - phase: action
-      action_type: validate_gate_a_fail   # Step 2 emits per ESC_BULLHORN_AUTH catalogue routing
-      payload_contains: "ESC_BULLHORN_AUTH; degraded_mode:skip_bullhorn_source"
+      payload_contains: "sources_ok:2/4; degraded:bullhorn"
+    - phase: gating_failed
+      outcome: ESC_BULLHORN_AUTH          # Step 2 autosend_escalate; degraded_mode=skip_bullhorn_source in payload
     - phase: output
-      output_type: linkedin_search_skipped
-    - phase: action
-      action_type: validate_gate_a_fail   # Step 5 emits per ESC_RATE_LIMIT_HIT
-      payload_contains: "ESC_RATE_LIMIT_HIT; upstream:reed; degraded_mode:cached_only"
+      output_type: linkedin_query           # results:0; no_op
+    - phase: gating_failed
+      outcome: ESC_RATE_LIMIT_HIT          # Step 5 autosend_escalate; upstream=reed; degraded_mode=cached_only
     - phase: output
       output_type: cvlibrary_query
-      payload_contains: "candidates_returned:3"
+      payload_contains: "results:3"
     - phase: output
       output_type: aggregate_dedupe
-      payload_contains: "post_dedupe:3"
+      payload_contains: "post:3"
     - phase: output
       output_type: dnc_filter
     - phase: output
-      output_type: rationale_generation
-      payload_contains: "candidates_ranked:3"
+      output_type: candidate_proposed       # 3× included:true rows
     - phase: action
       action_type: validate_gate_a_fail
-      payload_contains: "ESC_AGENT_OUTPUT_SHAPE; g1_count_below_floor:3"
+      payload_contains: "ESC_AGENT_OUTPUT_SHAPE"   # G1: candidate count 3 outside [5, 15]
     - phase: action
       action_type: scout_run_complete
-      payload_contains: "exit_code:1; gate_a:FAIL"
+      payload_contains: "gate_a:FAIL"   # cycle.sh exits 1 after this session-close row
 operator_action_required: >
   Two sources degraded simultaneously. Operator should (a) renew the Bullhorn
   OAuth consent dance (auth failed at refresh; check refresh_token validity),

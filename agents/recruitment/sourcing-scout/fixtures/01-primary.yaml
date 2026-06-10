@@ -1,5 +1,15 @@
 # Sourcing Scout fixture — 01-primary (happy path)
 #
+# W9 BUILD-SLICE ALIGNMENT (spec-003): marker names follow the spec-003 §3
+# downstream contract (bullhorn_query / linkedin_query / candidate_proposed
+# per candidate) — the skeleton-era names (bullhorn_passive_query /
+# linkedin_search_skipped / rationale_generation) are superseded. Arithmetic
+# corrected to the data: 18 pre-dedupe → 15 post-dedupe (3 cross-source
+# pairs: Alice, Bob, Carol) → 2 DNC drops → 13 final. Voice scores are
+# recorded unscored/no_corpus at v1.0 (empty tenant voice_corpus; honest
+# signal per spec-003 §8) — the mocked ≥0.75 scores below describe the
+# post-classifier enhancement, not the v1.0 run.
+#
 # Tests the canonical flow per agent.md §3 + §4:
 #   cycle.sh mode=cli + --brief-id → @ifos/bullhorn getBrief returns
 #   "Senior React Engineer, London, £100k-£120k, hybrid" → context.sh
@@ -7,13 +17,13 @@
 #   Step 3 Bullhorn passive-match query returns 8 passive candidates →
 #   Step 4 LinkedIn NO-OP (v1.0 caveat) → Step 5 Reed search returns 6
 #   candidates → Step 6 CV-Library returns 4 candidates → Step 7 aggregate
-#   yields 18 pre-dedupe, 14 post-dedupe → Step 8 DNC filter drops 2 →
-#   Step 9 rationale generation produces 12 rationales all ≥50 words +
-#   voice score ≥0.75 → Step 10 Gate A G1-G7 all pass → vault Markdown
+#   yields 18 pre-dedupe, 15 post-dedupe → Step 8 DNC filter drops 2 →
+#   Step 9 produces 13 rationales all ≥50 words (voice: unscored/no_corpus
+#   at v1.0) → Step 10 Gate A G1-G7 all pass → vault Markdown
 #   report at /vault/migration-test/sourcing-scout-reports/<slug>-<ISO>.md →
 #   Step 11 Telegram notification to operator.
 #
-# Per agent.md §5: 12 candidates within [5, 15] range (G1 PASS); all have
+# Per agent.md §5: 13 candidates within [5, 15] range (G1 PASS); all have
 # working contact methods (G2 PASS); all rationales ≥50 words (G3 PASS);
 # voice scores ≥0.75 (G4 PASS); no DNC matches (G5 PASS); no PII (G6 PASS);
 # 3 sources contributed (G7 PASS).
@@ -22,7 +32,7 @@
 #         package calls + verifies fixture expectations against actual outputs).
 
 fixture_id: 01-primary
-description: Happy path — 3 sources active; 18 pre-dedupe → 14 post-dedupe → 12 after DNC + voice filter; Gate A all pass; vault report written
+description: Happy path — 3 sources active; 18 pre-dedupe → 15 post-dedupe → 13 after DNC filter; Gate A all pass; vault report written
 tenant_slug: migration-test
 agent: sourcing-scout
 expected_gate_a: PASS
@@ -110,23 +120,23 @@ expected:
     cvlibrary: { returned: 4, queried: true }
   aggregate_dedupe:
     pre_dedupe: 18         # 8 + 6 + 4
-    post_dedupe: 14        # 4 cross-source matches removed (Alice/Bob/Carol surfaced twice)
+    post_dedupe: 15        # 3 cross-source matches merged (Alice/Bob/Carol surfaced twice)
     cross_source_provenance:
       - { name: "Alice Anderson", sources: ["bullhorn", "reed"] }
       - { name: "Bob Brown", sources: ["bullhorn", "reed"] }
       - { name: "Carol Chen", sources: ["bullhorn", "cvlibrary"] }
   dnc_filter:
     dropped: 2             # Grace Green (email match) + Henry Hall (phone match)
-    kept: 12               # 14 post-dedupe - 2 DNC = 12
+    kept: 13               # 15 post-dedupe - 2 DNC = 13
   rationale_generation:
-    rationales_generated: 12
-    voice_pass: 12
+    rationales_generated: 13
+    voice_state: unscored_no_corpus   # v1.0 honesty; G4 warns, never fails on unscored
     voice_drift_drops: 0
   validate_gate_a:
-    g1_pass: true          # 12 in [5, 15]
+    g1_pass: true          # 13 in [5, 15]
     g2_pass: true          # all have contact methods
     g3_pass: true          # all ≥50 words
-    g4_pass: true          # all voice ≥0.75
+    g4_pass: true          # warn-when-unscored (no corpus); hard once classifier lands
     g5_pass: true          # DNC already filtered Step 8
     g6_pass: true          # no PII outside firm boundary
     g7_pass: true          # 3 sources contributed
@@ -135,7 +145,7 @@ expected:
     written: true
     path: "/vault/migration-test/sourcing-scout-reports/12345-2026-06-03.md"
     sections_present: ["brief_context", "ranked_candidates", "source_breakdown", "diagnostic_exception_list"]
-    candidate_count: 12
+    candidate_count: 13
     exception_list_includes_dnc_drops: true   # 2 DNC drops noted in diagnostic section
   operator_notification:
     channel: telegram
@@ -149,9 +159,9 @@ expected:
     - phase: output
       output_type: auth_refresh_complete
     - phase: output
-      output_type: bullhorn_passive_query
+      output_type: bullhorn_query
     - phase: output
-      output_type: linkedin_search_skipped
+      output_type: linkedin_query
       payload_contains: "v1.0_caveat_proxycurl_shutdown"
     - phase: output
       output_type: reed_query
@@ -162,7 +172,7 @@ expected:
     - phase: output
       output_type: dnc_filter
     - phase: output
-      output_type: rationale_generation
+      output_type: candidate_proposed   # ONE row PER candidate (13× included:true + 2× DNC included:false)
     - phase: output
       output_type: scout_report
     - phase: action
