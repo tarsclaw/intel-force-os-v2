@@ -164,3 +164,27 @@ suites; 9/9 DB suites). Scribe suites: extraction 34 asserts PASS (incl. the
 8 bridge-contract/rollback cases) · gate-a 23 asserts PASS (incl. tail-PII +
 fail-closed) · sla 19 asserts PASS. Still NOT live-smoked — creds/token state
 unchanged; nothing claimed beyond fixtures.
+
+## Codex R2 + re-review-nit fix pass (2026-06-10 — Codex R2 session `20260610T142722Z-98108` REJECTED:3; targeted re-review PASSED all prior findings + 2 nits)
+
+FINAL fix pass (≤2-round ceiling — no further ratification iteration after
+the next run). Branch already rebased onto main `f1bce8c` (carries the
+amended dual-form `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE` catalogue entry).
+Every finding mapped to its fix; `build-gate.sh` PASS after the pass.
+
+| Finding | Class | Fix |
+|---|---|---|
+| R2-1 — agent.md required ≥3 extracted/written fields per call, but the v0.3 schema grants Scribe only TWO writable Contact fields (`preferred_channel`, `next_action_target_date`; `decision_authority` R-only) | REJECT | **Implementation truth verified first:** `bin/validate-fields.sh` Contact writable spec is exactly 2 fields, and `validate.sh` G2/G5 + `cycle.sh` Steps 5/7 all hard-coded ≥3 — a legitimate Contact-resolved call could NEVER pass G5 (max 2 valid writable fields exist). Fixed by parameterising the Gate A minimum per entity (**Contact 2, all others 3**) in `validate.sh` (G2 + G5) and `cycle.sh` (Steps 5 + 7), and making it explicit in agent.md §1/§3/§4/§5 + the tools.yaml G2 condition. Extraction may surface more; R-only material flows to the tacit-note narrative only. NO schema edits. New gate-a fixture cases: 2-field Contact PASSES, 1-field Contact FAILS (with ESC + aggregate payload asserted). |
+| R2-2 — §5 Gate B still webhook-anchored ("within 5 minutes of webhook") while §2 makes poll-sweep primary and Step 10 anchors to meeting end | REJECT | §5 Gate B rewritten to ONE anchor — **meeting end (`ended_at`)**, as implemented (cycle.sh Step 10 `elapsed` from `end_time` via `bin/sla-class.sh`); poll-discovery latency explicitly a component that counts against Scribe. ULTRAPLAN A3 line 525 "of webhook" wording flagged as pre-pivot drift in a note — ULTRAPLAN itself NOT edited. §1 + §6 `ESC_GATE_B_MISS` row aligned to the same anchor. |
+| R2-3 — agent.md §6 `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE` row not aligned to the catalogue's aggregate form | REJECT | §6 row now carries the catalogue aggregate form + payload fields. **Implementation payload verified and aligned:** `cycle.sh` Step 5 and `validate.sh`'s G2 fail path previously emitted `fields_above_threshold`/`required` — both now emit the catalogue aggregate-form payload (`entity_type`, `fields_extracted_count`, `confidence_floor` 0.6, `required_minimum`, `agent_name`). Test assertions added in both scribe suites (extraction: full `candidate\|1\|0.6\|3\|scribe` payload pipe-check; gate-a: per-key asserts for candidate min-3 and contact min-2 cases). |
+| Re-review ADVISORY — `validate.sh` G6 frontmatter exclusion `sed -n '/^---$/,/^---$/!p'` skipped content between ANY later `---` pair | ADVISORY | Replaced with an awk strip anchored to the LEADING block only (first `---` pair starting at line 1); later `---` lines (markdown horizontal rules) stay in the scan surface. Verified the old sed genuinely dropped PII framed by body `---` lines; new gate-a regression case (PII between a later `---` pair → G6 FAIL + `ESC_PII_LEAKAGE_RISK`). |
+| Re-review TRIVIAL — `bin/bh-bridge.sh` header claimed `update-entity` returns `"updated":<n>` | TRIVIAL | Header corrected to `"updated":true` (boolean per the implemented CLI); the test-mode stub aligned from `"updated":1` to `"updated":true` (no consumer parses the value — verified by grep before changing). |
+
+### Evidence
+
+`bash scripts/build-gate.sh` **PASS** post-fix (shellcheck CLEAN 43 files; 4
+connector suites; 9/9 DB suites). Scribe suites: gate-a now 3 pass paths
+(incl. 2-field Contact) + 12 fail cases (incl. 1-field Contact, G6 hr-rule
+regression) with ESC routes AND aggregate-payload asserts; extraction suite
++1 payload assert. Still NOT live-smoked — creds/token state unchanged;
+nothing claimed beyond fixtures.

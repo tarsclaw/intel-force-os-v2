@@ -16,7 +16,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Scribe ingests a call transcript from Granola (`@ifos/granola`; discovered by a 5-minute poll-sweep of meetings since the last poll — Granola publishes no webhooks; Ringover deferred to v1.1+) and produces TWO outputs per meeting:** (1) a structured Bullhorn write payload populating ≥3 placement-relevant fields on the appropriate entity (candidate / contact / brief / opportunity / placement per the call context; contractor is NOT a v1.0 resolution target — see §3), and (2) one tacit-note Markdown artefact written to `/vault/<tenant>/scribe-notes/<call_id>-<ISO-date>.md` containing the consultant's "things I'd write down but there's no field for" observations. The tacit-note vault artefact is also mirrored as a Bullhorn `Note` attachment on the resolved entity (consultant-visible in their ATS) **except for Opportunity, which is cache-only/vault-only at v1.0** (§3); the vault copy is the canonical narrative source per ADR-002 vault/Postgres split. End-to-end SLA: post-call note in Bullhorn within 10 minutes of the poll-sweep discovering the finished meeting, per master brief §8.2 line 597. Gate A hard-fails any transcript that doesn't produce ≥3 structured-field extractions AND 1 tacit-note with confidence ≥0.6 (per ULTRAPLAN A3 line 524). Gate B success threshold: 90% of calls processed within 5 minutes; consultant edit-rate on structured fields ≤20% (per ULTRAPLAN A3 line 525). Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml`; tacit-notes are voice-classified (≥0.75 score) per master brief §8.1 Change 1 — with the honest `unscored` state while the classifier is unbuilt (§5 G3 warn-when-unscored).
+> **Scribe ingests a call transcript from Granola (`@ifos/granola`; discovered by a 5-minute poll-sweep of meetings since the last poll — Granola publishes no webhooks; Ringover deferred to v1.1+) and produces TWO outputs per meeting:** (1) a structured Bullhorn write payload populating the per-entity Gate A minimum of placement-relevant fields on the appropriate entity (≥3 for candidate / brief / opportunity / placement; ≥2 for contact, whose Scribe-writable v0.3 set is exactly two fields — §3; contractor is NOT a v1.0 resolution target — see §3), and (2) one tacit-note Markdown artefact written to `/vault/<tenant>/scribe-notes/<call_id>-<ISO-date>.md` containing the consultant's "things I'd write down but there's no field for" observations. The tacit-note vault artefact is also mirrored as a Bullhorn `Note` attachment on the resolved entity (consultant-visible in their ATS) **except for Opportunity, which is cache-only/vault-only at v1.0** (§3); the vault copy is the canonical narrative source per ADR-002 vault/Postgres split. End-to-end SLA: post-call note in Bullhorn within 10 minutes of the poll-sweep discovering the finished meeting, per master brief §8.2 line 597. Gate A hard-fails any transcript that doesn't produce the per-entity minimum of structured-field extractions (Contact 2, others 3 — §5 G2) AND 1 tacit-note with confidence ≥0.6 (ULTRAPLAN A3 line 524's ≥3 predates the v0.3 Contact write scope). Gate B success threshold: 90% of calls completing their Bullhorn write within 5 minutes of meeting end (§5 — the single timing anchor); consultant edit-rate on structured fields ≤20% (per ULTRAPLAN A3 line 525). Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml`; tacit-notes are voice-classified (≥0.75 score) per master brief §8.1 Change 1 — with the honest `unscored` state while the classifier is unbuilt (§5 G3 warn-when-unscored).
 
 ---
 
@@ -84,7 +84,7 @@ contract exists in v1.0.
 
 Two outputs per meeting. Both write atomically; Step-9 failure rolls back Step 8 (best-effort — §4 Step 9 + §9 Q5). The Gate-B `recent_edit` row is only inserted after Step 9 settles (the table is append-only for `ifos_app`), so a rolled-back write never enters the edit-rate denominator.
 
-### Output 1 — Bullhorn structured-field writes (≥3 per call)
+### Output 1 — Bullhorn structured-field writes (per-entity Gate A minimum: Contact 2, others 3)
 
 Target entity inferred from non-firm participant emails matched against the
 RLS-scoped IFOS `entities` cache, most-context-specific entity first
@@ -119,7 +119,7 @@ Bullhorn Note target for it. For a resolved `opportunity` the contract is:
   **excluded from the "note mirrored to Bullhorn" promise**; a consultant
   reads it in the vault/Brain UI until a v1.1+ Bullhorn surface exists.
 
-Minimum 3 fields extracted per call (Gate A). Canonical fields by entity (names per `vertical-schema.yaml` v0.1 + v0.2):
+**Per-entity Gate A minimum (Codex R2-1).** The Gate A field-count bar is per entity, set by the size of each entity's Scribe-writable schema: **Contact = 2** (`preferred_channel` + `next_action_target_date` are its ONLY Scribe-writable v0.3 fields — `decision_authority` is R-only per the v0.3 §2 access matrix), **all other entities = 3** (ULTRAPLAN A3 line 524's ≥3, which predates the v0.3 Contact write scope). A blanket ≥3 would hard-fail every legitimate Contact-resolved call, since at most 2 writable fields can survive G4/G5. Extraction may surface MORE than the minimum (including R-only fields like `decision_authority`); R-only material flows to the tacit-note narrative only — it never enters the structured-write payload. Canonical fields by entity (names per `vertical-schema.yaml` v0.1 + v0.2):
 
 | Entity | Canonical fields (schema-verified) |
 |---|---|
@@ -239,7 +239,10 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
      fallback on any failure)
    → output = JSON with per-field confidence scores
    → discard fields confidence <0.6 (per Gate A)
-   → require ≥3 fields with confidence ≥0.6 OR fire ESC_FIELD_EXTRACTION_LOW_CONFIDENCE
+   → require ≥ the per-entity Gate A minimum (contact 2, others 3 — §3) of
+     fields with confidence ≥0.6 OR fire ESC_FIELD_EXTRACTION_LOW_CONFIDENCE
+     (catalogue aggregate form — payload: entity_type, fields_extracted_count,
+     confidence_floor 0.6, required_minimum, agent_name)
    → hh_decision_output("fields_extracted", "<entity_type>:<bullhorn_id>",
      "<N> fields ≥0.6 confidence; extractor:<deterministic|llm_with_deterministic_fallback>")
 
@@ -261,11 +264,12 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
 7. Field-extraction validation against vertical-schema
    → verify each extracted field name exists in target entity schema
    → verify each extracted value passes per-field type/range checks
-   → drop invalid; require ≥3 valid (per Gate A; failure = ESC_SCHEMA_VIOLATION
-     per catalogue line 163 — vertical-schema field-constraint violation at write time)
+   → drop invalid; require ≥ per-entity minimum valid (contact 2, others 3 —
+     §3; failure = ESC_SCHEMA_VIOLATION per catalogue line 163 —
+     vertical-schema field-constraint violation at write time)
    → on success: hh_decision_output("fields_validated", "<entity_type>:<bullhorn_id>",
      "<N> valid of <M> extracted; dropped:<N-invalid>")
-   → on Gate A failure (<3 valid): hh_decision_action("validate_gate_a_fail",
+   → on Gate A failure (< per-entity minimum valid): hh_decision_action("validate_gate_a_fail",
      "<entity_type>:<bullhorn_id>", payload_hash,
      "ESC_SCHEMA_VIOLATION; agent_name:scribe; valid:<N>") and exit 1
      (validate_gate_a_fail is the canonical green-tier action_type registered
@@ -337,10 +341,10 @@ v1.1+: expand taxonomy based on first 3 pilot tenants' patterns.
 Per master brief §8.1 Change 2 + `docs/decisions/autosend-safety-policy.md` §4 (policy rationale; runtime YAML is `agents/_shared/autosend-policy.yaml`). Scribe's `validate.sh` (BUILT — runs between cycle.sh Step 7 and Step 8) enforces:
 
 - G1 — webhook signature state: `verified` or `not_applicable` (poll/replay — no external input exists); `invalid`/`missing` hard-fail
-- G2 — ≥3 structured-field extractions with confidence ≥0.6 (per ULTRAPLAN A3 line 524 verbatim)
+- G2 — structured-field extractions with confidence ≥0.6 meet the **per-entity minimum: Contact 2, all other entities 3** (§3; ULTRAPLAN A3 line 524's ≥3 applies to the 3-field entities — it predates the v0.3 Contact write scope of exactly two Scribe-writable fields)
 - G3 — tacit-note voice classifier ≥0.75 — hard fail on a numeric score below threshold; **warn-when-unscored** (no corpus / no classifier ⇒ a score cannot be honestly computed; warned, never faked)
 - G4 — field names exist in target entity per vertical-schema.yaml (+v0.3 supplement)
-- G5 — per-field type + range validation passes; ≥3 valid after drops
+- G5 — per-field type + range validation passes; ≥ per-entity minimum valid after drops (Contact 2, others 3)
 - G6 — no PII outside firm boundary in the tacit-note narrative — scans the **FULL physical note body** resolved from `tacit_note.vault_path` (Step 9 exports the full body to Bullhorn; the 500-char preview is the audit-row artefact only); fail-closed when the body is unreadable
 - G7 — Bullhorn auth refresh succeeded this session (fresh `bullhorn_auth_refreshed` row, result fresh|refreshed; `unavailable`/`failed`/absent blocks all Bullhorn writes)
 - G8 — tacit-note word count ≤800 (§3 cap)
@@ -349,11 +353,12 @@ Gate A failures fire the per-check ESC class (`ESC_INPUT_VALIDATION_FAIL` / `ESC
 
 ### Gate B — Outcome thresholds (success metrics, not block)
 
-Per ULTRAPLAN A3 line 525 verbatim: **"90% of calls processed within 5 minutes of webhook; consultant edit-rate on structured fields ≤ 20%"**.
+Two metrics, **ONE timing anchor: meeting end (`ended_at`)** — as implemented (cycle.sh Step 10 computes `elapsed` from the meeting's `end_time`; `bin/sla-class.sh` buckets it; §4 Step 10):
 
-Two metrics:
-- **SLA:** ≥90% of webhooks-to-Bullhorn-write within 5 min
+- **SLA:** ≥90% of calls have their Bullhorn write completed within 5 minutes of **meeting end**. Poll-discovery latency (the 5-minute sweep cadence, §2) is a *component* of that elapsed time and counts against Scribe — there is no separate "webhook receipt" anchor at v1.0.
 - **Quality:** consultant edit-rate ≤20% on structured fields (measured via `recent_edit` rows for `agent_name='scribe'`)
+
+**ULTRAPLAN drift note (pre-pivot wording; noted only — ULTRAPLAN not edited):** ULTRAPLAN A3 line 525 reads "90% of calls processed within 5 minutes of webhook; consultant edit-rate on structured fields ≤ 20%". The "of webhook" anchor predates the Day-29 Granola pivot (§2: Granola publishes no webhooks; the poll-sweep is the primary trigger and the secondary webhook mode has no v1.0 provider). The implemented anchor — meeting end — is at least as strict as any receipt-time anchor; the 90%/5-min and ≤20% numbers are unchanged.
 
 Gate B doesn't block individual runs. Tracked monthly via day-30 metrics roll-up (similar to Janitor's day-30 report; Scribe metrics merge into the tenant's monthly executive summary).
 
@@ -371,13 +376,13 @@ Scribe uses these ESC codes from `agents/_shared/escalation-codes.md`:
 | `ESC_BULLHORN_WRITE_FAIL` | Bullhorn 4xx/5xx on field write OR note attach | warn | operator_chat_id |
 | `ESC_PROVIDER_FETCH_FAIL` | Transcript fetch fails (v1.0: Granola; Ringover added v1.1+). Catalogue line 324-329 generic upstream-read code; v1.0 payload extension uses `upstream=granola`; also fired when a meeting has neither transcript nor notes to ingest | warn | operator_chat_id |
 | `ESC_VOICE_DRIFT` | Tacit-note voice classifier <0.75 after 3 retries | warn | operator_chat_id |
-| `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE` | <3 fields with confidence ≥0.6 | warn | operator_chat_id |
+| `ESC_FIELD_EXTRACTION_LOW_CONFIDENCE` | Catalogue **aggregate form** (escalation-codes.md, amended 2026-06-10): extracted fields with confidence ≥0.6 below the per-entity Gate A minimum (Contact 2, others 3 — §3). Payload: `entity_type`, `fields_extracted_count`, `confidence_floor` (0.6), `required_minimum`, `agent_name` | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII outside firm boundary detected by Gate A G6's FULL-note-body scan (or the body is unreadable — fail-closed). Note-side only: the transcript-side scan is declared deviation 10 (§4 Step 3) — the note body is what leaves the firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_INPUT_VALIDATION_FAIL` | Webhook signature mismatch (Step 1, mode=webhook only) | warn | operator_chat_id |
 | `ESC_AGENT_OUTPUT_SHAPE` | No resolvable target entity (Step 4) — Scribe run cannot produce its declared output shape | warn | operator_chat_id |
 | `ESC_SCHEMA_VIOLATION` | Vertical-schema field-constraint violation at write time (Step 7) per catalogue line 163 | warn | operator_chat_id |
 | `ESC_SCRIBE_SLA_MISS` | Per catalogue §2.10: summary-render >30 min OR note-attach >1h after call end | warn | operator_chat_id (per catalogue routing); aggregated to Gate B metric |
-| `ESC_GATE_B_MISS` | Both Gate B metrics (≥90% within-5-min SLA AND ≤20% structured-field edit-rate) below target for 30 consecutive days | warn | operator_chat_id (per catalogue routing) |
+| `ESC_GATE_B_MISS` | Both Gate B metrics (≥90% within-5-min-of-meeting-end SLA AND ≤20% structured-field edit-rate — §5) below target for 30 consecutive days | warn | operator_chat_id (per catalogue routing) |
 | `ESC_RATE_LIMIT_HIT` | Bullhorn or provider 429 | warn | operator_chat_id |
 | `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
