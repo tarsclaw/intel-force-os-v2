@@ -3,15 +3,15 @@
 _Orchestrator refreshes this at every milestone (method doc §5). Founder reads it for an
 at-a-glance view. `git log`/branch diffs are the ground truth._
 
-**Phase:** 1 (PROVE-ONE). Substrate frozen 2026-06-10 (all action_types + schema fields verified; build-gate PASS on main; CV-Library creds re-verified SET). Sourcing Scout pilot in flight.
+**Phase:** 2 (FAN-OUT) + 3 (review loop on Scout). Substrate frozen 2026-06-10. Prove-one validated the machine end-to-end: implement worker → gate-green branch (orchestrator-verified) → review sub-agent PASS (all 7 deviations accepted) → Codex round 1 REJECTED on agent.md doc-accuracy only (4 issues, no code findings) → fix worker dispatched; Codex round 2 pending. Janitor + Scribe workers fanned out in parallel worktrees.
 
 | Agent | Spec | Phase | Status | Branch | Live-smoke capable now? |
 |---|---|---|---|---|---|
 | Diagnostic | — | — | ✅ LIVE (template #1) | `main` | yes (Companies House + Anthropic) |
 | Cash Conductor | — | — | ✅ LIVE (template #2) | `main` | yes (QB/Xero/TrueLayer sandboxes) |
-| Sourcing Scout | `spec-003-sourcing-scout.md` | 1 (PROVE-ONE) | 🟡 built + gate-green (9 commits; orchestrator-verified build-gate PASS); review sub-agent + Codex ratification in flight | `worktree-agent-a45354564e8f66257` | **NO — corrected 2026-06-10:** `CVLIBRARY_*` values are actually EMPTY (template comments fooled the naive SET check). Live smoke founder-gated: fill via `scripts/fill-dev-sandbox-secrets.sh` |
-| Janitor | `spec-001-janitor.md` | 2 | ⚪ not started | — | partial — Companies House yes; **Bullhorn BLOCKED** |
-| Scribe | `spec-002-scribe.md` | 2 | ⚪ not started | — | no — **Bullhorn BLOCKED** + Granola token/0-meetings |
+| Sourcing Scout | `spec-003-sourcing-scout.md` | 3 (review loop) | 🟡 review PASS (`04-reviews/review-sourcing-scout.md`); Codex R1 REJECTED (4 agent.md doc-accuracy issues, 0 code) → fix worker on branch; Codex R2 next | `worktree-agent-a45354564e8f66257` | **NO — corrected 2026-06-10:** `CVLIBRARY_*` values are actually EMPTY (template comments fooled the naive SET check). Live smoke founder-gated: fill via `scripts/fill-dev-sandbox-secrets.sh` |
+| Janitor | `spec-001-janitor.md` | 2 | 🔨 implementing — worktree sub-agent in flight (owns `packages/mcp-connectors/bullhorn` CLI bridge this cycle) | TBC on report | partial — Companies House yes; **Bullhorn BLOCKED** |
+| Scribe | `spec-002-scribe.md` | 2 | 🔨 implementing — worktree sub-agent in flight (Bullhorn via local `bin/bh-bridge.sh` shim; no `packages/` edits) | TBC on report | no — **Bullhorn BLOCKED** + Granola token/0-meetings |
 | Concierge | `spec-004-concierge.md` | 4 (last) | ⚪ not started | — | no — Bullhorn + autosend-bridge wiring + email OAuth |
 
 ## Gate readiness (method doc §4)
