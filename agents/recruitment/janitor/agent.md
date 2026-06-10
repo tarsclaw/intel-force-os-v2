@@ -179,8 +179,10 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 
 11. Operator notification (Telegram)
    → if Gate-B target met: green-tier notification with summary
-   → if Gate-B target missed: yellow-tier notification + 200-char executive
-     summary suggesting consultant follow-up
+   → if Gate-B target missed: same green-tier action (operator_notify_telegram
+     is registered green in autosend-policy.yaml; tier is policy-owned) with
+     gate_b_state:missed + 200-char executive summary in the payload
+     suggesting consultant follow-up
    → hh_decision_action("operator_notify_telegram", "tenant:<slug>",
      notification_hash, "gate_b_state:met|missed; chars:<N>")
 
@@ -217,7 +219,7 @@ not every step carries its OWN `hh_decision_*` row; two clusters consolidate
 
 Per master brief §8.1 Change 2 + `docs/decisions/autosend-safety-policy.md` §4 (policy rationale; runtime YAML is `agents/_shared/autosend-policy.yaml`). Janitor's `validate.sh` enforces:
 
-- Bullhorn auth refresh succeeded in Step 1 (no stale token writes)
+- Bullhorn token state from the Step-1 audit row (G1): hard-fail on `token_state:failed` (no stale-token writes); a degraded/absent state (creds founder-gated) WARNS and proceeds — no live write can occur, Step 9 defers transport honestly (accepted build deviation 4). Hard-fail-on-absent activates once live creds are provisioned.
 - Every AUTO-MERGE proposal has confidence ≥ 0.85 per ULTRAPLAN A2 line 510 (G2 — applies to auto-merge proposals ONLY; review-band pairs are held upstream at §4 Steps 3-4 and never reach Step 9, so this check is defence-in-depth against a band-classification bug, not the band mechanism itself)
 - No auto-merge proposal where EITHER record has activity (placement / interview / note) in last 90 days (per ULTRAPLAN A2 line 510 verbatim; G3 — same defence-in-depth scope as G2)
 - No field-backfill where source confidence <0.7 (CH 404 / LinkedIn empty / no derivation source)

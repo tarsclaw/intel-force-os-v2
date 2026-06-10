@@ -114,6 +114,18 @@ Codex round 2 (session `20260610T135625Z-9910`) returned REJECTED:4 — all four
 
 Verification this pass: `bash scripts/build-gate.sh` re-run → PASS (doc-only change, verified anyway).
 
+### Codex final-run findings (3) — incorporated post-run
+
+The final Codex ratification run (session `20260610T142308Z-65943`) returned **REJECTED:3** — that verdict stands on record unamended. Per the ≤2-round ratification ceiling, no further Codex round was run; the three findings were incorporated AFTER the run (doc/comment-only), the loop is closed, and the founder judges the full trail at the merge gate.
+
+| Codex final finding | Fix applied post-run |
+|---|---|
+| 1 — tools.yaml boundary comment literally named the forbidden adapters | Line 222 reworded to the Scout-precedent generic form: "No forbidden third-party adapter references anywhere in this file (adapter boundary, CLAUDE.md boundary 2)." |
+| 2 — agent.md §5 Gate A overstated G1 as hard-fail "auth refresh succeeded" | Reworded to the SHIPPED rule (validate.sh header + lines 185-192): G1 hard-fails `token_state:failed`; warns-and-proceeds on degraded/absent creds — no live write can occur, Step 9 defers transport honestly (accepted deviation 4); hard-fail-on-absent activates once live creds land. |
+| 3 — agent.md §4 Step 11 claimed a yellow-tier missed-Gate-B notification | Aligned to the registered policy: `operator_notify_telegram` is GREEN tier (autosend-policy.yaml; tier is policy-owned) and cycle.sh Step 11 keeps the missed state green with `gate_b_state:missed` + the ≤200-char executive summary carried in the payload (matches deviation 8). |
+
+Verification: `bash scripts/build-gate.sh` re-run after the three fixes → PASS.
+
 ## Queued for review / follow-ups
 
 - Codex re-ratification of the full bundle (agent.md §10 state 2) + founder Q1/Q2/Q4/Q5/Q6 approvals; agent.md status flip is founder-gated (not touched).

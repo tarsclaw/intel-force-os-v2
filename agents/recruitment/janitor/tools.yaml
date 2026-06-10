@@ -219,7 +219,7 @@ failure_modes:
 # Boundary check (per master brief §3 + review-mcp-connector.md §8)
 # ──────────────────────────────────────────────────────────────────────────────
 #
-# - No Composio / AgentMail references anywhere in this file.
+# - No forbidden third-party adapter references anywhere in this file (adapter boundary, CLAUDE.md boundary 2).
 # - All packages declared are @ifos/* — no third-party adapters with policy
 #   semantics smuggled in via tools.yaml.
 # - Action types all map to autosend-policy.yaml tiers (or are explicitly
