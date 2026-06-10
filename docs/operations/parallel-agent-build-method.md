@@ -101,8 +101,10 @@ There is **no separate GUI**. Visibility = three surfaces:
 | Sourcing Scout | ⚪ SKELETON (~15 TODOs) | parallel fan-out (§3 step 2) | LinkedIn NO-OP (Proxycurl shutdown) |
 | Concierge | ⚪ SKELETON (~16 TODOs) | last (§3 step 5) | downstream of autosend-bridge contract |
 
-**Substrate freeze (§3 step 0):** ⏸ NOT done — Phase 0 of the first build session.
-**Pipeline scaffolding:** ⏸ gate hook + STATUS.md + (optional) `/ifos-implement-agent` `/ifos-reviewloop` skills not yet built.
+**Substrate freeze (§3 step 0):** ⏸ NOT done — Phase 0 of the first build session (per-agent specs list any new substrate needs under "Upstream contract"; landing them on main first IS the freeze).
+**Pipeline scaffolding:** ✅ gates built (`scripts/build-gate.sh` + `.githooks/pre-commit`); ✅ launch entrypoint `docs/features/agent-build/00-ORCHESTRATOR.md`; ✅ comprehensive specs authored (`02-specs/spec-001..004`); ✅ `STATUS.md` board. ⏸ (optional) `/ifos-implement-agent` `/ifos-reviewloop` skills not built (orchestrator can run the loop without them).
+**Launch:** point a fresh Fable 5 (`--dangerously-skip-permissions`) session at `docs/features/agent-build/00-ORCHESTRATOR.md`.
+**Key constraint:** Bullhorn dev creds unobtainable → Janitor/Scribe/Concierge build to gate-green + fixture-proven; live-Bullhorn-smoke is founder-gated post-creds. Sourcing Scout is live-capable now (CV-Library). See `STATUS.md`.
 
 ## §8 — What to verify in Claude Code docs before first fan-out
 
