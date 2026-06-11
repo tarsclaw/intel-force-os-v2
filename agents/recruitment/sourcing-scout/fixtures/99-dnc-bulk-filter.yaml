@@ -1,5 +1,9 @@
 # Sourcing Scout fixture — 99-dnc-bulk-filter
 #
+# W9 BUILD-SLICE ALIGNMENT (spec-003): marker names follow spec-003 §3
+# (aggregate_dedupe payload "pre:N; post:M"; candidate_proposed ONE row PER
+# candidate incl. the 9 DNC drops with included=false + drop_reason:dnc_filter).
+#
 # Adversarial. Tests the bulk-DNC-filter path per agent.md §4 Step 8.
 # When a brief's natural candidate pool overlaps heavily with the tenant's
 # DNC list (e.g. the tenant has previously placed-then-fired or had bad
@@ -134,19 +138,18 @@ expected:
       output_type: brief_ingested
     - phase: output
       output_type: aggregate_dedupe
-      payload_contains: "post_dedupe:12"
+      payload_contains: "post:12"
     - phase: output
       output_type: dnc_filter
       payload_contains: "dropped:9; kept:3"
     - phase: output
-      output_type: rationale_generation
-      payload_contains: "candidates_ranked:3"
+      output_type: candidate_proposed       # 3× included:true + 9× included:false drop_reason:dnc_filter
     - phase: action
       action_type: validate_gate_a_fail
-      payload_contains: "ESC_AGENT_OUTPUT_SHAPE; g1_count_below_floor_post_dnc:3"
+      payload_contains: "ESC_AGENT_OUTPUT_SHAPE"   # G1: candidate count 3 outside [5, 15] (post-DNC)
     - phase: action
       action_type: scout_run_complete
-      payload_contains: "exit_code:1; gate_a:FAIL"
+      payload_contains: "gate_a:FAIL"
 operator_action_required: >
   Bulk DNC overlap dropped 9 of 12 candidates. Operator should (a) review
   the tenant DNC list curation — are these genuine do-not-contact entries

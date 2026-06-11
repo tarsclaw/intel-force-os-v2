@@ -1,7 +1,9 @@
 # Sourcing Scout agent — tools.yaml (capability declarations)
 #
-# Status: Proposed (W5 Day-33 SKELETON; W9 build slice may add per-tenant
-#         overrides + cost ceilings + per-step authz).
+# Status: LIVE (W9 build slice, spec-003) — capability set implemented by the
+#         live cycle.sh; per-tenant overrides + cost ceilings + per-step authz
+#         remain backlog. The agent.md §10 lifecycle status (Proposed) is
+#         founder-gated and separate from this bundle-internal build state.
 # Reading order: agent.md §1 (output contract) + §2 (invocation surface) +
 #         §4 (workflow + capability dependencies) first.
 #
@@ -12,12 +14,15 @@
 #
 # Sourcing Scout has NO state-changing capabilities — pure read + report agent.
 # All write operations are vault file creation (not gated by autosend-policy).
-# The only action_type is sourcing_scout_cleanup (green; QUEUED for W9).
+# The only registered action_type declared here is operator_notify_telegram;
+# four candidate names (bullhorn_oauth, reed_oauth, cvlibrary_oauth,
+# sourcing_scout_cleanup) are future_registration entries only — see the
+# cross-reference block at the bottom of this file.
 #
 # v1.0 capability set (3 active sources per agent.md §"v1.0 readiness caveat"):
 # - @ifos/bullhorn read-only (passive-match query)
-# - @ifos/reed (TODO Phase 8 — package scaffold pending in this marathon /goal)
-# - @ifos/cv-library (TODO Phase 8 — package scaffold pending)
+# - @ifos/reed (package scaffolded v0.1.0; creds EMPTY → degraded-skip until founder signup)
+# - @ifos/cv-library (package scaffolded v0.1.0 + CLI bridge built; the v1.0 live source)
 # - LinkedIn vendor DEFERRED to v1.1+ (Proxycurl shut down 2025;
 #   vendor selection W8-9 — Lix / Phantombuster / Apify / Sales Navigator)
 
@@ -36,7 +41,7 @@ capabilities:
   - id: bullhorn_oauth
     package: "@ifos/bullhorn"
     purpose: "Bullhorn two-step OAuth refresh (Step A OAuth + Step B REST login per @ifos/bullhorn src/auth.ts); per-corporation_id Promise dedup + 401-force-refresh per cluster F R4 lesson"
-    action_type: bullhorn_oauth          # green tier; QUEUED for registration at W9
+    future_registration: bullhorn_oauth  # NOT a registered autosend-policy action_type yet; registration is a founder-gated policy decision; until then the code path emits hh_decision_output / degraded-skip only
     cycle_step: 2
     secrets_required: [BULLHORN_CLIENT_ID, BULLHORN_CLIENT_SECRET]
     rate_limit_hint: "per-corporation_id 600/min hard / 480/min soft"
@@ -55,55 +60,53 @@ capabilities:
 
   - id: bullhorn_get_brief
     package: "@ifos/bullhorn"
-    purpose: "Brief entity hydrate when invoked via --brief-id (Step 1); v1.0 LIMITATION: @ifos/bullhorn v0.1.0 doesn't yet export getBrief — W9 build slice adds OR uses an alternative endpoint"
+    purpose: "Brief hydrate when invoked via --brief-id (Step 1). W9 disposition: cycle.sh reads the Bullhorn-synced brief from the Postgres `entities` mirror (entity_type='brief'; spec-003 §2 upstream contract) — no direct Bullhorn call at v1.0. A direct getBrief/JobOrder endpoint on @ifos/bullhorn remains the v1.1 enhancement for tenants without an entities sync."
     cycle_step: 1
     state_changing: false
-    # TODO(W9): add getBrief to @ifos/bullhorn OR use the JobOrder endpoint
-    # directly via BullhornClient.request() — Brief = JobOrder in Bullhorn terms.
 
   # ────────────────────────────────────────────────────────────────────────
-  # Reed.co.uk recruiter API (TODO Phase 8 — @ifos/reed package scaffold pending)
+  # Reed.co.uk recruiter API (@ifos/reed scaffolded v0.1.0; creds pending signup)
   # Reference: agent.md §4 Step 5. v1.0 source #2; W6+ commercial signup
   # required (per founder-api-signups-2026-06-03.md P2).
   # ────────────────────────────────────────────────────────────────────────
 
   - id: reed_oauth
     package: "@ifos/reed"
-    purpose: "Reed.co.uk recruiter API auth refresh (TODO Phase 8 — verify model OAuth vs API-key via WebFetch reed.co.uk dev docs FIRST)"
-    action_type: reed_oauth      # green tier; QUEUED for registration at W9
+    purpose: "Reed.co.uk recruiter API auth — long-lived API key presence check (Basic auth per @ifos/reed v0.1.0); creds EMPTY today → cycle.sh Step 2 degraded-skip (ESC_REED_AUTH)"
+    future_registration: reed_oauth  # NOT a registered autosend-policy action_type yet; registration is a founder-gated policy decision; until then the code path emits hh_decision_output / degraded-skip only
     cycle_step: 2
     secrets_required: [REED_API_KEY]   # placeholder — actual secret name from Phase 8 verification
-    rate_limit_hint: "TBD per Phase 8 WebFetch reed.co.uk dev docs"
-    package_status: scaffold_pending_phase_8
+    rate_limit_hint: "per-account_id budget per @ifos/reed rate-limit.ts"
+    package_status: scaffolded_v0.1.0_creds_pending
 
   - id: reed_search_candidates
     package: "@ifos/reed"
-    purpose: "Reed candidate search by brief dimensions (location + salary band + role); up to 30 hits per brief (TODO Phase 8)"
+    purpose: "Reed candidate search by brief dimensions (location + salary band + role); up to 30 hits per brief; degraded-skip until creds land"
     cycle_step: 5
     state_changing: false
-    package_status: scaffold_pending_phase_8
+    package_status: scaffolded_v0.1.0
 
   # ────────────────────────────────────────────────────────────────────────
-  # CV-Library API (TODO Phase 8 — @ifos/cv-library package scaffold pending)
+  # CV-Library API (@ifos/cv-library scaffolded v0.1.0 + dist/cli.js bridge — the v1.0 live source)
   # Reference: agent.md §4 Step 6. v1.0 source #3; W6+ commercial signup
   # required (per founder-api-signups-2026-06-03.md P3).
   # ────────────────────────────────────────────────────────────────────────
 
   - id: cvlibrary_oauth
     package: "@ifos/cv-library"
-    purpose: "CV-Library API auth refresh (TODO Phase 8 — verify model OAuth vs API-key via WebFetch cv-library.co.uk dev docs FIRST)"
-    action_type: cvlibrary_oauth   # green tier; QUEUED for registration at W9
+    purpose: "CV-Library auth — network-free check-auth via dist/cli.js (long-lived key; Basic/Bearer dual-mode per CVLibraryConfig; exact mode verified at commercial signup)"
+    future_registration: cvlibrary_oauth  # NOT a registered autosend-policy action_type yet; registration is a founder-gated policy decision; until then the code path emits hh_decision_output / degraded-skip only
     cycle_step: 2
     secrets_required: [CVLIBRARY_API_KEY]   # placeholder per Phase 8 verification
-    rate_limit_hint: "TBD per Phase 8 WebFetch cv-library.co.uk dev docs"
-    package_status: scaffold_pending_phase_8
+    rate_limit_hint: "per-account_id budget per @ifos/cv-library rate-limit.ts"
+    package_status: scaffolded_v0.1.0_cli_built
 
   - id: cvlibrary_search_candidates
     package: "@ifos/cv-library"
-    purpose: "CV-Library candidate search by brief dimensions; up to 30 hits per brief (TODO Phase 8)"
+    purpose: "CV-Library candidate search by brief dimensions via dist/cli.js search-candidates (normalised unified candidate shape); up to 30 hits per brief"
     cycle_step: 6
     state_changing: false
-    package_status: scaffold_pending_phase_8
+    package_status: scaffolded_v0.1.0_cli_built
 
   # ────────────────────────────────────────────────────────────────────────
   # LinkedIn — NO-OP at v1.0
@@ -115,9 +118,9 @@ capabilities:
   # ────────────────────────────────────────────────────────────────────────
 
   # NOTE: linkedin_* capabilities deliberately NOT declared at v1.0. cycle.sh
-  # Step 4 emits "linkedin_search_skipped" audit row instead. v1.1+ supplement
-  # adds the chosen vendor's capability set when commercial signup + MCP
-  # package land.
+  # Step 4 emits a "linkedin_query" no-op audit row ("results:0; no_op")
+  # instead. v1.1+ supplement adds the chosen vendor's capability set when
+  # commercial signup + MCP package land.
 
   # ────────────────────────────────────────────────────────────────────────
   # Voice classifier (Step 9 per-candidate rationale voice scoring)
@@ -149,7 +152,7 @@ capabilities:
 
   - id: sourcing_scout_cleanup
     purpose: "Post-run cleanup (transient @ifos/{bullhorn,reed,cv-library} cache purge + /tmp draft purge)"
-    action_type: sourcing_scout_cleanup   # green tier; QUEUED for registration at W9
+    future_registration: sourcing_scout_cleanup  # NOT a registered autosend-policy action_type yet; registration is a founder-gated policy decision; until then cleanup.sh emits hh_decision_output only (verified: no hh_decision_action call in cleanup.sh)
     state_changing: false
     cycle_step: 11
 
@@ -164,11 +167,11 @@ failure_modes:
     escalation: ESC_BULLHORN_AUTH    # blocking per catalogue §2.3 — but Sourcing-Scout-specific degraded mode = skip Bullhorn source + continue with Reed + CV-Library (NOT exit 1)
 
   - condition: "@ifos/reed OAuth/API-key auth fails (cycle.sh Step 2)"
-    surface: "ReedAuthError (TODO Phase 8 — exact error class per package scaffold)"
+    surface: "ReedAuthError per @ifos/reed v0.1.0 errors.ts; today: creds-absent degraded-skip at cycle.sh Step 2"
     escalation: ESC_REED_AUTH        # blocking per catalogue §2.7 — Sourcing-Scout degraded mode = cached Reed search only (effectively skip Reed if no warm cache)
 
   - condition: "@ifos/cv-library OAuth/API-key auth fails (cycle.sh Step 2)"
-    surface: "CVLibraryAuthError (TODO Phase 8 — exact error class per package scaffold)"
+    surface: "CVLibraryAuthError per @ifos/cv-library v0.1.0 errors.ts (CLI maps to {ok:false,error:\"auth\"})"
     escalation: ESC_CVLIBRARY_AUTH   # blocking per catalogue §2.7 — same degraded-mode pattern as Reed
 
   - condition: "Multiple sources in degraded mode AND remaining live can't produce ≥5 candidates (cycle.sh Step 2 + Step 10)"
@@ -205,12 +208,17 @@ failure_modes:
 #
 # Already REGISTERED in agents/_shared/autosend-policy.yaml:
 #   operator_notify_telegram        green
+# (cycle.sh also emits the shared registered action_types scout_run_complete
+# + validate_gate_a_fail — substrate rows, not capability declarations here.)
 #
-# QUEUED for registration at W9 build start:
-#   bullhorn_oauth                  green
-#   reed_oauth                      green
-#   cvlibrary_oauth                 green
-#   sourcing_scout_cleanup          green
+# future_registration ONLY — NOT registered autosend-policy action_types yet;
+# registration is a founder-gated substrate/policy decision. Until it lands,
+# the code paths emit hh_decision_output (auth steps / cleanup.sh) or
+# degraded-skip — NO unregistered action_type row is ever emitted:
+#   bullhorn_oauth                  (proposed green)
+#   reed_oauth                      (proposed green)
+#   cvlibrary_oauth                 (proposed green)
+#   sourcing_scout_cleanup          (proposed green)
 #
 # NOTE: Sourcing Scout has NO yellow- or orange- or red-tier action_types.
 # Pure read + report agent; outputs go to vault Markdown only. No autosend
@@ -221,15 +229,17 @@ failure_modes:
 # Boundary check (per master brief §3 + review-mcp-connector.md §8)
 # ──────────────────────────────────────────────────────────────────────────────
 #
-# - No Composio / AgentMail references anywhere in this file.
+# - No forbidden third-party adapter references anywhere in this file
+#   (adapter boundary, CLAUDE.md boundary 2).
 # - All packages declared are @ifos/* — no third-party adapters with policy
 #   semantics smuggled in via tools.yaml.
-# - Action types all map to autosend-policy.yaml tiers (or explicitly QUEUED
-#   above for W9 build-start registration).
+# - Every action_type declared maps to a registered autosend-policy.yaml tier;
+#   future_registration entries above are explicitly NOT action_type claims
+#   (founder-gated registration pending).
 # - Capability ID set = @ifos/bullhorn READ subset per integration-path
 #   §4.1 A5 (Sourcing Scout READ-ONLY on Bullhorn; shortlist artefact is the
 #   output, NOT a Bullhorn candidate write) + @ifos/reed + @ifos/cv-library
-#   declared with package_status:scaffold_pending_phase_8 (Phase 8 of this
-#   marathon /goal scaffolds those packages).
+#   (both scaffolded v0.1.0; CV-Library additionally carries the dist/cli.js
+#   bridge — the v1.0 live source; Reed creds pending founder signup).
 # - LinkedIn capabilities deliberately NOT declared at v1.0 per Proxycurl
 #   shutdown caveat; v1.1+ supplement adds when vendor selection lands.
