@@ -415,9 +415,12 @@ action_types:
 
   bullhorn_note_customer_visible:
     routing_rule: record_owner             # Concierge desk-bound (§4.1)
-    trust_bucket: 2                        # candidate-side lifecycle comms default (§4.1 Concierge row)
+    trust_bucket: 3                        # CLIENT-visible: autosend-policy's own reason says
+                                           # "customer-visible in their CRM" + irreversible —
+                                           # spec §2 "outbound to a client never graduates"
+                                           # (W2 review finding 1, fixed 2026-06-11)
     escalation_after_minutes: 30           # → desk lead after 30 min (§5.1 example)
-    ttl_minutes: 120
+    ttl_minutes: null                      # Bucket-3 client-facing: holds indefinitely (§5.2)
     # seed-judgement: on_expiry hold, NOT safe_default — a customer-visible
     # CRM note is not a live email conversation; the §5.2 holding-reply
     # register does not fit a Note artefact. Nothing is lost by holding.
@@ -631,7 +634,7 @@ invariants:
   - "routing_rule ∈ {record_owner} ∪ {function_role:<finance|ops_data|business_development|candidate_comms_default|client_comms_default|admin>}"
   - "trust_bucket ∈ {1, 2, 3}"
   - "on_expiry ∈ {hold, auto_execute, safe_default}"
-  - "on_expiry == safe_default ⇒ a bundled holding-reply template exists for the class's channel"
+  - "on_expiry == safe_default ⇒ a bundled holding-reply template exists for the class's REGISTER (the email holding-reply body doubles as the SMS register; a dedicated SMS variant may land with the W5 on-expiry machinery)"
   - "auto_execute never appears as a seed; runtime-only, post-graduation (spec §5.2 rule 2)"
   - "red-tier action_types: trust_bucket == 3, never graduate, standing-approval grants refused"
   - "ttl_minutes == null ⇒ on_expiry never fires (hold indefinitely)"
