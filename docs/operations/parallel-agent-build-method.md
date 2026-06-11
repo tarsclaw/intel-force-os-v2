@@ -96,12 +96,12 @@ There is **no separate GUI**. Visibility = three surfaces:
 |---|---|---|---|
 | Diagnostic | ✅ LIVE | reference template #1 | 0 TODOs; real 12-section reports |
 | Cash Conductor | ✅ COMPLETE — all 14 steps LIVE | reference template #2 (PROVEN) | finished 2026-06-09 PM; orange-send transport now exists (Concierge branch) |
-| Sourcing Scout | ✅ BUILT — **proposed for merge** @ `6f12953` | PROVE-ONE (ran 2026-06-10) | gate PASS · review PASS · Codex 4→4→2 incorporated; live CV-Library smoke creds-gated |
-| Janitor | ✅ BUILT — **proposed for merge** @ `b505ae9` | fan-out wave | gate PASS · review PASS · Codex 4→4→3 incorporated; owns bullhorn CLI (52/52); CH live-smoked |
-| Scribe | ✅ BUILT — **proposed for merge** @ `f4d98d4` | fan-out wave | gate PASS · review FAIL→fixed→re-review PASS · Codex 4→3→4 incorporated (caught real Contact Gate-A bug) |
-| Concierge | ✅ BUILT — **proposed for merge** @ `1f501dd` | last | gate PASS · review PASS · Codex 4→3 incorporated; **autosend-bridge production wiring REAL (34/34)** |
+| Sourcing Scout | ✅ BUILT — **MERGED** (`f685668`) | PROVE-ONE (ran 2026-06-10) | gate PASS · review PASS · Codex 4→4→2 incorporated; live CV-Library smoke creds-gated |
+| Janitor | ✅ BUILT — **MERGED** (`cccbfc2`) | fan-out wave | gate PASS · review PASS · Codex 4→4→3 incorporated; owns bullhorn CLI (52/52); CH live-smoked |
+| Scribe | ✅ BUILT — **MERGED** (`706eb3a`) | fan-out wave | gate PASS · review FAIL→fixed→re-review PASS · Codex 4→3→4 incorporated (caught real Contact Gate-A bug) |
+| Concierge | ✅ BUILT — **MERGED** (`0da3744`) | last | gate PASS · review PASS · Codex 4→3 incorporated; **autosend-bridge production wiring REAL (34/34)** |
 
-**2026-06-10 build session result:** the method worked end-to-end in ONE orchestrator session — see `docs/features/agent-build/STATUS.md` for the board, founder actions, and post-merge follow-ups. Founder merge gate is the only remaining step.
+**2026-06-10 build session result:** the method worked end-to-end in ONE orchestrator session — see `docs/features/agent-build/STATUS.md` for the board, founder actions, and post-merge follow-ups. Founder merged all four 2026-06-11; method COMPLETE end-to-end.
 
 **Substrate freeze (§3 step 0):** ✅ DONE 2026-06-10 — all 17 spec action_types verified registered in `agents/_shared/autosend-policy.yaml`; `blocked_recipients` confirmed a validated `tenant_adapters.config` key (migration chain v0.2→v0.4); all 9 Scribe v0.3-supplement field names confirmed in the schema supplements; no new migration needed; `scripts/build-gate.sh` PASS on main; CV-Library creds re-verified SET (Bullhorn/Reed EMPTY → degraded mode as specced).
 **Pipeline scaffolding:** ✅ gates built (`scripts/build-gate.sh` + `.githooks/pre-commit`); ✅ launch entrypoint `docs/features/agent-build/00-ORCHESTRATOR.md`; ✅ comprehensive specs authored (`02-specs/spec-001..004`); ✅ `STATUS.md` board. ⏸ (optional) `/ifos-implement-agent` `/ifos-reviewloop` skills not built (orchestrator can run the loop without them).
