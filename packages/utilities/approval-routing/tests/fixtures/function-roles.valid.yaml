@@ -1,0 +1,76 @@
+# Per-tenant function→role map. One file per tenant, in the vault.
+# Structure copied VERBATIM from spec §6.3 (schema_version 1) with concrete
+# fixture values — comments retained on purpose to exercise the parser.
+
+tenant_id: "fixture-tenant-uuid"
+schema_version: 1
+confirmed_at: "2026-06-10T00:00:00Z"   # set when Diagnostic confirmation completes
+confirmed_by: "aad-jane-founder"
+
+# The firm-wide catch-all. Ladder step 3. Must always be set.
+firm_default_approver:
+  person_ref: "aad-jane-founder"
+  display_name: "Jane Founder"
+
+functions:
+  - function: finance                    # Cash Conductor, invoice/credit actions
+    holder:
+      person_ref: "aad-priya-finance"
+      display_name: "Priya Finance"
+      source: graph_inferred             # graph_inferred | diagnostic_confirmed | manual
+    escalation:
+      - person_ref: "aad-jane-founder"   # backup #1
+        display_name: "Jane Founder"
+    ttl_minutes: null                    # null = holds indefinitely (Bucket 3)
+    breaks_quiet_hours: false
+
+  - function: ops_data                   # Janitor cleanup batches, ATS hygiene
+    holder:
+      person_ref: "aad-tom-ops"
+      display_name: "Tom Ops"
+      source: diagnostic_confirmed
+    escalation:
+      - person_ref: "aad-jane-founder"
+        display_name: "Jane Founder"
+    ttl_minutes: 1440                    # 24h, low urgency
+    breaks_quiet_hours: false
+
+  - function: business_development       # Client Hunter / Competitor Interception
+    holder:
+      person_ref: "aad-desk-lead-tech"
+      display_name: "Desk Lead — Tech"
+      source: diagnostic_confirmed
+    escalation:
+      - person_ref: "aad-jane-founder"
+        display_name: "Jane Founder"
+    ttl_minutes: 120
+    breaks_quiet_hours: true             # competitor-interception window is time-sensitive
+
+  - function: candidate_comms_default    # fallback when a candidate has no Bullhorn owner
+    holder:
+      person_ref: "aad-jane-founder"
+      display_name: "Jane Founder"
+      source: manual
+    escalation: []
+    ttl_minutes: 120
+    breaks_quiet_hours: false
+
+  - function: client_comms_default       # fallback when a client has no Bullhorn owner
+    holder:
+      person_ref: "aad-jane-founder"
+      display_name: "Jane Founder"
+      source: manual
+    escalation: []
+    ttl_minutes: null
+    breaks_quiet_hours: false
+
+  - function: admin                      # timesheet chases, generic ops
+    holder:
+      person_ref: "aad-tom-ops"
+      display_name: "Tom Ops"
+      source: graph_inferred
+    escalation:
+      - person_ref: "aad-jane-founder"
+        display_name: "Jane Founder"
+    ttl_minutes: 1440
+    breaks_quiet_hours: false
