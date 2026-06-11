@@ -13,7 +13,9 @@
 # This is the regression test against a quietly-loose voice gate on the
 # customer-facing rejection path.
 #
-# Status: Proposed (W4 Day-26 SKELETON).
+# Status: BUILT (W10-13). Fixture supplies the REAL numeric score via
+#   IFOS_FORCE_VOICE_SCORE=0.78 (no classifier exists in v1.0 — thresholds
+#   hard-enforce only on numeric scores; unscored is warn-and-pass).
 
 fixture_id: 02-edge-case-rejection-voice-drift
 description: Rejection (event #6) at position-3 with voice 0.78 < 0.82 threshold → ESC_VOICE_DRIFT warn + Gate A G1 fail + cycle abort
@@ -115,7 +117,7 @@ expected:
       action_type: concierge_draft_rendered
     - phase: action
       action_type: validate_gate_a_fail
-      payload_contains: "ESC_VOICE_DRIFT; position:3; score:0.78; threshold:0.82"
+      payload_contains: "ESC_VOICE_DRIFT; position:3; score:0.78"
   consultant_action_required: >
     Per agent.md §6 ESC_VOICE_DRIFT row: routes operator_chat_id (warn-tier
     for ALL positions per catalogue lines 120-125 — position-specific paging

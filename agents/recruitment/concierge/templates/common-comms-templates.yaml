@@ -1,0 +1,295 @@
+# Concierge — shared comms-template library (the `shared/common-comms-templates.yaml`
+# fallback per agent.md §4 Step 5 + spec-004 §2).
+#
+# Resolution order (cycle.sh Step 5):
+#   1. tenant override:  ${IFOS_VAULT_ROOT}/<slug>/concierge-templates/<event>-<role>.md
+#   2. deployed shared:  ${IFOS_VAULT_ROOT}/shared/common-comms-templates.yaml
+#   3. bundled (this file — the in-repo canonical copy)
+#
+# Format: one block per (event_type × recipient_role). Parsed by
+# bin/render-concierge-draft.sh with awk — keep the exact field layout:
+#   - event_type: <slug>
+#     recipient_role: candidate|client_contact
+#     template_id: <id>
+#     subject: "<one line; {{placeholders}} ok>"
+#     body: |
+#       <6-space-indented body lines>
+#
+# Placeholders: {{candidate_name}} {{candidate_first_name}} {{role}} {{company}}
+#               {{interview_at}} {{start_date}} {{consultant_signature}}
+# Tone constraints per agent.md §7: no "We regret to inform you" boilerplate,
+# no urgency language, no other-candidate names, no salary specifics.
+# 12-event taxonomy per agent.md §3; events 5/9/11/12 also carry a
+# client_contact variant (candidate + client separate drafts).
+
+templates:
+  - event_type: application-received
+    recipient_role: candidate
+    template_id: shared-application-received-candidate-v1
+    subject: "We've received your application — {{role}}"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Thank you for applying for the {{role}} position. Your application has
+      landed safely with us and is being reviewed now.
+
+      You can expect to hear from us within the next few working days with an
+      update either way — no chasing needed.
+
+      {{consultant_signature}}
+
+  - event_type: interview-booked
+    recipient_role: candidate
+    template_id: shared-interview-booked-candidate-v1
+    subject: "Your interview for {{role}} at {{company}} is booked"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Great news — your interview for the {{role}} position at {{company}} is
+      confirmed for {{interview_at}}.
+
+      A few practical notes:
+      - Please allow a little extra time beforehand to settle in.
+      - If anything changes on your side, just reply to this email and we will
+        rearrange without any fuss.
+
+      We'll send across any preparation pointers separately. Good luck — you
+      have got this.
+
+      {{consultant_signature}}
+
+  - event_type: interview-completed
+    recipient_role: candidate
+    template_id: shared-interview-completed-candidate-v1
+    subject: "Thanks for today — next steps on {{role}}"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Thank you for taking the time to interview for the {{role}} position at
+      {{company}} — we hope it felt like a fair, two-way conversation.
+
+      We're gathering feedback now and will come back to you with a clear next
+      step shortly. If you have any reflections of your own in the meantime,
+      we'd genuinely like to hear them.
+
+      {{consultant_signature}}
+
+  - event_type: offer-extended
+    recipient_role: candidate
+    template_id: shared-offer-extended-candidate-v1
+    subject: "An offer for {{role}} at {{company}}"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Wonderful news — {{company}} would like to offer you the {{role}}
+      position. Congratulations; this is well deserved.
+
+      We'll call you shortly to walk through the details together so you can
+      take your time over the decision. If you'd like to talk anything through
+      before then, just reply here.
+
+      {{consultant_signature}}
+
+  - event_type: offer-accepted
+    recipient_role: candidate
+    template_id: shared-offer-accepted-candidate-v1
+    subject: "Congratulations — {{role}} at {{company}} is yours"
+    body: |
+      Hi {{candidate_first_name}},
+
+      It's official — congratulations on accepting the {{role}} position at
+      {{company}}.
+
+      Here's what happens next:
+      - {{company}} will be in touch with contract paperwork.
+      - We'll confirm your start date and day-one practicalities shortly.
+      - We'll check in with you before your first day so nothing is left vague.
+
+      We're delighted for you.
+
+      {{consultant_signature}}
+
+  - event_type: offer-accepted
+    recipient_role: client_contact
+    template_id: shared-offer-accepted-client-v1
+    subject: "{{candidate_name}} has accepted — {{role}}"
+    body: |
+      Hi,
+
+      Good news — {{candidate_name}} has formally accepted the {{role}}
+      position. We'll coordinate the practical next steps (paperwork, start
+      date, onboarding logistics) and keep you updated at each stage.
+
+      If there's anything you need from us in the meantime, just reply here.
+
+      {{consultant_signature}}
+
+  - event_type: rejection
+    recipient_role: candidate
+    template_id: shared-rejection-candidate-v1
+    subject: "An update on your {{role}} application"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Thank you for the time and care you put into the process for the {{role}}
+      position at {{company}}. On this occasion they have decided to move
+      forward with another candidate.
+
+      This was a close call, and the feedback on your interview was genuinely
+      positive — we'd like to share the specifics with you on a quick call if
+      you're open to it.
+
+      We'd also really like to keep working with you: there are other roles
+      where your experience fits well, and you'll be front of mind as they
+      open up.
+
+      {{consultant_signature}}
+
+  - event_type: withdrawal
+    recipient_role: candidate
+    template_id: shared-withdrawal-candidate-v1
+    subject: "Your withdrawal from the {{role}} process"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Thanks for letting us know you're stepping out of the process for the
+      {{role}} position — completely understood, and no pressure from our side.
+
+      If circumstances change, or if a different kind of role would suit you
+      better, the door is open. We'd be glad to pick things up whenever the
+      timing is right for you.
+
+      {{consultant_signature}}
+
+  - event_type: on-hold
+    recipient_role: candidate
+    template_id: shared-on-hold-candidate-v1
+    subject: "A status update on {{role}} at {{company}}"
+    body: |
+      Hi {{candidate_first_name}},
+
+      A quick, honest update: {{company}} has put the {{role}} process on hold
+      for the moment. This is about their internal timing, not about you.
+
+      We don't want to leave you guessing, so here's our commitment: we'll come
+      back to you with a concrete update as soon as we have one, and we'll
+      check in regardless within the next two weeks.
+
+      If you'd like us to keep you in mind for other roles meanwhile, say the
+      word.
+
+      {{consultant_signature}}
+
+  - event_type: start-date-confirmed
+    recipient_role: candidate
+    template_id: shared-start-date-confirmed-candidate-v1
+    subject: "You start {{start_date}} — day-one practicalities"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Your start date at {{company}} is confirmed: {{start_date}}.
+
+      Day-one practicalities:
+      - HR forms: {{company}} will send these ahead of your start — give us a
+        shout if they haven't arrived a few days before.
+      - IT setup and access are being arranged for your first morning.
+      - Arrival details and who to ask for will follow in a calendar invite.
+
+      Any questions at all before then, just reply.
+
+      {{consultant_signature}}
+
+  - event_type: start-date-confirmed
+    recipient_role: client_contact
+    template_id: shared-start-date-confirmed-client-v1
+    subject: "{{candidate_name}} starts {{start_date}} — onboarding checklist"
+    body: |
+      Hi,
+
+      {{candidate_name}}'s start date for the {{role}} position is confirmed:
+      {{start_date}}.
+
+      A short onboarding checklist from our side:
+      - HR paperwork issued and returned
+      - IT account + equipment ready for day one
+      - First-day arrival details shared
+
+      We'll check in with both sides during the first week.
+
+      {{consultant_signature}}
+
+  - event_type: 7-day-check-in
+    recipient_role: candidate
+    template_id: shared-7-day-check-in-candidate-v1
+    subject: "One week in — how's it going?"
+    body: |
+      Hi {{candidate_first_name}},
+
+      You're a week into the {{role}} position — how is it feeling so far?
+
+      Anything that's landed well, anything that hasn't, any blockers we can
+      quietly help with — we'd like to hear it. A one-line reply is plenty.
+
+      {{consultant_signature}}
+
+  - event_type: 30-day-check-in
+    recipient_role: candidate
+    template_id: shared-30-day-check-in-candidate-v1
+    subject: "One month into {{role}} — checking in"
+    body: |
+      Hi {{candidate_first_name}},
+
+      A month in at {{company}} — we'd love a slightly fuller picture this
+      time:
+
+      - How is the role matching what you expected?
+      - How are you finding the team and the pace?
+      - Is there anything you'd change if you could?
+
+      Honest answers help us help you — nothing you say goes anywhere without
+      your okay.
+
+      {{consultant_signature}}
+
+  - event_type: 30-day-check-in
+    recipient_role: client_contact
+    template_id: shared-30-day-check-in-client-v1
+    subject: "{{candidate_name}} — 30-day check-in"
+    body: |
+      Hi,
+
+      {{candidate_name}} is a month into the {{role}} position — from your
+      side, how is it going? Anything you'd flag early (good or concerning) is
+      genuinely useful for us to hear now rather than later.
+
+      {{consultant_signature}}
+
+  - event_type: 90-day-check-in
+    recipient_role: candidate
+    template_id: shared-90-day-check-in-candidate-v1
+    subject: "Three months in — and staying in touch"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Three months into the {{role}} position — a real milestone, and we hope
+      it's feeling like home by now.
+
+      We'd love to stay in touch beyond this placement: as your career grows,
+      we want to be useful to you, not just when you're job-hunting. And if
+      anyone in your network is quietly looking, we'd be glad to take good
+      care of them.
+
+      {{consultant_signature}}
+
+  - event_type: 90-day-check-in
+    recipient_role: client_contact
+    template_id: shared-90-day-check-in-client-v1
+    subject: "{{candidate_name}} — 90-day review point"
+    body: |
+      Hi,
+
+      {{candidate_name}} has reached the 90-day mark in the {{role}} position.
+      We'd value a short review conversation: what's worked, what we could do
+      better, and what your hiring picture looks like for the next quarter.
+
+      {{consultant_signature}}

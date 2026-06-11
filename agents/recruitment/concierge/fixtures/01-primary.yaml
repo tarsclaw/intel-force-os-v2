@@ -8,7 +8,10 @@
 # Step 12 transports via MS Graph; Step 13 writes Bullhorn activity-log;
 # Step 15 records the SLA hit (well under 30-min Gate B threshold).
 #
-# Status: Proposed (W4 Day-26 SKELETON).
+# Status: BUILT (W10-13). Fixture-mode envs that drive this path:
+#   IFOS_BH_FORCE_FIXTURE=1 (entities-cache Bullhorn), IFOS_CONCIERGE_NO_LLM=1,
+#   IFOS_BRIDGE_FAKE=approve (bridge CLIs short-circuit), IFOS_FORCE_SEND_RESULT=sent
+#   (orange transport chain proved without MS Graph/Gmail OAuth).
 
 fixture_id: 01-primary
 description: Interview-booked → prep email → operator approves → MS Graph send → Gate B SLA hit
@@ -107,9 +110,13 @@ expected:
     - phase: action
       action_type: concierge_approval_routed   # orange-adjacent metadata
     - phase: action
-      action_type: gmail_outlook_send_to_candidate   # orange tier post-approval
+      action_type: gmail_outlook_send_to_candidate   # orange tier post-approval — POLICY-AUTHORIZATION record, emitted pre-transport (gating fused with row emission in hook-helpers orange path)
     - phase: output
-      action_type: bullhorn_activity_logged
+      output_type: send_attempt    # pre-transport attempt row (transport_not_yet_executed)
+    - phase: output
+      output_type: send_confirmed  # provider-confirmed transport success — the only marker that means an email actually left
+    - phase: action
+      action_type: bullhorn_activity_log_write   # green tier (spec-004 §3 marker name)
     - phase: action
       action_type: concierge_send_complete
     - phase: action
