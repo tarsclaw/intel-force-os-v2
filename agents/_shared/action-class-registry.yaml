@@ -55,7 +55,7 @@
 #                             the 08:30 morning digest (spec §5.3; held
 #                             Bucket-3 items surface there too per the §5.1
 #                             credit-note row "no — morning digest").
-#   dormant                   true = class belongs to a v1.1+ agent/path and
+#   dormant                   true = class belongs to a v1.1+ agent/path and OPTIONAL — absent == false (only dormant rows carry it)
 #                             never fires in v1.0 (PLAN decision 4).
 #
 # Bucket-1 (green-tier) rows: the resolver is never consulted — green actions
