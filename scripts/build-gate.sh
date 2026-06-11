@@ -9,10 +9,13 @@
 #   1. shellcheck — all agent-bundle shells + bin helpers + fixture-test scripts
 #   2. typecheck  — the MCP connector TS packages
 #   3. vitest     — the MCP connector suites (fetch-mocked; no network)
-#   4. fixtures   — every scripts/run-*-test.sh (DB-backed; skipped w/ warning if no DB)
+#   4. fixtures   — every scripts/run-*-test.sh (DB-backed)
 #
 # Usage:  bash scripts/build-gate.sh [--no-db]
-#   IFOS_DB_URL defaults to the local dev DB; --no-db (or an unreachable DB) skips tier 4.
+#   IFOS_DB_URL defaults to the local dev DB. An unreachable DB is a HARD FAIL
+#   (skipped DB suites are not green evidence — Codex meta-finding, Scribe session
+#   20260610T154432Z-44557). --no-db skips tier 4 explicitly but the verdict is
+#   then PARTIAL (exit 2), never PASS — not merge evidence.
 
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -43,10 +46,14 @@ fi
 # ── Tier 2+3: connector typecheck + vitest ────────────────────────────────
 _step "2+3. connector typecheck + vitest"
 if command -v pnpm >/dev/null 2>&1; then
-  for pkg in xero quickbooks open-banking companies-house; do
-    dir="packages/mcp-connectors/${pkg}"
+  for dir in \
+    packages/mcp-connectors/xero packages/mcp-connectors/quickbooks \
+    packages/mcp-connectors/open-banking packages/mcp-connectors/companies-house \
+    packages/mcp-connectors/bullhorn packages/mcp-connectors/cv-library \
+    packages/mcp-connectors/reed packages/utilities/autosend-bridge-telegram; do
     [[ -d "${dir}" ]] || continue
-    if (cd "${dir}" && pnpm -s typecheck && pnpm -s test) >/tmp/gate-${pkg}.log 2>&1; then
+    pkg="$(basename "${dir}")"
+    if (cd "${dir}" && pnpm -s typecheck && pnpm -s test) >"/tmp/gate-${pkg}.log" 2>&1; then
       _ok "${pkg}: typecheck + vitest green"
     else
       _fail "${pkg}: typecheck/vitest FAILED (see /tmp/gate-${pkg}.log)"; fails=$((fails+1))
@@ -62,6 +69,7 @@ db_up=0
 if [[ "${NO_DB}" -eq 0 ]] && command -v psql >/dev/null 2>&1 && psql "${IFOS_DB_URL}" -tAc 'SELECT 1' >/dev/null 2>&1; then
   db_up=1
 fi
+partial=0
 if [[ "${db_up}" -eq 1 ]]; then
   shopt -s nullglob
   for t in scripts/run-*-test.sh; do
@@ -71,12 +79,19 @@ if [[ "${db_up}" -eq 1 ]]; then
       _fail "$(basename "${t}") FAILED (see /tmp/gate-$(basename "${t}").log)"; fails=$((fails+1))
     fi
   done
+elif [[ "${NO_DB}" -eq 1 ]]; then
+  _warn "tier 4 SKIPPED BY --no-db FLAG — verdict will be PARTIAL, NOT merge evidence"
+  partial=1
 else
-  _warn "no reachable IFOS_DB_URL — DB-backed fixture suites SKIPPED (run on a machine with the dev DB)"
+  _fail "no reachable IFOS_DB_URL — DB-backed fixture suites are REQUIRED merge evidence (use --no-db only for non-merge shellcheck/typecheck runs)"
+  fails=$((fails+1))
 fi
 
 # ── Verdict ───────────────────────────────────────────────────────────────
 printf '\n'
+if [[ "${fails}" -eq 0 && "${partial}" -eq 1 ]]; then
+  printf '\033[1;33mBUILD GATE: PARTIAL (tier 4 skipped by flag — NOT merge evidence)\033[0m\n'; exit 2
+fi
 if [[ "${fails}" -eq 0 ]]; then
   printf '\033[1;32mBUILD GATE: PASS\033[0m\n'; exit 0
 fi
