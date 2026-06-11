@@ -1,0 +1,637 @@
+# IFOS action-class registry (approval-routing properties per action_type)
+#
+# Source of truth: docs/specs/approval-routing-architecture.md §2 (trust
+# buckets), §4.1 (agent → routing class), §5.1 (the five routing properties),
+# §5.2 (on-expiry behaviours), §5.3 (quiet hours / digest), §10 decisions 1+2.
+# Build slice: docs/features/approval-routing/PLAN.md W2 (architectural
+# decisions 3, 4, 9).
+#
+# SHIPPED, NOT CONFIGURED. Tenants never edit this file. Per-tenant variation
+# enters ONLY via /vault/{tenant_slug}/routing/function-roles.yaml (who holds
+# each function role) and /vault/{tenant_slug}/_config/standing-approvals.yaml
+# (which Bucket-2 classes have graduated). The rows here are product policy,
+# identical for every firm — same pattern as autosend-policy.yaml.
+#
+# JOIN KEY: action_type keys are EXACTLY the keys of
+# agents/_shared/autosend-policy.yaml (grep-verified 2026-06-11: 53 keys —
+# 25 green + 10 yellow + 10 orange + 8 red. The "47 total" invariant comment
+# in autosend-policy.yaml predates the post-freeze additions (4 MCP OAuth
+# rows, bullhorn_activity_log_write, concierge_approval_routed) and is stale;
+# this registry keys off the ACTUAL file). A key absent here while present
+# in autosend-policy.yaml is a defect — the resolver must fail safe to the
+# single-operator fallback (PLAN decision 2) and log routing_fallback.
+#
+# Each row carries (spec §5.1 — the five routing properties + digest flag):
+#   routing_rule              record_owner | function_role:<finance|ops_data|
+#                             business_development|candidate_comms_default|
+#                             client_comms_default|admin>. Which ladder rung
+#                             resolves the approver (spec §4). record_owner =
+#                             Bullhorn owner of the acted-on record;
+#                             function_role:X = function-roles.yaml lookup.
+#   trust_bucket              1 never-asks | 2 asks-once-then-graduates |
+#                             3 always-asks (spec §2). Graduation of Bucket 2
+#                             is firm-admin-only, evidence-gated <2% override
+#                             over 30 days (spec §2 + §10 decision 2).
+#   escalation_after_minutes  minutes before the approval re-proposes to the
+#                             next hop in the escalation chain (chain itself
+#                             lives in function-roles.yaml / desk hierarchy).
+#                             null = no hop; holds with the resolved approver.
+#   ttl_minutes               minutes before on_expiry fires. null = hold
+#                             indefinitely (spec §5.1 credit-note column).
+#   on_expiry                 hold | auto_execute | safe_default (spec §5.2).
+#                             auto_execute is seeded NOWHERE — it is only
+#                             reachable for classes already past the
+#                             graduation gate, at runtime, never as a seed.
+#   breaks_quiet_hours        may the approval ping outside the firm's quiet
+#                             hours (spec §5.3). Only genuinely live candidate
+#                             flows seed true.
+#   digest_eligible           may a pending/held/spot-check item batch into
+#                             the 08:30 morning digest (spec §5.3; held
+#                             Bucket-3 items surface there too per the §5.1
+#                             credit-note row "no — morning digest").
+#   dormant                   true = class belongs to a v1.1+ agent/path and
+#                             never fires in v1.0 (PLAN decision 4).
+#
+# Bucket-1 (green-tier) rows: the resolver is never consulted — green actions
+# auto-send without review (autosend-policy.yaml). Rows are present so the
+# join over autosend keys is total; routing_rule records the owning agent's
+# §4.1 class for audit/digest attribution only.
+#
+# Red-tier rows: blocked entirely BEFORE routing (ESC_AUTOSEND_BLOCKED; red is
+# the tier floor). Bucket 3, hold, NEVER graduates — standing-approval grants
+# must refuse red action_types. Rows present for join completeness only.
+#
+# Schema version stamps into routing audit payloads at resolution time.
+
+schema_version: 1
+version: "v1.0-2026-06-11"
+seeded_from: "approval-routing-architecture.md §4.1 + §5.1 + autosend-policy.yaml v1.0-2026-05-24 tiers"
+
+action_types:
+
+  # ───────────────────────────────────────────────────────────
+  # GREEN tier — Bucket 1, never asks (25 action_types)
+  # Resolver not consulted; rows for join completeness (header note).
+  # ───────────────────────────────────────────────────────────
+
+  diagnostic_report_render:
+    routing_rule: function_role:business_development   # seed-judgement: Diagnostic absent from §4.1; sales-stage agent → BD function
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  bullhorn_candidate_tag:
+    # seed-judgement: spec §2 lists "Janitor cleanup tags" as a Bucket-2
+    # example, but autosend tier is green (reversible <30s, auto-sends with
+    # no review today) — i.e. the class already behaves past-graduation.
+    # Tier wins: Bucket 1.
+    routing_rule: function_role:ops_data
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  bullhorn_note_internal:
+    routing_rule: record_owner          # Scribe desk-bound (§4.1)
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  linkedin_profile_cache:
+    routing_rule: record_owner          # Sourcing Scout desk-bound (§4.1)
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  xero_query_invoices:
+    routing_rule: function_role:finance # Cash Conductor function-bound (§4.1)
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  bullhorn_brief_read:
+    routing_rule: record_owner          # Concierge desk-bound (§4.1)
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  operator_notify_telegram:
+    routing_rule: function_role:admin   # seed-judgement: cross-cutting operator plumbing, no record/desk → admin
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  janitor_run_complete:
+    routing_rule: function_role:ops_data
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  scout_run_complete:
+    routing_rule: record_owner
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  scribe_run_complete:
+    routing_rule: record_owner
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  concierge_run_complete:
+    routing_rule: record_owner
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  concierge_send_complete:
+    routing_rule: record_owner
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  concierge_approval_routed:
+    routing_rule: record_owner
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  cash_conductor_run_complete:
+    routing_rule: function_role:finance
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  consultant_feedback:
+    routing_rule: record_owner          # seed-judgement: feedback attaches to the consultant's own artefact/record
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  validate_gate_a_fail:
+    routing_rule: function_role:admin   # seed-judgement: cross-agent audit row, no record context guaranteed → admin
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  diagnostic_input_invalid:
+    routing_rule: function_role:business_development
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  diagnostic_generator_empty:
+    routing_rule: function_role:business_development
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  linkedin_cache_purge_fail:
+    routing_rule: function_role:admin   # seed-judgement: cross-agent ops hygiene row → admin
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  diagnostic_cleanup:
+    routing_rule: function_role:business_development
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  xero_oauth:
+    routing_rule: function_role:finance
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  quickbooks_oauth:
+    routing_rule: function_role:finance
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  open_banking_truelayer:
+    routing_rule: function_role:finance
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  open_banking_plaid_uk:
+    routing_rule: function_role:finance
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+    dormant: true                       # v1.1+ stub per autosend-policy.yaml — never fires in v1.0
+
+  bullhorn_activity_log_write:
+    routing_rule: record_owner
+    trust_bucket: 1
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  # ───────────────────────────────────────────────────────────
+  # YELLOW tier — Bucket 2 (10 action_types)
+  # Yellow auto-sends with 1-in-N spot-check today, i.e. it already operates
+  # at standing-approval-equivalent trust. Routing is consulted only when a
+  # yellow item DOES pend a human (spot-check review queue; Janitor dedup
+  # review-band/recency holds per ESC_DUPLICATE_DETECTED) — all low-urgency,
+  # hence null TTL, hold, digest_eligible. seed-judgement: digest_eligible
+  # true because spot-check review is async end-of-day batch
+  # (ESC_AUTOSEND_SAMPLED_SPOT_CHECK note) — the digest is that batch.
+  # ───────────────────────────────────────────────────────────
+
+  bullhorn_candidate_dedupe:
+    routing_rule: function_role:ops_data   # Janitor function-bound (§4.1)
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  bullhorn_field_backfill:
+    routing_rule: function_role:ops_data
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  bullhorn_note_attach:
+    routing_rule: function_role:ops_data
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  bullhorn_note_append_summary:
+    routing_rule: record_owner             # Scribe desk-bound (§4.1, bucket 2)
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  linkedin_connection_request:
+    routing_rule: record_owner             # Scout desk-bound; JobOrder owner (§4.1)
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  xero_reminder_draft_internal:
+    routing_rule: function_role:finance    # Cash Conductor function-bound (§4.1)
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  bullhorn_note_draft_internal:
+    routing_rule: record_owner             # Concierge desk-bound (§4.1)
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  bullhorn_scribe_field_write:
+    routing_rule: record_owner
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  accounting_reconciliation_write:
+    routing_rule: function_role:finance
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  concierge_email_draft:
+    routing_rule: record_owner
+    trust_bucket: 2
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  # ───────────────────────────────────────────────────────────
+  # ORANGE tier — the real routing consumers (10 action_types)
+  # Candidate-side comms → Bucket 2 (graduate-eligible), desk-lead hop after
+  # 30 min, TTL ~120m (spec §5.1 candidate-ack column).
+  # Client/finance/prospect-facing → Bucket 3: hold, null TTL, no quiet-hours
+  # break, surfaces in morning digest (spec §5.1 credit-note column + §2).
+  # ───────────────────────────────────────────────────────────
+
+  bullhorn_note_customer_visible:
+    routing_rule: record_owner             # Concierge desk-bound (§4.1)
+    trust_bucket: 2                        # candidate-side lifecycle comms default (§4.1 Concierge row)
+    escalation_after_minutes: 30           # → desk lead after 30 min (§5.1 example)
+    ttl_minutes: 120
+    # seed-judgement: on_expiry hold, NOT safe_default — a customer-visible
+    # CRM note is not a live email conversation; the §5.2 holding-reply
+    # register does not fit a Note artefact. Nothing is lost by holding.
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  gmail_outlook_send_to_candidate:
+    # THE candidate-acknowledgement class (highest volume). §10 decision 1:
+    # on-expiry sends the pre-approved holding reply; the full personalised
+    # draft still waits for human approval in the morning (§5.2).
+    routing_rule: record_owner
+    trust_bucket: 2
+    escalation_after_minutes: 30           # → desk lead (§5.1 example column)
+    ttl_minutes: 120                       # 2 hours (§5.1 example column)
+    on_expiry: safe_default                # §10 decision 1
+    breaks_quiet_hours: true               # live candidate flow (§5.1 "yes if live conversation" + §5.3)
+    digest_eligible: true
+
+  twilio_sms_send:
+    routing_rule: record_owner             # Concierge desk-bound (§4.1)
+    trust_bucket: 2
+    # seed-judgement: SMS is THE live-conversation channel §5.2 exists to
+    # protect; autosend timeout is PT30M (vs PT4H default), so the whole
+    # escalate→expire cycle compresses: hop at 15 min, expiry at 30 min,
+    # holding reply fits the SMS register. digest_eligible false — a pending
+    # SMS is time-sensitive by definition; batching it to 08:30 is wrong.
+    escalation_after_minutes: 15
+    ttl_minutes: 30
+    on_expiry: safe_default
+    breaks_quiet_hours: true
+    digest_eligible: false
+
+  calendar_invite_send:
+    routing_rule: record_owner
+    trust_bucket: 2
+    escalation_after_minutes: 30
+    ttl_minutes: 240                       # mirrors autosend timeout PT4H
+    # seed-judgement: hold — there is no holding-reply analogue for a
+    # calendar invite with attendee notification; an unbooked slot waits.
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  email_summary_to_customer:
+    routing_rule: record_owner             # Scribe desk-bound: consultant who had the call (§4.1)
+    # seed-judgement: Bucket 3, not Scribe's §4.1 default 2 — "customer" here
+    # is the client; §2 Bucket 3 is explicit that "outbound to a *client*"
+    # always asks and never graduates. §4.1's Scribe bucket-2 default covers
+    # internal note-writing, not client-facing sends.
+    trust_bucket: 3
+    escalation_after_minutes: null
+    ttl_minutes: null                      # holds indefinitely (Bucket 3)
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true                  # held items surface in morning digest (§5.1 credit-note row)
+
+  xero_reminder_send_customer:
+    routing_rule: function_role:finance    # Cash Conductor function-bound (§4.1)
+    trust_bucket: 3                        # finance action — always asks (§2 + §4.1)
+    escalation_after_minutes: null         # §5.1 credit-note column: escalation chain → none
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  diagnostic_email_send:
+    routing_rule: function_role:business_development   # seed-judgement: sales-stage prospect outreach → BD function
+    trust_bucket: 3                        # client/prospect-facing outbound (§2 Bucket 3)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    # seed-judgement: breaks_quiet_hours false despite function-roles.yaml
+    # §6.3 seeding BD with true — that flag exists for the
+    # competitor-interception window (v1.1); diagnostic outreach overnight
+    # is reputation risk, not opportunity.
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  diagnostic_calendar_invite:
+    routing_rule: function_role:business_development
+    trust_bucket: 3
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  linkedin_inmail_send:
+    routing_rule: record_owner             # Scout desk-bound; JobOrder owner (§4.1)
+    # seed-judgement: Bucket 3, not Scout's §4.1 default 1 — that default
+    # covers the read-only sourcing pass ("rarely approves"). InMail is
+    # first-contact outreach to someone with no prior relationship, on a
+    # paid credit, with reputation effects — the §2 Bucket-3
+    # "first-contact … outreach" register.
+    trust_bucket: 3
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  bullhorn_placement_terminate:
+    routing_rule: function_role:ops_data   # Janitor function-bound (§4.1)
+    # seed-judgement: Bucket 3, not Janitor's §4.1 default 2 — that default
+    # covers cleanup tags/batches; terminating a placement has
+    # commercial/legal implications (autosend reason) and is
+    # relationship-sensitive → always asks.
+    trust_bucket: 3
+    escalation_after_minutes: 1440         # seed-judgement: ops chain hop to founder after 24h, mirroring §6.3 ops_data ttl_minutes 1440 (low urgency, but a stuck termination shouldn't sit with one person forever)
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  # ───────────────────────────────────────────────────────────
+  # RED tier — blocked before routing (8 action_types)
+  # Red is refused entirely at the autosend gate (ESC_AUTOSEND_BLOCKED; red is
+  # the tier-override floor). Bucket 3 and NEVER graduates — standing-approval
+  # grants MUST refuse red action_types. Rows exist only so the
+  # autosend-policy join is total; no resolver/TTL semantics ever apply.
+  # ───────────────────────────────────────────────────────────
+
+  xero_payment_initiate:
+    routing_rule: function_role:finance
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  stripe_charge_initiate:
+    routing_rule: function_role:finance
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  subscription_modify:
+    routing_rule: function_role:admin
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  legal_document_generate:
+    routing_rule: function_role:admin
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  pii_export_outside_tenant_geography:
+    routing_rule: function_role:admin
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  cross_tenant_data_send:
+    routing_rule: function_role:admin
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  unauthorised_adapter_send:
+    routing_rule: function_role:admin
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+  send_to_blocked_recipient:
+    routing_rule: function_role:admin
+    trust_bucket: 3                        # never graduates (red floor)
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+
+# ───────────────────────────────────────────────────────────
+# v1.1+ agent classes (Client Hunter / Competitor Interception, Spec Pitcher /
+# Network Compounder, Inbound Triage, …) have NO action_type keys registered
+# in autosend-policy.yaml yet, so they have no rows here. When their keys are
+# registered, seed them per spec §4.1 (Client Hunter → function_role:
+# business_development, bucket 3; Spec Pitcher → record_owner, bucket 3) and
+# mark `dormant: true` until the agent ships. The only currently-registered
+# v1.1 key is open_banking_plaid_uk (dormant above).
+#
+# Compile-time consistency assertions (enforced by the W1/W3 resolver loader,
+# not by YAML itself — documented here so Codex can verify):
+# ───────────────────────────────────────────────────────────
+
+invariants:
+  - "action_types keys == autosend-policy.yaml action_types keys (set equality; join must be total)"
+  - "routing_rule ∈ {record_owner} ∪ {function_role:<finance|ops_data|business_development|candidate_comms_default|client_comms_default|admin>}"
+  - "trust_bucket ∈ {1, 2, 3}"
+  - "on_expiry ∈ {hold, auto_execute, safe_default}"
+  - "on_expiry == safe_default ⇒ a bundled holding-reply template exists for the class's channel"
+  - "auto_execute never appears as a seed; runtime-only, post-graduation (spec §5.2 rule 2)"
+  - "red-tier action_types: trust_bucket == 3, never graduate, standing-approval grants refused"
+  - "ttl_minutes == null ⇒ on_expiry never fires (hold indefinitely)"
