@@ -2,12 +2,12 @@
 
 _Orchestrator refreshes at every milestone. Spec: `docs/specs/approval-routing-architecture.md` · Plan: `PLAN.md` (founder-approved 2026-06-11)._
 
-**Phase:** Wave 1 review loops. W1 built (67/67, gate PASS; review in flight). W2 built + review PASS (all 12 seed judgements accepted; 2 MINORs fixed on branch) + Codex R1 REJECTED:2 → both findings incorporated (standing approvals → Postgres decision_log rows, boundary-3 fix; status vocabulary) → R2 in flight.
+**Phase:** Wave 1 COMPLETE — both slices PROPOSED FOR FOUNDER MERGE (2026-06-11).
 
 | Slice | Content | Status | Branch | Gates |
 |---|---|---|---|---|
-| W1 | approval-routing pkg (resolver core) | 🟡 built — 67/67 vitest, gate PASS; review in flight; NOTE: bullhorn CLI normalisers drop `owner` pre-upsert (W3 inherits the one-line fix) | `worktree-agent-ac81e530c28302bbb` | gate ✓ |
-| W2 | registry (53 rows) + 3 ESC codes + holding-reply template | 🟡 review PASS + Codex R1 fixes applied (`e280054`); R2 in flight | `worktree-agent-aa7320163e4edb70d` | gate ✓ review ✓ |
+| W1 | approval-routing pkg (resolver core) | ✅ **PROPOSED** @ `5d3e000` (6 commits, 86/86 vitest): review PASS (9/9 deviations accepted; MAJOR parser fix applied + 19 regression tests); Codex rides W3's round per bridge precedent. W3 inherits: bullhorn normaliser owner fix + registry-envelope collapse | `worktree-agent-ac81e530c28302bbb` | gate ✓ review ✓ |
+| W2 | registry (53 rows) + 3 ESC codes + holding-reply template | ✅ **PROPOSED** @ `7e308b0` (8 commits): review PASS (12/12 judgements accepted); Codex trail 2→2(wrong-skill rounds)→2-incorporated under the NEW review-policy-config skill; standing approvals now Postgres-canonical (boundary 3) | `worktree-agent-aa7320163e4edb70d` | gate ✓ review ✓ codex trail ✓ |
 | W3 | orange-path integration + backcompat suites | ⏳ wave 2 (needs W1+W2 on main) | — | — |
 | W4 | graduation + standing approvals | ⏳ wave 3 | — | — |
 | W5 | escalation/on-expiry/quiet-hours/digest | ⏳ wave 3 | — | — |
