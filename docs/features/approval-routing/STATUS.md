@@ -2,12 +2,12 @@
 
 _Orchestrator refreshes at every milestone. Spec: `docs/specs/approval-routing-architecture.md` · Plan: `PLAN.md` (founder-approved 2026-06-11)._
 
-**Phase:** Wave 1 launching (W1 ‖ W2).
+**Phase:** Wave 1 review loops. W1 built (67/67, gate PASS; review in flight). W2 built + review PASS (all 12 seed judgements accepted; 2 MINORs fixed on branch) + Codex R1 REJECTED:2 → both findings incorporated (standing approvals → Postgres decision_log rows, boundary-3 fix; status vocabulary) → R2 in flight.
 
 | Slice | Content | Status | Branch | Gates |
 |---|---|---|---|---|
-| W1 | approval-routing pkg (resolver core) | 🔨 worker spawning | — | — |
-| W2 | registry + ESC codes + holding-reply template | 🔨 worker spawning | — | — |
+| W1 | approval-routing pkg (resolver core) | 🟡 built — 67/67 vitest, gate PASS; review in flight; NOTE: bullhorn CLI normalisers drop `owner` pre-upsert (W3 inherits the one-line fix) | `worktree-agent-ac81e530c28302bbb` | gate ✓ |
+| W2 | registry (53 rows) + 3 ESC codes + holding-reply template | 🟡 review PASS + Codex R1 fixes applied (`e280054`); R2 in flight | `worktree-agent-aa7320163e4edb70d` | gate ✓ review ✓ |
 | W3 | orange-path integration + backcompat suites | ⏳ wave 2 (needs W1+W2 on main) | — | — |
 | W4 | graduation + standing approvals | ⏳ wave 3 | — | — |
 | W5 | escalation/on-expiry/quiet-hours/digest | ⏳ wave 3 | — | — |
