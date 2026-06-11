@@ -1,0 +1,25 @@
+{
+  "name": "@ifos/approval-routing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IFOS approval-routing resolver core — the record-owner-first ladder (record owner → function role → firm default) per docs/specs/approval-routing-architecture.md §4, function-roles.yaml (§6.3) + identity-map.yaml loaders, RLS owner lookup over the entities cache, and the resolve-approver / seed-identity-map CLIs. W1 slice of docs/features/approval-routing/PLAN.md.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=20.0.0" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
