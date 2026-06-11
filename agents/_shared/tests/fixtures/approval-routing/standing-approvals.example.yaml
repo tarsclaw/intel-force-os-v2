@@ -3,9 +3,20 @@
 # Bucket-2 action_type from draft-and-approve to auto-execute-and-log for THIS
 # tenant. Firm-admin-only, evidence-gated, audited, revocable.
 #
-# REAL FILE LIVES AT (per tenant):  /vault/{tenant_slug}/_config/standing-approvals.yaml
-# (separate audited vault artefact — PLAN decision 3; consulted inside the
-#  orange branch of hh_decision_action BEFORE propose).
+# CANONICAL STORE (amended at Codex W2 R1 — vault/Postgres split, boundary 3):
+# standing-approval state is STRUCTURED PER-TENANT STATE and therefore lives in
+# Postgres decision_log as append-only GRANT/REVOKE rows:
+#   agent_name='approval-routing', phase='action',
+#   outcome='standing_approval_granted' | 'standing_approval_revoked',
+#   payload = one grant object in the row shape documented below.
+# Current grant state for a class = the LATEST grant/revoke row per action_type
+# (revoke wins). The orange branch of hh_decision_action queries decision_log
+# BEFORE propose (it already speaks RLS psql; no new table, audited by
+# construction).
+# THIS vault file (/vault/{tenant_slug}/_config/standing-approvals.yaml) is an
+# OPTIONAL GENERATED READ-ONLY SNAPSHOT for operator visibility — written by
+# the W4 grant/revoke CLIs after the decision_log row commits; never read as
+# the source of truth; safe to delete and regenerate.
 #
 # Schema — one row per grant:
 #   action_type     MUST exist in agents/_shared/action-class-registry.yaml

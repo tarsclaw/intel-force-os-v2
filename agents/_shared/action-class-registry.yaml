@@ -1,5 +1,9 @@
 # IFOS action-class registry (approval-routing properties per action_type)
 #
+# Status: Proposed (W2 build slice 2026-06-11; Codex ratification in flight;
+# flips to Accepted on ratification + founder sign-off, In Force when the W3
+# orange-path integration consumes it in production).
+#
 # Source of truth: docs/specs/approval-routing-architecture.md §2 (trust
 # buckets), §4.1 (agent → routing class), §5.1 (the five routing properties),
 # §5.2 (on-expiry behaviours), §5.3 (quiet hours / digest), §10 decisions 1+2.
@@ -8,9 +12,11 @@
 #
 # SHIPPED, NOT CONFIGURED. Tenants never edit this file. Per-tenant variation
 # enters ONLY via /vault/{tenant_slug}/routing/function-roles.yaml (who holds
-# each function role) and /vault/{tenant_slug}/_config/standing-approvals.yaml
-# (which Bucket-2 classes have graduated). The rows here are product policy,
-# identical for every firm — same pattern as autosend-policy.yaml.
+# each function role — vault per spec §6.2 "It's a vault file") and standing-
+# approval GRANT/REVOKE rows in Postgres decision_log (which Bucket-2 classes
+# have graduated — structured state lives in Postgres per the vault/Postgres
+# split, boundary 3; amended at Codex W2 R1). The rows here are product
+# policy, identical for every firm — same pattern as autosend-policy.yaml.
 #
 # JOIN KEY: action_type keys are EXACTLY the keys of
 # agents/_shared/autosend-policy.yaml (grep-verified 2026-06-11: 53 keys —
