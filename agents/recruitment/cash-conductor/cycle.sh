@@ -172,7 +172,7 @@ hh_decision_output "mode_routed" "tenant:${CTX_TENANT_SLUG}" \
 #             cash_conductor_transactions (v0.3 schema; applied 2026-05-31).
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *3* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 3 "* ]]; then
   # W7 LIVE: OB list-transactions since the last ingested posted_at → bulk INSERT
   # into cash_conductor_transactions under RLS (jsonb_to_recordset; ON CONFLICT on
   # the (tenant,provider,transaction_id) unique key makes re-ingest idempotent).
@@ -218,7 +218,7 @@ fi
 # listOpenInvoices → INSERT INTO cash_conductor_invoices.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *4* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 4 "* ]]; then
   # W7 LIVE: provider-aware (CTX_ACCOUNTING_PROVIDER=xero|quickbooks) list-open-invoices
   # → bulk UPSERT into cash_conductor_invoices under RLS. ON CONFLICT DO UPDATE
   # refreshes amount_paid/status as payments arrive (but never touches the
@@ -263,7 +263,7 @@ fi
 # Stage 4 fuzzy multi-candidate → ESC_RECONCILIATION_AMBIGUOUS; Stage 5 unmatched.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *5* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 5 "* ]]; then
   # W7 LIVE: run the 5-stage match (agent.md §3 Output 1) as one RLS-scoped
   # statement. The reusable SQL lives at sql/reconciliation-match.sql (shared
   # with scripts/run-reconciliation-recon-test.sh) and contains no transaction
@@ -304,7 +304,7 @@ fi
 # or @ifos/quickbooks writePaymentReceived; atomic per write; rollback on 4xx/5xx.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *6* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 6 "* ]]; then
   # W7 LIVE: write Stage 1-2 matches (match_status='matched', conf ≥0.85) to the
   # accounting system via the provider write-payment CLI. Idempotent: only
   # not-yet-written rows are selected (reconciliation_written_at IS NULL, v0.5
@@ -376,7 +376,7 @@ fi
 # (v0.3 schema-backed). Position 4 = operator review (no auto-draft).
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *7* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 7 "* ]]; then
   # W7 LIVE: scan overdue, unmatched, still-owing invoices and compute the next
   # chase ladder position (§3.2) via the reusable RLS-scoped sql/chase-scan.sql
   # (shared with scripts/run-chase-scan-test.sh). Draftable candidates (pos 1-3)
@@ -427,7 +427,7 @@ fi
 # body_sha256 + voice_score + escalation_position + days_overdue + amount_due).
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *8* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 8 "* ]]; then
   # W7 LIVE: per Step-7 candidate, render a position-appropriate chase draft and
   # write it to the vault FIRST (chmod 0600) per ADR-002; decision_log carries
   # METADATA only. v1.0 uses deterministic templated drafts (bin/render-chase-draft.sh);
@@ -468,7 +468,7 @@ fi
 # Reference: agent.md §5 (Gate A); §6 ESC mapping.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *9* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 9 "* ]]; then
   # W7 LIVE: run Gate A (validate.sh) on each generated draft. Passed drafts are
   # recorded to a run-scoped file consumed by Step 10; failed drafts already had
   # their ESC row emitted by validate.sh and are NOT queued (the draft stays in
@@ -507,7 +507,7 @@ fi
 # (per agent.md §1 readiness caveat).
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *10* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 10 "* ]]; then
   # W7 LIVE: emit the YELLOW-tier internal-draft action row per VALIDATED draft —
   # the audit record that the draft exists in vault, independent of the orange
   # send path. autosend-policy.yaml: xero_reminder_draft_internal = yellow.
@@ -596,7 +596,7 @@ fi
 # updates cash_conductor_invoices.last_chase_position + last_chase_sent_at.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *11* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 11 "* ]]; then
   # W7 LIVE (webhook-driven): after Concierge transports an approved chase it webhooks
   # back invoice+position; CC records the state mutation. The Concierge chase_sent
   # webhook lands in the W10-13 build slice; until then (drafts-only) nothing triggers
@@ -623,7 +623,7 @@ fi
 # (paid-since-draft-but-before-send) → ESC_AUTOSEND_RACE.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *12* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 12 "* ]]; then
   # W7 LIVE (webhook mode only): re-query each in-flight chase draft's invoice. If it
   # was paid since the draft (amount_due now ≤ 0), cancel the chase (do NOT send) →
   # ESC_AUTOSEND_RACE. Guards the paid-since-draft-but-before-send race (agent.md §4 Step 12).
@@ -658,7 +658,7 @@ fi
 # DSO metric (Gate B tracking) per ULTRAPLAN A4 line 539.
 # ────────────────────────────────────────────────────────────────────────
 
-if [[ "${STEPS_TO_RUN}" == *13* ]]; then
+if [[ " ${STEPS_TO_RUN} " == *" 13 "* ]]; then
   # W7 LIVE: assemble the §3 Output 3 6-section cash-flow report from the reusable
   # RLS-scoped sql/weekly-report-metrics.sql, compute DSO (Gate B), write to vault.
   REPORT_PATH="${IFOS_VAULT_ROOT:-${HOME}/.ifos-local-vault}/${CTX_TENANT_SLUG}/cash-conductor-reports/weekly-$(date -u +%Y-%m-%d).md"
@@ -709,7 +709,7 @@ fi
 # by validate_tenant_adapters_config_v0_3 trigger landed 2026-05-31).
 # TODO(W7-8): UPDATE tenant_adapters SET config = jsonb_set(config, '{cash_conductor_last_run}', '"<ISO>"')
 
-if [[ "${STEPS_TO_RUN}" == *13* ]]; then REPORT_RAN="true"; else REPORT_RAN="false"; fi
+if [[ " ${STEPS_TO_RUN} " == *" 13 "* ]]; then REPORT_RAN="true"; else REPORT_RAN="false"; fi
 
 # W7 LIVE: stamp tenant_adapters.config.cash_conductor_last_run (validated key per
 # the v0.3/v0.4 trigger). Best-effort — a missing tenant_adapters row is a no-op.
