@@ -12,8 +12,9 @@
 //   - full-line and trailing comments (# outside quotes)
 //
 // NOT supported (parse error or plain-string fallback, never silent
-// misparse): anchors/aliases, multi-line block scalars (| >), flow
-// sequences/maps with content, tabs for indentation. The loaders validate
+// misparse): anchors/aliases, multi-line block scalars (| > including all
+// header variants |- |2 >- >2 …), flow sequences/maps with content, tabs
+// for indentation. The loaders validate
 // shape after parse, so an out-of-scope file fails loudly as a typed
 // validation error — the caller falls back (PLAN.md decision 2).
 
@@ -40,19 +41,47 @@ interface Line {
   num: number; // 1-based source line number
 }
 
-/** Strips a trailing comment, respecting single/double quotes. */
+/**
+ * Strips a trailing comment, respecting single/double quotes.
+ *
+ * A quote character only OPENS quote state when it is the first character of
+ * a value position (line start after indentation, after a "key: " separator,
+ * or after a "- " sequence indicator). A mid-scalar apostrophe — as in
+ * `display_name: Pat O'Brien # comment` — is literal text and must not
+ * swallow the trailing comment.
+ */
 function stripComment(raw: string): string {
   let inSingle = false;
   let inDouble = false;
+  let atValueStart = true; // can the next char legitimately open a quoted scalar?
   for (let i = 0; i < raw.length; i++) {
     const c = raw[i];
-    if (c === "'" && !inDouble) inSingle = !inSingle;
-    else if (c === '"' && !inSingle) inDouble = !inDouble;
-    else if (c === "#" && !inSingle && !inDouble) {
-      // YAML: '#' starts a comment at line start or after whitespace.
-      if (i === 0 || raw[i - 1] === " " || raw[i - 1] === "\t") {
-        return raw.slice(0, i);
+    if (inSingle) {
+      if (c === "'") {
+        if (raw[i + 1] === "'") i++; // '' escape — stay inside the scalar
+        else inSingle = false;
       }
+      continue;
+    }
+    if (inDouble) {
+      if (c === "\\") i++; // \" and \\ escapes — skip the escaped char
+      else if (c === '"') inDouble = false;
+      continue;
+    }
+    if (c === "#" && (i === 0 || raw[i - 1] === " " || raw[i - 1] === "\t")) {
+      // YAML: '#' starts a comment at line start or after whitespace.
+      return raw.slice(0, i);
+    }
+    if (atValueStart) {
+      if (c === "'") inSingle = true;
+      else if (c === '"') inDouble = true;
+      // " " (indentation / separator run) and "- " (sequence indicator) keep
+      // the value-start position; anything else begins a plain token.
+      if (c !== " " && !(c === "-" && (raw[i + 1] === " " || i === raw.length - 1))) {
+        atValueStart = false;
+      }
+    } else if (c === ":" && (raw[i + 1] === " " || i === raw.length - 1)) {
+      atValueStart = true; // "key: " separator — a value position follows
     }
   }
   return raw;
@@ -96,7 +125,12 @@ function parseScalar(text: string, lineNum: number): YamlValue {
     }
     return t.slice(1, -1).replace(/''/g, "'");
   }
-  if (t.startsWith("[") || t.startsWith("{") || t.startsWith("&") || t.startsWith("*") || t === "|" || t === ">") {
+  if (t.startsWith("|") || t.startsWith(">")) {
+    // Block scalars (and every header variant: |-, |+, |2, >-, >2 …) are
+    // unsupported in this subset — fail loudly, never parse as a plain string.
+    throw new YamlParseError(`block scalars are not supported: ${t.slice(0, 20)}`, lineNum);
+  }
+  if (t.startsWith("[") || t.startsWith("{") || t.startsWith("&") || t.startsWith("*")) {
     throw new YamlParseError(`unsupported YAML construct: ${t.slice(0, 20)}`, lineNum);
   }
   return t; // plain string

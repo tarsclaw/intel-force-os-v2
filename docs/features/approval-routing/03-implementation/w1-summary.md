@@ -61,3 +61,12 @@ The `entities` table is `(tenant_slug, entity_type, entity_id, data jsonb, …)`
 - Wire `resolve-approver.js` into the `hh_decision_action` orange path + fallback invariant suite (W3 scope).
 - Collapse the registry envelope hedge once the W2 seed lands.
 - DB-backed owner-lookup fixture suite (W3 brings the registered-throwaway-tenant pattern).
+
+## Review fix pass (post-W1-review, pre-merge)
+
+The W1 review PASSED but probe-confirmed two `yaml-lite.ts` parser defects; both are required to close before merge because `/vault/{t}/routing/function-roles.yaml` is tenant-hand-edited. Both fixed:
+
+1. **MAJOR — silent comment-swallow on apostrophes in unquoted scalars.** `stripComment` toggled `inSingle` on any apostrophe, so `display_name: Pat O'Brien # the desk lead` silently parsed to `"Pat O'Brien # the desk lead"`. Fix: a quote character now only opens quote state at a value-start position (line start after indentation, after `key: `, or after a `- ` sequence indicator); mid-scalar apostrophes are literal. The rewrite also handles `''` escapes in single-quoted and `\"`/`\\` escapes in double-quoted scalars during comment-stripping. After the fix: `Pat O'Brien # comment` → `"Pat O'Brien"`; quoted values containing `#`/`:` and escaped quotes remain protected.
+2. **MINOR — block-scalar header variants silently parsed as plain strings.** Only bare `|`/`>` were rejected; `|-`, `|2`, `>-`, `>2` etc. yielded literal strings like `"|-"`. Fix: any scalar value starting with `|` or `>` now throws `YamlParseError` ("block scalars are not supported") — fail loudly, never misparse. Quoted values that merely look like headers (`"|-"`, `'>2'`) still parse as strings.
+
+Verification: probe matrix re-run across all variants (apostrophe scalars, `|`/`>` header zoo, quoted `#`/`:`, escaped quotes, ISO timestamps, URLs) — every case either parses correctly or throws loudly; the package-header "never a silent misparse" claim is now accurate. `pnpm -s typecheck` clean; `pnpm -s test` **86/86** (was 67/67; +19 regression tests in `tests/yaml-lite.test.ts` covering both probe cases and the still-must-pass set, §6.3 fixture test unchanged and green); `bash scripts/build-gate.sh` **PASS**.
