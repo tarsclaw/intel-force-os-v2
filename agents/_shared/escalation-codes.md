@@ -25,7 +25,7 @@ The Telegram message is templated via `common-notifications.json` `escalation_ro
 
 ---
 
-## §2 — Catalogue (52 codes)
+## §2 — Catalogue (55 codes)
 
 ### 2.1 — Auto-send safety (3 codes)
 Source: `docs/decisions/autosend-safety-policy.md` §5
@@ -455,6 +455,30 @@ Source: v1.0 agent.md draft specs across Diagnostic, Janitor, Scribe, Sourcing S
 - **Routing:** `operator_chat_id`
 - **Payload fields:** `agent_name`, `entity_type` (`placement` | `candidate_lifecycle_event`), `entity_id`, `ambiguity_class` (Janitor: e.g. `missing_end_date`, `stale_activity`; Concierge: e.g. `unknown_transition`, `out_of_taxonomy`), plus class-specific fields
 
+### 2.11 — Approval routing (3 codes)
+Source: `docs/specs/approval-routing-architecture.md` §5 + `docs/features/approval-routing/PLAN.md` (W2 slice; consumed by the W4/W5 escalation-chain + standing-approval + on-expiry machinery)
+
+#### `ESC_APPROVAL_ESCALATED_HOP`
+- **Severity:** info — routing audit trail, not a failure
+- **Trigger:** A pending approval's hop-TTL (`escalation_after_minutes` per `action-class-registry.yaml`) elapsed without a decision, so the approval was re-proposed to the NEXT hop in the escalation chain (function-roles.yaml chain or desk hierarchy; firm default approver is the final hop). Same `approval_id` throughout — first valid reply from any hop wins
+- **Phase:** `action`
+- **Routing:** the next-hop approver via the autosend-bridge re-propose (this code is the audit row for that re-propose); log-only otherwise — no separate operator ping
+- **Payload fields:** `approval_id`, `hop_index`, `prev_person_ref`, `next_person_ref`, `action_type`
+
+#### `ESC_STANDING_APPROVAL_EXECUTED`
+- **Severity:** info — trusted-class execution record, not a failure
+- **Trigger:** An orange-tier action auto-executed WITHOUT a per-action approval because the tenant holds an active standing-approval grant for its action_type (`/vault/{tenant_slug}/_config/standing-approvals.yaml`; firm-admin-granted, evidence-gated <2% override / 30 days per spec §2 + §10 decision 2). Red-tier action_types never reach this code — red blocks before routing
+- **Phase:** `action`
+- **Routing:** log-only; surfaces in the morning digest (the agent "auto-executes and logs, stops asking" per spec §2 Bucket 2)
+- **Payload fields:** `action_type`, `grant_ref` (granted_by person_ref + granted_at from the grant row), `evidence_snapshot_ref` (the override-rate evidence captured at grant time), `target`
+
+#### `ESC_SAFE_DEFAULT_SENT`
+- **Severity:** info — relationship-protecting fallback fired as designed
+- **Trigger:** An approval's TTL (`ttl_minutes`) expired with no decision from anyone in the chain, and the class is seeded `on_expiry: safe_default` (spec §5.2 behaviour 3): the minimal pre-approved holding reply (e.g. `shared-holding-reply-candidate-v1`) was sent INSTEAD of the full personalised draft. The full draft stays in the vault awaiting human approval — nothing judgement-requiring went out unreviewed
+- **Phase:** `action`
+- **Routing:** `operator_chat_id` is NOT pinged at send time (quiet-hours-safe by design); the held full draft surfaces in the morning digest
+- **Payload fields:** `action_type`, `target`, `holding_template_id`, `full_draft_vault_path`
+
 ---
 
 ## §3 — Reserved codes (not-yet-wired)
@@ -487,4 +511,4 @@ New codes added here BEFORE wiring into helpers + before any agent references th
 
 The Codex Day-7 ratification queue includes this catalogue (item #20 placeholder per `docs/decisions/2026-05-18-codex-ratification-manifest.md` §1). Updates after ratification = new commit + Codex re-review of the diff.
 
-*End of catalogue (52 active codes + 2 reserved).*
+*End of catalogue (55 active codes + 2 reserved).*
