@@ -18,7 +18,15 @@
 # rows in 7d window per the same tenant (per catalogue §2.5); Scribe does
 # NOT fire _TENANT directly (per agent.md §7).
 #
-# Status: Proposed (W5 Day-32 SKELETON).
+# Status: built (W6 build slice). The voice score is supplied via the
+#         IFOS_FORCE_VOICE_SCORE test hook at v1.0 (a real classifier score
+#         cannot be HONESTLY computed: the @ifos/voice-classifier microservice
+#         is W4-5 polish work and the dev-sandbox voice_corpus is empty — the
+#         unforced path records unscored/no_corpus and Gate A G3 warns instead
+#         of failing). The 3-retry loop applies to the LLM generator path;
+#         the v1.0 deterministic renderer emits one canonical rendering, so
+#         retries:0 is recorded when unforced. Exercised by
+#         scripts/run-scribe-gate-a-test.sh (G3 fail class + ESC_VOICE_DRIFT).
 
 fixture_id: 99-voice-drift-blocked
 description: Voice classifier <0.75 after 3 retries → ESC_VOICE_DRIFT warn + Bullhorn writes skipped (Steps 8+9) + vault note flagged "needs consultant review"
@@ -114,15 +122,16 @@ expected:
     final_score: 0.61
     retries: 3
     classifier_pass: false      # G3 FAILS (after 3 retries)
-  validate_gate_a:
-    g1_pass: true
-    g2_pass: true               # ≥3 fields ≥0.6
-    g3_pass: false              # voice <0.75
-    g4_pass: true
-    g5_pass: true
-    g6_pass: true
-    g7_pass: true
-    overall: FAIL               # one failure → overall fail
+  validate_gate_a:               # built check order (spec-002 §5): G1 sig, G2 count,
+    g1_webhook_sig_pass: true    # G3 voice, G4 names, G5 types, G6 PII, G7 auth, G8 word cap
+    g2_field_count_pass: true    # ≥3 fields ≥0.6
+    g3_voice_pass: false         # voice 0.61 < 0.75
+    g4_field_names_pass: true
+    g5_field_types_pass: true
+    g6_pii_pass: true
+    g7_auth_pass: true
+    g8_word_cap_pass: true
+    overall: FAIL                # one failure → overall fail
   bullhorn_writes: []           # NO writes; Steps 8+9 SKIPPED per agent.md §3 line 111
   vault_artefact:
     written: true               # vault file IS written (for operator review)
@@ -141,7 +150,11 @@ expected:
     - phase: trigger
       action_type: session_start
     - phase: output
+      output_type: webhook_verified          # poll trigger → signature:not_applicable (spec-002 §3)
+    - phase: output
       output_type: granola_meetings_polled
+    - phase: output
+      output_type: bullhorn_auth_refreshed   # spec-002 §3 name
     - phase: output
       output_type: transcript_fetched
     - phase: output
@@ -151,13 +164,17 @@ expected:
       payload_contains: "fields_above_threshold:3"
     - phase: output
       output_type: tacit_note_rendered
-      payload_contains: "voice_score:0.61; needs_consultant_review:true"
+      payload_contains: "voice_score:0.61"   # vault frontmatter carries needs_consultant_review: true
+    - phase: output
+      output_type: fields_validated          # Step 7 schema pass precedes the Gate A voice fail
+    - phase: gating_failed
+      outcome: ESC_VOICE_DRIFT               # emitted by validate.sh G3
     - phase: action
       action_type: validate_gate_a_fail
-      payload_contains: "ESC_VOICE_DRIFT; G3_fail; voice_score:0.61"
+      payload_contains: "ESC_VOICE_DRIFT; agent_name:scribe"
     - phase: action
       action_type: scribe_run_complete
-      payload_contains: "elapsed_seconds:STUB; sla_class:STUB; bullhorn_writes_skipped:voice_drift"
+      payload_contains: "calls_processed:0; calls_skipped:1"   # Steps 8+9 skipped — no write rows
 operator_action_required: >
   Tacit-note for meeting-099 held in vault flagged "needs consultant review".
   Consultant should (a) review the draft narrative, (b) decide whether to

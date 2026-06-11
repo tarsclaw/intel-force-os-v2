@@ -17,8 +17,11 @@
 # under the 5-min Gate B target + well under the 30-min ESC_SCRIBE_SLA_MISS
 # alerting threshold.
 #
-# Status: Proposed (W5 Day-32 SKELETON; W6 build slice wires the real
-#         package calls + verifies fixture expectations against actual outputs).
+# Status: built (W6 build slice). Marker names below follow the spec-002 §3
+#         downstream contract (bullhorn_auth_refreshed, webhook_verified, ...)
+#         which supersedes the skeleton-era names. Exercised end-to-end by
+#         scripts/run-scribe-extraction-test.sh (BH_BRIDGE_TEST_MODE=ok —
+#         live Bullhorn/Granola founder-gated per spec-002 §8).
 
 fixture_id: 01-primary
 description: Happy path — Paid workspace; 1 meeting with transcript; 4 fields extracted; voice 0.82; Bullhorn updateCandidate + createNote; SLA 4 min
@@ -141,9 +144,11 @@ expected:
     - phase: trigger
       action_type: session_start
     - phase: output
-      output_type: granola_meetings_polled
+      output_type: webhook_verified           # spec-002 §3; poll trigger → signature:not_applicable
     - phase: output
-      output_type: bullhorn_auth_refresh
+      output_type: granola_meetings_polled    # poll-sweep discovery marker (Granola pivot; extra to the §3 set)
+    - phase: output
+      output_type: bullhorn_auth_refreshed    # spec-002 §3 name (skeleton-era bullhorn_auth_refresh superseded)
     - phase: output
       output_type: transcript_fetched
     - phase: output
@@ -151,7 +156,7 @@ expected:
     - phase: output
       output_type: fields_extracted
     - phase: output
-      output_type: tacit_note_rendered
+      output_type: tacit_note_rendered        # payload: {vault_path, body_sha256, voice_score} only (ADR-002)
     - phase: output
       output_type: fields_validated
     - phase: action
