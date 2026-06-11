@@ -1,0 +1,48 @@
+# EXAMPLE FIXTURE — per-tenant standing approvals (approval-routing spec §2
+# graduation gate + §10 decision 2; PLAN decision 3). A grant flips one
+# Bucket-2 action_type from draft-and-approve to auto-execute-and-log for THIS
+# tenant. Firm-admin-only, evidence-gated, audited, revocable.
+#
+# REAL FILE LIVES AT (per tenant):  /vault/{tenant_slug}/_config/standing-approvals.yaml
+# (separate audited vault artefact — PLAN decision 3; consulted inside the
+#  orange branch of hh_decision_action BEFORE propose).
+#
+# Schema — one row per grant:
+#   action_type     MUST exist in agents/_shared/action-class-registry.yaml
+#                   with trust_bucket 2. Red-tier / Bucket-3 action_types are
+#                   REFUSED at grant time (red never short-circuits).
+#   granted_by      person_ref envelope of the firm admin who flipped it
+#                   ({person_ref, transport, transport_user_id} — PLAN decision 8)
+#   granted_at      ISO-8601 grant timestamp
+#   evidence        the graduation-gate snapshot computed from decision_log at
+#                   grant time (spec §2: override rate <2% over ~30 days;
+#                   override_rate = overrides / drafts):
+#     override_rate   consultant-reviewed override rate for the class
+#     window_days     evidence window (30)
+#     drafts          total drafts for the class in the window
+#     overrides       rejections + edits in the window
+#     computed_at     when the W4 graduation-report computed the snapshot
+#   revoked_at      null = grant active. Set (never deleted) on revocation —
+#                   rows are append-only audit history; every grant/revoke also
+#                   writes a decision_log audit row (PLAN decision 3).
+#
+# Executions under an active grant log ESC_STANDING_APPROVAL_EXECUTED with a
+# grant ref + this evidence snapshot ref (escalation-codes.md §2.11).
+
+tenant_id: "0f47ac10-58cc-4372-a567-0e02b2c3d479"
+schema_version: 1
+
+grants:
+  - action_type: gmail_outlook_send_to_candidate
+    granted_by:
+      person_ref: "11111111-1111-1111-1111-111111111111"   # Jane Founder (firm admin)
+      transport: telegram
+      transport_user_id: "700000001"
+    granted_at: "2026-08-03T09:12:00Z"
+    evidence:
+      override_rate: 0.0119              # 2 / 167 — under the 0.02 gate
+      window_days: 30
+      drafts: 167
+      overrides: 2
+      computed_at: "2026-08-03T09:11:42Z"
+    revoked_at: null
