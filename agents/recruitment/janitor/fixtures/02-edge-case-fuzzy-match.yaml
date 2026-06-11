@@ -12,10 +12,17 @@
 # AND (2) confidence ≥0.85 with recent activity (review band by recency).
 # This fixture tests class (2).
 #
-# Status: Proposed (W5 Day-31 SKELETON).
+# Status: ALIGNED TO LIVE CONTRACT (W6-7 build slice). Review-band pairs are
+#         classified at cycle.sh Steps 3-4 (never proposed for auto-write);
+#         the live emission per held pair is the autosend_escalate
+#         ESC_DUPLICATE_DETECTED row (phase=gating_failed) — the skeleton-era
+#         operator_approval_request action row idea was dropped because that
+#         action_type is not registered in autosend-policy.yaml (Scout
+#         deviation-4 precedent: validate_gate_a_fail is reserved for Gate A
+#         itself; per-pair holds use the catalogue ESC idiom).
 
 fixture_id: 02-edge-case-fuzzy-match
-description: High-confidence dedup pair (0.91) with recent Bullhorn activity → ESC_DUPLICATE_DETECTED SUCCESS-path approval gate (NOT auto-write)
+description: High-confidence dedup pair (1.0) with recent Bullhorn activity → ESC_DUPLICATE_DETECTED SUCCESS-path approval gate (NOT auto-write)
 tenant_slug: migration-test
 agent: janitor
 expected_gate_a: PASS   # Gate A is per-write-proposal; G3 rejects the auto-write but is not a hard exit failure
@@ -70,11 +77,14 @@ expected:
     - code: ESC_DUPLICATE_DETECTED
       severity: warn
       routing: operator_chat_id   # via Telegram approval gate per catalogue §2.5
-      payload_includes:
-        primary_id: 2001
-        merge_target_id: 2002
-        confidence: 0.91
-        review_band_reason: "candidate_2002_recent_activity_days:20"
+      payload_includes:   # amended catalogue §2.5 payload shape (2026-06-10)
+        entity_a_id: 2001
+        entity_b_id: 2002
+        entity_type: candidate
+        confidence_score: 1.0   # live matcher: all 4 dims match
+        match_basis: "name+email+phone+linkedin"
+        hold_reason: recency_hold_90d
+        hold_detail: "recent_activity_days:20"   # live matcher reason format (pair MIN)
   day_30_report:
     vault_path_pattern: "/vault/migration-test/janitor-reports/day-30-*.md"
     sections_present: [1, 2, 3, 4, 5, 6, 7, 8]   # section 7 (Exception list) includes the review-band pair
@@ -82,7 +92,7 @@ expected:
     gate_b_completeness_pct: ">=0"
     gate_b_met: false            # single-run miss; tracked in report but does NOT fire ESC
   operator_notification:
-    tier: yellow                 # Gate B missed → yellow not green
+    tier: green                  # operator_notify_telegram is registered GREEN in autosend-policy.yaml; tiers are policy-owned (deviation 8) — the miss urgency rides in payload.gate_b_state:missed
     channel: telegram
     chat_id: "operator-test-chat-id"
   audit_rows_emitted:
@@ -91,9 +101,9 @@ expected:
     - phase: output
       output_type: dedup_candidate_pass
       payload_contains: "auto_merges:0; review_band:1"
-    - phase: action
-      action_type: operator_approval_request   # Telegram approval gate fires
-      payload_contains: "ESC_DUPLICATE_DETECTED"
+    - phase: gating_failed
+      outcome: ESC_DUPLICATE_DETECTED          # Telegram approval gate row (live contract)
+      payload_contains: "hold_reason"          # amended catalogue §2.5 shape
     - phase: action
       action_type: operator_notify_telegram
     - phase: action

@@ -1,8 +1,8 @@
 # Janitor — the wedge agent
 
-**Status:** Proposed.
-**Build state:** Day-20 W4 bilateral pass + R19 substantive fixes applied. R11 closed Gate A ESC routing + recent_edit citation + v0.3 supplement §2a authority. R12 added schema declaration for `janitor_dedup_threshold` + `janitor_last_run` in v0.3 supplement §4. R19 fixes (2026-05-25): autosend-policy citation, contractor dedup scope alignment, Step 8 audit row, ESC_GATE_B_MISS catalogue alignment. Awaits Q1 LOI + Bullhorn Sub-decisions A+B Accepted + W5 build slice.
-**Reading-discipline note (added 2026-06-03 per Codex Fbis-R3 closure pattern + CC + Concierge precedent):** this `agent.md` is the **CONTRACT** that the W6-7 build slice implements against. The 6 sibling bundle files (`cycle.sh` + `validate.sh` + `context.sh` + `cleanup.sh` + `tools.yaml`) + 3 fixtures EXIST AS SCAFFOLD (landed across commits `1efe9a6` + `36d1fff` + `96ae47d` + `66d1a6d` + `0837b94` per W5 Day-31); they carry `TODO(W6-7)` markers throughout that the W6-7 build slice replaces with live implementation matching the contract below. **Audit-row signatures + workflow steps documented below describe the CONTRACT shape; current SKELETON cycle.sh emits only the minimal trigger/output markers (`session_start`, `bullhorn_auth_refresh`, `mode_routed`, `bullhorn_entity_scan`, `dedup_candidate_pass`, `dedup_contractor_pass`, `field_completeness_audit`, `companies_house_enrichment`, `linkedin_enrichment_skipped`, `tacit_note_harvest`, `bullhorn_write_batch`, `day_30_report`, `operator_notify_telegram`, `janitor_run_complete`) listed at `cycle.sh` lines 105, 134, 144, 159, 175, 185, 196, 205, 220, 232, 252, 273, 289, 297.** The yellow-tier audit rows the contract names (`bullhorn_candidate_dedupe` + `bullhorn_field_backfill` + `bullhorn_note_attach`) are NOT yet emitted at runtime — they're the W6-7 contract surface, not current behavior. The SKELETON `context.sh` uses **env-var fallbacks** today (`IFOS_FORCE_BULLHORN_CORPORATION_ID`, `IFOS_FORCE_JANITOR_DEDUP_THRESHOLD`, `IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID`) even though the v0.4 schema supplement LANDED 2026-06-03 (commit `a1bbcf6` + LIVE on VPS) made the canonical `SELECT config->>'<key>' FROM tenant_adapters` path schema-clean for all three — that wiring lands at W6-7 alongside the `@ifos/bullhorn` refresh integration. Don't read agent.md as a description of running code; read it as the spec the W6-7 build slice implements.
+**Status:** Proposed (W6-7 build slice COMPLETE on this branch; status flip founder-gated per §10).
+**Build state:** W6-7 build slice COMPLETE (spec-001; branch `worktree-agent-abb2ffb971bb471ba`, 2026-06-10) — all 6 sibling bundle files (`cycle.sh` 12 steps + `validate.sh` Gate A G1-G7 + `context.sh` + `cleanup.sh` + `tools.yaml` + `README.md`) + 3 fixtures LIVE/BUILT; build-gate GREEN; three deterministic DB-backed fixture suites green (`scripts/run-janitor-{dedup,gate-a,report}-test.sh`). Fixture-proven only: zero live Bullhorn calls have ever been made by this bundle (all six `BULLHORN_*` creds EMPTY per names-only re-verification 2026-06-10; live smoke founder-gated). Companies House is the one live-capable path (key SET; live-smoked once, read-only). Prior contract history: Day-20 W4 bilateral pass; R11 closed Gate A ESC routing + recent_edit citation + v0.3 supplement §2a authority; R12 added schema declaration for `janitor_dedup_threshold` + `janitor_last_run` in v0.3 supplement §4; R19 (2026-05-25): autosend-policy citation, contractor dedup scope alignment, Step 8 audit row, ESC_GATE_B_MISS catalogue alignment. Still awaits: Q1 LOI + Bullhorn Sub-decision B (Sub-decision A RESOLVED 2026-06-02 per `docs/decisions/bullhorn-integration-path.md` — direct API per-tenant OAuth; marketplace deferred to v1.1+) + live Bullhorn credentials + Codex re-ratification of the built bundle + founder approvals per §10.
+**Reading-discipline note (updated 2026-06-10 at W6-7 build; originally added 2026-06-03 per Codex Fbis-R3 closure pattern + CC + Concierge precedent):** this `agent.md` is the **CONTRACT** that the W6-7 build slice implemented against. The 6 sibling bundle files + 3 fixtures are **LIVE** — the W6-7 build slice (spec-001, this branch; commits `184a2bf` + `4ceccbc` + `2938b20` + `30bdff8`) replaced every `TODO(W6-7)` marker with live implementation; the three DB-backed fixture suites are green under build-gate. **Per-component build state, honestly stated:** `@ifos/bullhorn` — implemented connector package + built `dist/cli.js` bridge (`packages/mcp-connectors/bullhorn`, v0.1.0; typecheck clean; vitest 52/52; generic `update-entity` for Candidate|ClientContact|JobOrder|Placement + extended `create-note` per the agreed CLI contract). Live credentials are the ONLY gap on that path: with creds EMPTY the agent runs DEGRADED — Step 2 scans the Postgres `entities` Bullhorn cache instead of the live API; all coverage is fixture-driven (`IFOS_JANITOR_FIXTURE_*`). `@ifos/companies-house` — live-capable (key SET); smoked once read-only via `bin/ch-lookup.mjs` (HAYS PLC → CRN 02150950, source_confidence 0.9). **Runtime-audit truth (W6-7 behaviour):** the three yellow-tier action rows the contract names (`bullhorn_candidate_dedupe` + `bullhorn_field_backfill` + `bullhorn_note_attach`) ARE emitted at runtime — cycle.sh Step 9 validates each proposal through validate.sh, then emits `hh_decision_action "${_jn_atype}"` (cycle.sh lines 703-704) with per-type tallies at lines 705-709 and the `bullhorn_write_batch` summary row at lines 711-712. Until creds land, each row carries `write_state:deferred` in its reason (the batch summary tallies them as `deferred_no_creds:<N>`); the Gate-A-validated decision is real and audited, the transport is honestly deferred, never faked — post-creds the same rows carry `write_state:applied`. `context.sh` uses the canonical RLS-scoped `SELECT config->>'<key>' FROM tenant_adapters` path (v0.4 supplement LIVE on VPS per commit `a1bbcf6`), with `IFOS_FORCE_*` env fallbacks retained for fixtures/local-dev only. **Voice honesty:** no embedding classifier ships at v1.0 — Step 8 emits `unscored/no_corpus` (or `classifier_unavailable` when a corpus is active) rather than a faked score; validate.sh G5 is hard-when-scored / warn-when-unscored. LinkedIn (§4 Step 7) is an explicit NO-OP audit row (`linkedin_enrichment_skipped`). §10 lifecycle status remains **Proposed** pending Codex re-ratification of the built bundle + founder approvals — the status flip is founder-gated.
 **Date:** 2026-05-24.
 **Author:** Founder (Maddox) + Claude Code.
 **Build wave:** v1.0 W5 per master brief §8.2 line 596 + ULTRAPLAN §8.1 A2 line 503 (ULTRAPLAN says week 5-6, master brief says week 5; master brief is authoritative).
@@ -15,7 +15,7 @@
 
 Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
 
-> **Janitor produces TWO outputs per nightly cron run:** (1) a Markdown day-30 cleanup report at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md` documenting all data-hygiene actions taken in the prior 30 days, and (2) a stream of yellow-tier writes to the tenant's Bullhorn ATS that (a) merge high-confidence duplicate candidate AND contractor records (separate entity types per vertical-schema.yaml §1; same fuzzy-matcher per §4 Steps 3-4), (b) backfill missing field values via Companies House enrichment, and (c) attach tacit notes harvested from `recent_edit.resolution='approved_after_edit'` rows (v0.3 supplement §2a grants Janitor R access). Cron fires at 02:00 UTC daily; the day-30 report regenerates on the 1st of each month rolling. Gate A hard-fails any merge proposal with confidence <0.85 (per ULTRAPLAN A2 line 510). Gate B success threshold: the day-30 report shows ≥15% dedup rate improvement AND ≥10% field-completeness improvement vs the day-0 baseline established at first pilot LOI signing (per ULTRAPLAN A2 line 511). Auto-band Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml` runtime (policy rationale at `docs/decisions/autosend-safety-policy.md`) — sampled spot-checks, no synchronous approval; review-band dedup merges (0.70–0.85 confidence, or ≥0.85 with Bullhorn activity in the last 90 days) are instead held for synchronous Telegram approval via `ESC_DUPLICATE_DETECTED` before write. Every write emits a per-write audit row to `decision_log` with `agent_name='janitor'`.
+> **Janitor produces TWO outputs per nightly cron run:** (1) a Markdown day-30 cleanup report at `/vault/<tenant>/janitor-reports/day-30-<ISO-date>.md` documenting all data-hygiene actions taken in the prior 30 days, and (2) a stream of yellow-tier writes to the tenant's Bullhorn ATS that (a) merge high-confidence duplicate candidate AND contractor records (separate entity types per vertical-schema.yaml §1; same fuzzy-matcher per §4 Steps 3-4), (b) backfill missing field values via Companies House enrichment, and (c) attach tacit notes harvested from `recent_edit.resolution='approved_after_edit'` rows (v0.3 supplement §2a grants Janitor R access). Cron fires at 02:00 UTC daily; the day-30 report regenerates on the 1st of each month rolling. Gate A hard-fails any AUTO-MERGE proposal with confidence <0.85 (per ULTRAPLAN A2 line 510) — Gate A's merge-confidence check applies to auto-merge proposals ONLY; held and dropped pairs are classified upstream at §4 Steps 3-4 per the spec-001 band→action table (≥0.85 + no 90d activity → auto-merge; 0.70–0.85 OR ≥0.85-with-recency → held via ESC_DUPLICATE_DETECTED; <0.70 → silent drop) and never reach Gate A. Gate B success threshold: ≥15% dedup AND ≥10% field-completeness — two independent thresholds, both must pass. SHIPPED v1.0 metric (cycle.sh Step 10, header lines 716-724 + computation lines 755-762): deterministic in-run `decision_log`-derived ratios — `dedup_pct = 100·merges/(merges + review-band pairs)`, `completeness_pct = 100·backfills/(backfills + still-missing rows)`. Explicit limitation: this is NOT yet measured against the day-0 baseline established at first pilot LOI signing (per ULTRAPLAN A2 line 511) — no day-0 baseline exists yet; baseline-relative measurement is the documented post-pilot enhancement (accepted build deviation 6; captured at pilot onboarding per §9 Q6). Auto-band Bullhorn writes are yellow-tier per `agents/_shared/autosend-policy.yaml` runtime (policy rationale at `docs/decisions/autosend-safety-policy.md`) — sampled spot-checks, no synchronous approval; review-band dedup merges (0.70–0.85 confidence, or ≥0.85 with Bullhorn activity in the last 90 days) are instead held for synchronous Telegram approval via `ESC_DUPLICATE_DETECTED` before write. Every write emits a per-write audit row to `decision_log` with `agent_name='janitor'`.
 
 ---
 
@@ -101,17 +101,27 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → ESC_RATE_LIMIT_HIT if Bullhorn 429 (60s backoff per ESC_RATE_LIMIT_HIT catalogue §2.5 standard handling)
 
 3. Dedup pass — candidate entity type
+   → matcher: bin/dedup-pairs.sh (pure-jq deterministic helper; declared in
+     tools.yaml as capability `janitor_dedup_matcher`)
    → fuzzy-match across (name, email, phone, linkedin_url) tuples
    → compute confidence per pair: name × 0.3 + email × 0.4 + phone × 0.2 + linkedin × 0.1
-   → discard pairs <0.85 confidence (per Gate A)
-   → discard pairs where EITHER candidate has Bullhorn activity in last 90d
-     (per ULTRAPLAN A2 line 510 verbatim)
-   → batch into proposed-merge list (in-memory intermediate; not persisted —
-     hh_decision_action emitted at Step 9 when each merge actually writes)
+     (comparable-weight normalisation + required strong identifier per build
+     deviation 1)
+   → classify per the spec-001 §4 band→action table (the ONE model §1/§5/§6 cite):
+     · ≥0.85 AND no Bullhorn activity on EITHER record in last 90d (per
+       ULTRAPLAN A2 line 510) → AUTO-MERGE proposal (yellow tier; written at
+       Step 9 behind Gate A)
+     · 0.70–0.85, OR ≥0.85 with recent (or unknown) 90d activity → HELD for
+       synchronous Telegram approval via ESC_DUPLICATE_DETECTED (SUCCESS-path
+       approval gate, NOT a Gate A failure)
+     · <0.70 → silent drop (tallied in the dedup_candidate_pass marker reason)
+   → batch auto-band pairs into proposed-merge list (in-memory intermediate;
+     not persisted — hh_decision_action emitted at Step 9 when each merge
+     actually writes)
 
 4. Dedup pass — contractor entity type
-   → same algorithm as candidates; separate entity_type per Q1 Day-6 resolution
-     (vertical-schema.yaml §1)
+   → same algorithm as candidates (same bin/dedup-pairs.sh matcher + band
+     table); separate entity_type per Q1 Day-6 resolution (vertical-schema.yaml §1)
 
 5. Field completeness audit (canonical field names per vertical-schema.yaml)
    → for each entity, check critical fields: candidate.location (line 124),
@@ -123,10 +133,13 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → hh_decision_output("field_completeness_audit", tenant, "<N> missing-field rows")
 
 6. Companies House enrichment (clients only)
-   → companies_house.search(client.name per vertical-schema.yaml line 235) → CRN →
-     profile → fill canonical schema fields client.industry (line 238),
+   → tools.yaml capabilities `companies_house_search` (client.name per
+     vertical-schema.yaml line 235 → CRN) + `companies_house_get_company`
+     (CRN → profile) on @ifos/companies-house, invoked via bin/ch-lookup.mjs
+     → fill canonical schema fields client.industry (line 238),
      client.companies_house_number (line 252)
-   → 7-day cache per tools.yaml; rate-limit budget shared with Diagnostic
+   → 7-day cache + shared 600/5min rate budget live INSIDE the connector
+     (Diagnostic precedent); budget shared with Diagnostic
    → ESC_RATE_LIMIT_HIT on 429
 
 7. LinkedIn enrichment (candidates; v1.1 via Proxycurl)
@@ -166,8 +179,10 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 
 11. Operator notification (Telegram)
    → if Gate-B target met: green-tier notification with summary
-   → if Gate-B target missed: yellow-tier notification + 200-char executive
-     summary suggesting consultant follow-up
+   → if Gate-B target missed: same green-tier action (operator_notify_telegram
+     is registered green in autosend-policy.yaml; tier is policy-owned) with
+     gate_b_state:missed + 200-char executive summary in the payload
+     suggesting consultant follow-up
    → hh_decision_action("operator_notify_telegram", "tenant:<slug>",
      notification_hash, "gate_b_state:met|missed; chars:<N>")
 
@@ -177,6 +192,25 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
    → exit code 0 (or 1 if BOTH Gate-B thresholds missed for 3 consecutive runs per §5 + catalogue → ESC_GATE_B_MISS)
 ```
 
+### Audit coverage — consolidated model (per master brief §8.1 Change 2)
+
+Every step that produces output or takes action audits to `decision_log` — but
+not every step carries its OWN `hh_decision_*` row; two clusters consolidate
+(deliberate, one model):
+
+- **Step 1 failures** audit via the per-run `bullhorn_auth_refresh` output row
+  (token state recorded every run) plus the `ESC_BULLHORN_AUTH` gating row on
+  refresh failure or creds absence. There is no separate Step-1
+  `hh_decision_action` row.
+- **Steps 3-4 outcomes** audit downstream: AUTO-band pairs become the Step 9
+  `bullhorn_candidate_dedupe` yellow action rows when each merge actually
+  writes; HELD pairs each emit an `ESC_DUPLICATE_DETECTED` gating row at
+  Steps 3-4 (catalogue §2.5 payload shape; also listed in the day-30 report §7
+  exception list); DROPPED (<0.70) pairs are tallied in the
+  `dedup_candidate_pass` / `dedup_contractor_pass` marker reasons
+  (`dropped:<N>`) with batch outcomes summarised in `bullhorn_write_batch`.
+  No held or dropped outcome is traceless.
+
 ---
 
 ## §5 — Gates
@@ -185,9 +219,9 @@ Each write emits one `decision_log` row: `agent_name='janitor'`, `phase='action'
 
 Per master brief §8.1 Change 2 + `docs/decisions/autosend-safety-policy.md` §4 (policy rationale; runtime YAML is `agents/_shared/autosend-policy.yaml`). Janitor's `validate.sh` enforces:
 
-- Bullhorn auth refresh succeeded in Step 1 (no stale token writes)
-- Every proposed merge has confidence ≥ 0.85 per ULTRAPLAN A2 line 510
-- No merge proposal where EITHER candidate has activity (placement / interview / note) in last 90 days (per ULTRAPLAN A2 line 510 verbatim)
+- Bullhorn token state from the Step-1 audit row (G1): hard-fail on `token_state:failed` (no stale-token writes); a degraded/absent state (creds founder-gated) WARNS and proceeds — no live write can occur, Step 9 defers transport honestly (accepted build deviation 4). Hard-fail-on-absent activates once live creds are provisioned.
+- Every AUTO-MERGE proposal has confidence ≥ 0.85 per ULTRAPLAN A2 line 510 (G2 — applies to auto-merge proposals ONLY; review-band pairs are held upstream at §4 Steps 3-4 and never reach Step 9, so this check is defence-in-depth against a band-classification bug, not the band mechanism itself)
+- No auto-merge proposal where EITHER record has activity (placement / interview / note) in last 90 days (per ULTRAPLAN A2 line 510 verbatim; G3 — same defence-in-depth scope as G2)
 - No field-backfill where source confidence <0.7 (CH 404 / LinkedIn empty / no derivation source)
 - Tacit-note narratives pass voice classifier ≥ 0.75
 - Bullhorn write batch size ≤ 100 per minute (rate-limit defensive)
@@ -207,6 +241,8 @@ Per ULTRAPLAN A2 line 511 verbatim: **"day-30 before/after report shows ≥15% d
 
 Two independent thresholds (both must pass): dedup improvement ≥15% AND field-completeness improvement ≥10%. NOT a composite — composite would let one cover the other.
 
+**Shipped v1.0 measurement (W6-7 build; accepted deviation 6):** the live cycle.sh computes the two thresholds as deterministic in-run `decision_log`-derived ratios, not against a day-0 baseline — `dedup_pct = 100·merges/(merges + review-band pairs)` and `completeness_pct = 100·backfills/(backfills + still-missing rows)` (cycle.sh Step 10: header comment lines 716-724, computation lines 755-762; definitions printed in report §6). **Limitation, explicit:** ULTRAPLAN's "before/after vs day-0 baseline" semantics are NOT implemented yet because no day-0 baseline exists pre-pilot — the baseline is captured at first pilot onboarding (per §9 Q6), and baseline-relative Gate B measurement is the documented post-pilot enhancement. The thresholds (≥15% / ≥10%), the AND-logic, and the 3-consecutive-both-missed → `ESC_GATE_B_MISS` trigger are unchanged.
+
 Gate B doesn't block the agent. The day-30 dedup + field-completeness improvement is Janitor's local Gate B metric per ULTRAPLAN A2 line 511 verbatim. It contributes evidence (alongside other agents' Gate-B metrics) to kill-criterion §2 Trigger 8 (average Gate-B revenue uplift after 3 completed pilots per `v1.0-kill-criterion.md` lines 158-166) — but Janitor does NOT directly claim Trigger 8 status. DSO improvement is Cash Conductor's territory per ULTRAPLAN A4 line 540, not Janitor's.
 
 Per catalogue `escalation-codes.md` ESC_GATE_B_MISS trigger (Janitor example: "dedup confidence <15% AND field-completeness uplift <10%"): `ESC_GATE_B_MISS` fires only when BOTH thresholds miss for 3 consecutive runs (dedup-improvement <15% AND completeness-improvement <10%) → flag for operator review (heuristic tuning may be needed; not a kill). Single-threshold misses are tracked in the day-30 report (§3 Output 1 row 6) and inform tenant-level quality review but do NOT fire ESC. Sensitivity choice: strict AND-trigger reduces false alarms; tightening to OR-trigger requires a catalogue amendment + re-ratification.
@@ -225,7 +261,7 @@ All codes are registered in `agents/_shared/escalation-codes.md` (catalogue exte
 | `ESC_VOICE_DRIFT` | Tacit-note narrative voice classifier <0.75 (after 3 retries) | warn | operator_chat_id |
 | `ESC_PII_LEAKAGE_RISK` | PII detected in tacit-note outside firm boundary | **blocking** | operator + ifos_oncall |
 | `ESC_AGENT_OUTPUT_SHAPE` | Gate A failure (section count or per-section citation missing in day-30 report) | warn | operator_chat_id |
-| `ESC_DUPLICATE_DETECTED` | Per catalogue §2.5: dedup pairs needing human approval before merge — the 0.70–0.85 review band, plus ≥0.85 pairs with recent Bullhorn activity (SUCCESS path; Telegram approval gate fires). NOT a Gate A failure code. | warn | operator_chat_id (via Telegram approval gate per catalogue routing) |
+| `ESC_DUPLICATE_DETECTED` | Per catalogue §2.5 (amended 2026-06-10): dedup pairs needing human approval before merge — the 0.70–0.85 review band, plus ≥0.85 pairs with recent Bullhorn activity (SUCCESS path; Telegram approval gate fires). NOT a Gate A failure code. Payload per catalogue: `entity_a_id` / `entity_b_id` / `entity_type` (`candidate`\|`contractor`) / `confidence_score` / `match_basis` (e.g. `email+phone`) / `hold_reason` (`review_band` \| `recency_hold_90d`). | warn | operator_chat_id (via Telegram approval gate per catalogue routing) |
 | `ESC_GATE_B_MISS` | Per catalogue trigger: per-agent local Gate B metric threshold missed. For Janitor: BOTH thresholds miss for 3 consecutive runs (dedup-improvement <15% AND field-completeness-improvement <10%) per catalogue `ESC_GATE_B_MISS` Janitor example. Single-threshold misses do NOT fire (per §5 Gate B). Catalogue routing: operator_chat_id | warn | operator_chat_id |
 | `ESC_AUTOSEND_SAMPLED_SPOT_CHECK` | Yellow-tier sample row selected for spot-check | info | operator_chat_id |
 
@@ -253,35 +289,36 @@ Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
 
 ---
 
-## §8 — Build dependencies (W5 prerequisites)
+## §8 — Build dependencies — actual state (refreshed 2026-06-10 post-W6-7 build)
 
-Janitor build cannot start until ALL of the following are confirmed:
+The W6-7 build slice is COMPLETE on this branch. The table below distinguishes three states precisely: **BUILT** (code exists, tests green), **fixture-proven** (behaviour verified against deterministic fixtures/DB suites, no live API call), and **live-credential-gated** (everything but the credential is in place; founder action).
 
-| Dependency | Source | Status |
+| Dependency | Source | Status (2026-06-10) |
 |---|---|---|
-| Renderer + `_shared/` substrate | Day-8 + Round-3 ratified | ✅ |
-| Diagnostic ratified (first-agent precedent) | Week 3 Codex Round 4 Phase 1 | ⏸ Week 3 in progress |
-| First pilot tenant onboarded (provision-tenant.sh) | Post Q1-LOI | ⏸ Founder action; Trigger 1 fires 2026-06-03 if no LOI |
-| **Bullhorn Sub-decision A Accepted** | Bullhorn partnerships response | ⏸ Form submitted 2026-05-24; 2-5 business days |
-| **Bullhorn Sub-decision B Accepted** | Bullhorn developer support routing | ⏸ Same |
-| Bullhorn MCP connector built | W3-W4 conditional (per ADR-005 sequencing) | ⏸ Not started |
-| Bullhorn client_id + client_secret obtained | Tenant pilot OAuth ticket (or marketplace credentials if A=marketplace) | ⏸ Post-A+B Accept |
-| Companies House MCP connector | Day-13 shipped (`@ifos/companies-house`) | ✅ |
+| Renderer + `_shared/` substrate | Day-8 + Round-3 ratified | ✅ ratified |
+| Diagnostic first-agent precedent | `agents/recruitment/diagnostic/` | ✅ v0 BUILT + wired (its own lifecycle tracked in its agent.md) |
+| First pilot tenant onboarded (provision-tenant.sh) | Post Q1-LOI | ⏸ Founder action |
+| **Bullhorn Sub-decision A** | `docs/decisions/bullhorn-integration-path.md` | ✅ RESOLVED 2026-06-02 — direct API per-tenant OAuth; marketplace deferred to v1.1+ |
+| **Bullhorn Sub-decision B** | Bullhorn developer-support route (`developer.bullhorn.com`) | ⏸ in flight; founder submitted 2026-06-02 |
+| `@ifos/bullhorn` connector + CLI bridge | `packages/mcp-connectors/bullhorn` (v0.1.0, `dist/cli.js`) | ✅ BUILT — typecheck clean; vitest 52/52; `update-entity` (Candidate\|ClientContact\|JobOrder\|Placement) + extended `create-note` per the agreed CLI contract; zero live API calls made |
+| Bullhorn live credentials (client_id + client_secret + tenant OAuth) | Tenant pilot OAuth ticket | ⏸ EMPTY — all six `BULLHORN_*` keys (names-only re-verified 2026-06-10); founder-gated; **the ONLY gap between fixture-proven and live on the Bullhorn path** |
+| Companies House MCP connector | Day-13 shipped (`@ifos/companies-house`) | ✅ BUILT + live-capable (key SET); live-smoked once read-only via `bin/ch-lookup.mjs` (HAYS PLC → CRN 02150950) |
 | Tenant `target_patch.json` + `_secrets.env` provisioned | provision-tenant.sh ran for first pilot | ⏸ Post-LOI |
-| Voice corpus seeded for first pilot tenant | Tenant-admin onboarding | ⏸ Post-LOI |
-| `validate.sh` Gate A logic | Build at W5 start (~0.5 day) | ⏸ |
-| `context.sh` hydration | Build at W5 start (~0.5 day) | ⏸ |
-| `cycle.sh` orchestration (12-step) | Build at W5 start (~2 days) | ⏸ |
-| Dedup heuristic + confidence scorer | Build at W5 start (~3 days) | ⏸ |
-| 3 fixtures with golden outputs | Build at W5 start (~1 day) | ⏸ |
+| Voice corpus seeded for first pilot tenant | Tenant-admin onboarding | ⏸ Post-LOI. No embedding classifier ships at v1.0 — Step 8 emits honest `unscored/no_corpus`; G5 warn-when-unscored (never a faked score) |
+| `validate.sh` Gate A logic (G1-G7) | This branch (commit `184a2bf`) | ✅ LIVE — all 7 checks enforced; gate-a suite green (4 pass + 8 fail classes) |
+| `context.sh` hydration | This branch (commit `184a2bf`) | ✅ LIVE — canonical RLS-scoped `tenant_adapters` SELECT path; `IFOS_FORCE_*` fallbacks retained for fixtures only |
+| `cycle.sh` orchestration (12-step) | This branch (commit `184a2bf`) | ✅ LIVE — all 12 steps; fixture-proven end-to-end against the local dev DB (full smoke under a throwaway tenant) |
+| Dedup heuristic + confidence scorer | `bin/dedup-pairs.sh` | ✅ LIVE — deterministic pure-jq; dedup suite green |
+| 3 fixtures + DB-backed suites | `fixtures/` + `scripts/run-janitor-{dedup,gate-a,report}-test.sh` | ✅ green (`01-primary`, `02-edge-case-fuzzy-match`, `99-recent-activity-blocked`) |
+| LinkedIn enrichment | §4 Step 7 | — NO-OP at v1.0 (explicit `linkedin_enrichment_skipped` audit row; vendor selection deferred to v1.1+) |
 
-**Until ALL ⏸ items resolve to ✅, W5 build slice does not start.** Per kill-criterion §2 Trigger 3 (JANITOR-BULLHORN-AUTH-W5): if Bullhorn auth not cleared by end of W5, Janitor + Scribe defer to W7-8 per ULTRAPLAN §10 Risk #2 contingency.
+**The remaining ⏸ items no longer gate the build (done); they gate LIVE operation:** the Bullhorn live smoke (refresh → scan → one sandbox write through Steps 1-2-9) and pilot onboarding are founder-gated post-creds steps. Kill-criterion §2 Trigger 3 (JANITOR-BULLHORN-AUTH-W5) context preserved for history: Bullhorn auth was not cleared in W5; the build proceeded fixture-first in W6-7 per spec-001 §8's honest-scope disposition (creds EMPTY, founder-gated; writes recorded as deferred, never faked) rather than deferring the agent.
 
 ---
 
 ## §9 — Status + open questions
 
-**Status:** Proposed. Awaits Bullhorn A+B Accepted + Q1 LOI + W5 build slice start.
+**Status:** Proposed (W6-7 build slice COMPLETE on this branch; status flip founder-gated per §10). Still awaits: Bullhorn Sub-decision B (A RESOLVED 2026-06-02) + live Bullhorn credentials + Q1 LOI + Codex re-ratification of the built bundle + founder approvals below.
 
 ### Open questions for founder review
 
@@ -296,7 +333,7 @@ Janitor build cannot start until ALL of the following are confirmed:
 
 ### Gotchas (carried forward from ULTRAPLAN A2 line 513)
 
-1. **Bullhorn MCP server doesn't exist yet — this is the critical-path build for v1.0.** Estimate 1 week for the MCP server, 1 week for the agent itself (per ULTRAPLAN A2 line 513).
+1. **Bullhorn MCP server — RESOLVED at W6-7.** Originally "doesn't exist yet; critical-path build for v1.0" (per ULTRAPLAN A2 line 513). The `@ifos/bullhorn` connector package + `dist/cli.js` bridge are now BUILT (vitest 52/52); the remaining critical-path item is live credentials (founder-gated), not code.
 2. **Dedup is hard; start conservative.** High-confidence merges only (≥0.85); tune up the threshold over time as data builds.
 3. **Bullhorn webhook coverage is patchy** (per ULTRAPLAN A6 line 569 — Concierge note applies cross-agent). Janitor relies on polling not webhooks; safer for nightly cron pattern.
 
@@ -312,11 +349,11 @@ Status flips Proposed → Accepted (pre-build) when:
 - Q3 resolves via Bullhorn Sub-decision B answer
 
 Status flips Accepted → In Force when:
-- W5 build slice produces all 5 sibling bundle files + 3 fixtures
-- First production run against migration-test tenant succeeds (per ADR-003 §4 + ADR-004 Decision 7 audit row)
-- Day-30 baseline measured for first pilot tenant
-- Codex re-ratifies post-build via `review-agent-bundle.md` skill (when built)
+- ~~W5 build slice produces all 5 sibling bundle files + 3 fixtures~~ **SATISFIED 2026-06-10** — the W6-7 build slice (spec-001, this branch) shipped all 6 sibling bundle files + 3 fixtures LIVE; build-gate GREEN
+- First production run against migration-test tenant succeeds (per ADR-003 §4 + ADR-004 Decision 7 audit row) — pending; blocked on live Bullhorn credentials (founder-gated)
+- Day-30 baseline measured for first pilot tenant — pending; post-LOI
+- Codex re-ratifies post-build via `review-agent-bundle.md` skill — in progress on this branch
 
-Until then: this document is a forward-looking scaffold. Conservative pre-build clarity — not a binding contract until ratification.
+Current position (2026-06-10): the contract below is IMPLEMENTED — the bundle is built and fixture-proven, not production-proven (zero live Bullhorn calls). The §10 status field stays **Proposed** until the founder flips it; the flip is founder-gated, not Claude's call.
 
 *End of Janitor agent.md draft.*

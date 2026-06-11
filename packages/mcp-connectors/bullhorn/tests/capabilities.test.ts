@@ -28,6 +28,7 @@ import {
   listPlacements,
   resetRateLimit,
   saveTokens,
+  updateClient,
 } from "../src/index.js";
 import type { BullhornOAuthConfig, BullhornTokens } from "../src/index.js";
 
@@ -234,6 +235,44 @@ describe("bullhorn capabilities — notes (writes; no retry)", () => {
     const parsed = JSON.parse(observedBody!);
     expect(parsed.action).toBe("Activity");
     expect(parsed.personReference.id).toBe(12345);
+  });
+});
+
+describe("bullhorn capabilities — updateClient (Janitor Step 9 field-backfill write)", () => {
+  it("updateClient: happy path POSTs patch to /entity/ClientCorporation/<id>", async () => {
+    let observedUrl: string | undefined;
+    let observedMethod: string | undefined;
+    let observedBody: string | undefined;
+    const fakeFetch: typeof fetch = async (input, init) => {
+      observedUrl = String(input);
+      observedMethod = init?.method;
+      observedBody = init?.body as string;
+      return makeOkResponse({
+        changedEntityType: "ClientCorporation",
+        changedEntityId: 5001,
+        changeType: "UPDATE",
+      });
+    };
+    const client = new BullhornClient({ config: makeConfig(), fetchFn: fakeFetch });
+    const res = await updateClient(client, 5001, { industry: "Technology" });
+    expect(res.changedEntityId).toBe(5001);
+    expect(res.changeType).toBe("UPDATE");
+    expect(observedUrl).toContain("/entity/ClientCorporation/5001");
+    expect(observedMethod).toBe("POST");
+    expect(JSON.parse(observedBody!).industry).toBe("Technology");
+  });
+
+  it("updateClient: 400 surfaces as BullhornValidationError (no retry on writes)", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async () => {
+      calls += 1;
+      return new Response("bad field", { status: 400 });
+    };
+    const client = new BullhornClient({ config: makeConfig(), fetchFn: fakeFetch });
+    await expect(
+      updateClient(client, 5001, { industry: "x" }),
+    ).rejects.toBeInstanceOf(BullhornValidationError);
+    expect(calls).toBe(1); // write was NOT retried
   });
 });
 

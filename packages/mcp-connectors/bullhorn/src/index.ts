@@ -34,7 +34,9 @@ export { getCandidate, listCandidates, updateCandidate } from "./candidates.js";
 // bullhorn_get_placement (read-only) + bullhorn_list_placements (read-only)
 export { getPlacement, listPlacements } from "./placements.js";
 // bullhorn_get_client (read-only) + bullhorn_list_clients (read-only)
-export { getClient, listClients } from "./clients.js";
+// bullhorn_update_client (action_type: bullhorn_field_backfill yellow tier per
+// Janitor agent.md §3 Output 2.2 — Step 9 client field-backfill writes)
+export { getClient, listClients, updateClient } from "./clients.js";
 // bullhorn_get_contact (read-only) + bullhorn_list_contacts (read-only)
 export { getContact, listContacts } from "./contacts.js";
 // bullhorn_create_note (action_type: bullhorn_activity_log_write green tier per

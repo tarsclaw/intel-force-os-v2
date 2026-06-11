@@ -1,7 +1,12 @@
 # Janitor agent — tools.yaml (capability declarations)
 #
-# Status: Proposed (W5 Day-31 SKELETON; W6-7 build slice may add per-tenant
-#         overrides + cost ceilings + per-step authz).
+# Status: BUILT (W6-7 build slice; spec-001) — cycle.sh 12 steps + validate.sh
+#         Gate A G1-G7 LIVE; Bullhorn capabilities wired through the
+#         @ifos/bullhorn dist/cli.js bridge. Live Bullhorn calls are
+#         founder-gated (creds EMPTY per spec-001 §8) — until creds land the
+#         agent scans the Postgres entities cache and records Step 9 writes
+#         with write_state:deferred_no_bullhorn_creds. Companies House is the
+#         live-capable enrichment path (key SET).
 # Reading order: agent.md §1 (output contract) + §2 (invocation surface) +
 #         §4 (workflow + capability dependencies) first.
 #
@@ -32,8 +37,8 @@ capabilities:
 
   - id: bullhorn_oauth
     package: "@ifos/bullhorn"
-    purpose: "Bullhorn two-step OAuth refresh (Step A OAuth at auth-{region}.bullhornstaffing.com + Step B REST login at rest.bullhornstaffing.com/rest-services/login → BhRestToken + per-corp restUrl) per @ifos/bullhorn src/auth.ts; per-corporation_id Promise dedup + 401-force-refresh per cluster F R4 lesson"
-    action_type: bullhorn_oauth          # green tier; QUEUED for registration at W6-7
+    purpose: "Bullhorn two-step OAuth refresh (Step A OAuth at auth-{region}.bullhornstaffing.com + Step B REST login at rest.bullhornstaffing.com/rest-services/login → BhRestToken + per-corp restUrl) per @ifos/bullhorn src/auth.ts; per-corporation_id Promise dedup + 401-force-refresh per cluster F R4 lesson. Invoked via dist/cli.js refresh (CLI bridge built this slice)"
+    action_type: bullhorn_oauth          # green tier; QUEUED for registration (substrate-owner change to autosend-policy.yaml; agents/_shared/ frozen this slice)
     cycle_step: 1
     secrets_required: [BULLHORN_CLIENT_ID, BULLHORN_CLIENT_SECRET]
     rate_limit_hint: "per-corporation_id 600/min hard / 480/min soft (see @ifos/bullhorn README §Rate limits)"
@@ -86,12 +91,29 @@ capabilities:
     cycle_step: 5
     state_changing: false
 
+  - id: bullhorn_update_client
+    package: "@ifos/bullhorn"
+    purpose: "Backfill missing canonical client fields (client.industry / client.companies_house_number / client.size_employees) from Step 6 Companies House enrichment (Step 9 write; updateClient added to @ifos/bullhorn this slice)"
+    action_type: bullhorn_field_backfill  # yellow tier; REGISTERED in autosend-policy.yaml line 198 (sample_rate 10)
+    cycle_step: 9
+    state_changing: true
+
   - id: bullhorn_create_note
     package: "@ifos/bullhorn"
-    purpose: "Attach tacit-note narrative from recent_edit harvest (Step 8 → Step 9)"
+    purpose: "Attach tacit-note narrative from recent_edit harvest (Step 8 → Step 9); marker janitor_tacit_note_harvest per spec-001 §3 contract"
     action_type: bullhorn_note_attach   # yellow tier; REGISTERED in autosend-policy.yaml line 205 (sample_rate 20)
     cycle_step: 9
     state_changing: true
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Dedup matcher (agent.md §4 Steps 3-4; local bin/ helper — no external
+  # package, zero network; declared so the §4 capability citation resolves)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: janitor_dedup_matcher
+    purpose: "Deterministic duplicate-pair fuzzy matcher bin/dedup-pairs.sh (pure jq over stdin; zero network) — spec-001 weights name·0.3 + email·0.4 + phone·0.2 + linkedin·0.1 with comparable-weight normalisation + required strong identifier (build deviation 1); classifies every pair into the spec-001 §4 band→action table (auto ≥0.85+no-90d-activity / review 0.70–0.85 or recency-hold / silent drop <0.70). Shared by Step 3 (candidate) AND Step 4 (contractor — same matcher, separate entity_type)"
+    cycle_step: 3
+    state_changing: false
 
   # ────────────────────────────────────────────────────────────────────────
   # Companies House enrichment (clients only; agent.md §4 Step 6)
@@ -127,8 +149,8 @@ capabilities:
   # ────────────────────────────────────────────────────────────────────────
 
   - id: janitor_cleanup
-    purpose: "Post-run cleanup (transient @ifos/bullhorn + @ifos/companies-house cache purge)"
-    action_type: janitor_cleanup    # green tier; QUEUED for registration at W6-7
+    purpose: "Post-run cleanup (transient @ifos/bullhorn 24h + @ifos/companies-house 7d cache purge + stale run workspaces)"
+    action_type: janitor_cleanup    # green tier; QUEUED for registration (substrate-owner change; cleanup.sh emits hh_decision_output until registered — CC/Scout precedent)
     state_changing: false
     cycle_step: 12
 
@@ -162,9 +184,13 @@ failure_modes:
     surface: "validate.sh exit 1 with G2 failure"
     escalation: ESC_AGENT_OUTPUT_SHAPE   # warn; operator_chat_id
 
-  - condition: "Dedup pair has Bullhorn activity in last 90 days (validate.sh G3) — SUCCESS-path approval gate, NOT Gate A failure code"
-    surface: "validate.sh exit 1 with G3 failure (rejects auto-write); approval-gate request fires"
+  - condition: "Dedup pair in the review band — confidence 0.70-0.85 OR ≥0.85 with 90d activity (cycle.sh Steps 3-4 classification; validate.sh G3 defence-in-depth) — SUCCESS-path approval gate, NOT Gate A failure code"
+    surface: "cycle.sh Steps 3-4 emit per review pair; validate.sh exit 1 with G3 failure rejects any auto-write that slips through"
     escalation: ESC_DUPLICATE_DETECTED   # warn; operator_chat_id (via Telegram approval gate per catalogue §2.5)
+
+  - condition: "Write batch exceeds the 100/min defensive cap (validate.sh G7; remainder defers to the next run)"
+    surface: "validate.sh exit 1 with G7 failure"
+    escalation: ESC_AGENT_OUTPUT_SHAPE   # warn; operator_chat_id (spec-001 §5 routing)
 
   - condition: "BOTH Gate B thresholds miss for 3 consecutive runs (cycle.sh Step 12 exit-code path; per agent.md §5 ESC_GATE_B_MISS row + catalogue trigger)"
     surface: "cycle.sh exit 1 with ESC_GATE_B_MISS"
@@ -174,14 +200,18 @@ failure_modes:
 # Action-type registration status (cross-reference autosend-policy.yaml)
 # ──────────────────────────────────────────────────────────────────────────────
 #
-# Already REGISTERED in agents/_shared/autosend-policy.yaml (verified 2026-06-03
-# during Janitor bundle scaffold):
+# Already REGISTERED in agents/_shared/autosend-policy.yaml (re-verified
+# 2026-06-10 during the W6-7 build slice):
 #   bullhorn_candidate_dedupe       line 191   yellow (sample_rate 10)
 #   bullhorn_field_backfill         line 198   yellow (sample_rate 10)
 #   bullhorn_note_attach            line 205   yellow (sample_rate 20)
 #   operator_notify_telegram        green                  (shared)
+#   janitor_run_complete            green
+#   validate_gate_a_fail            green                  (shared)
 #
-# QUEUED for registration at W6-7 build start:
+# QUEUED for registration (substrate-owner change to agents/_shared/
+# autosend-policy.yaml — frozen for this build slice per the parallel-conflict
+# rule; cleanup.sh + Step 1 stay on hh_decision_output until then):
 #   bullhorn_oauth                  green
 #   janitor_cleanup                 green
 
@@ -189,7 +219,7 @@ failure_modes:
 # Boundary check (per master brief §3 + review-mcp-connector.md §8)
 # ──────────────────────────────────────────────────────────────────────────────
 #
-# - No Composio / AgentMail references anywhere in this file.
+# - No forbidden third-party adapter references anywhere in this file (adapter boundary, CLAUDE.md boundary 2).
 # - All packages declared are @ifos/* — no third-party adapters with policy
 #   semantics smuggled in via tools.yaml.
 # - Action types all map to autosend-policy.yaml tiers (or are explicitly

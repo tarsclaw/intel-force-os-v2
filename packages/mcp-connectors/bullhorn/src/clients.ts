@@ -68,3 +68,26 @@ export async function listClients(
   if (cache) await cache.set(cacheKey, res.data, DEFAULT_TTL_MS);
   return res.data;
 }
+
+/**
+ * Update a client-corporation's mutable fields. Bullhorn POST
+ * /entity/ClientCorporation/{id}. Used by Janitor for Step 9 field-backfill
+ * (client.industry / client.companies_house_number / client.size_employees
+ * per agent.md §3 Output 2.2; action_type='bullhorn_field_backfill' yellow
+ * tier). Writes are non-retryable per client.ts retry policy — caller
+ * decides on 4xx/5xx (Janitor: 4xx skip; 5xx retry-once with backoff).
+ */
+export async function updateClient(
+  client: BullhornClient,
+  id: number,
+  patch: Partial<BullhornClientCorp>,
+): Promise<{ changedEntityType: string; changedEntityId: number; changeType: string }> {
+  return client.request<{
+    changedEntityType: string;
+    changedEntityId: number;
+    changeType: string;
+  }>(`/entity/ClientCorporation/${id}`, {
+    method: "POST",
+    body: patch,
+  });
+}
