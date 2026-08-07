@@ -1,0 +1,15 @@
+# Fixture identity map — Bullhorn user id → M365 object id (spec §6.4).
+tenant_id: "fixture-tenant-uuid"
+schema_version: 1
+identities:
+  - bullhorn_user_id: 101
+    m365_object_id: "aad-sarah-khan"
+    email: "sarah@fixturefirm.co.uk"
+    telegram_user_id: "7700101"
+    display_name: "Sarah Khan"
+    source: manual
+  - bullhorn_user_id: 102
+    m365_object_id: "aad-jane-founder"
+    email: "jane@fixturefirm.co.uk"
+    display_name: "Jane Founder"
+    source: csv_import

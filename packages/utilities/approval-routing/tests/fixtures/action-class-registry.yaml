@@ -1,0 +1,60 @@
+# In-repo TEST FIXTURE of the action-class registry (spec §5.1, PLAN.md
+# decision 4). The REAL seed lives at agents/_shared/action-class-registry.yaml
+# and is authored by the W2 slice — this fixture only encodes the agreed row
+# shape so the W1 loader/ladder tests are self-contained.
+
+action_types:
+
+  # Desk-bound, Bucket 2, safe-default on expiry (spec §10.1 founder default).
+  gmail_outlook_send_to_candidate:
+    routing_rule: record_owner
+    trust_bucket: 2
+    escalation_after_minutes: 30
+    ttl_minutes: 120
+    on_expiry: safe_default
+    breaks_quiet_hours: true
+    digest_eligible: false
+
+  # Function-bound, Bucket 3, holds indefinitely (credit-note archetype).
+  xero_reminder_send_customer:
+    routing_rule: function_role:finance
+    trust_bucket: 3
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  # Function-bound, Bucket 2, daily-digest archetype (Janitor cleanup batch).
+  bullhorn_candidate_tag:
+    routing_rule: function_role:ops_data
+    trust_bucket: 2
+    escalation_after_minutes: 240
+    ttl_minutes: 1440
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: true
+
+  # Registry row that OMITS ttl_minutes + breaks_quiet_hours — the §6.3
+  # per-function values apply when resolution goes through a function.
+  client_hunter_outreach_draft:
+    routing_rule: function_role:business_development
+    trust_bucket: 3
+    escalation_after_minutes: 60
+    on_expiry: hold
+    digest_eligible: false
+
+  # Registry row pointing at a function the fixture firm has NOT mapped is
+  # impossible with the §6.3 closed enum — unmapped-function fall-through is
+  # exercised in tests by loading a function-roles file missing the function.
+
+  # v1.1 agent seeded dormant (PLAN.md decision 4).
+  competitor_interception_first_contact:
+    routing_rule: function_role:business_development
+    trust_bucket: 3
+    escalation_after_minutes: null
+    ttl_minutes: null
+    on_expiry: hold
+    breaks_quiet_hours: false
+    digest_eligible: false
+    dormant: true
