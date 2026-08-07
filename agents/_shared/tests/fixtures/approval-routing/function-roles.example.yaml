@@ -1,0 +1,98 @@
+# EXAMPLE FIXTURE — per-tenant function→role map (approval-routing spec §6.3,
+# structure verbatim). Boutique-collapse example: a 6-person 360-desk firm
+# where five of six function holders are the founder.
+#
+# REAL FILE LIVES AT (per tenant):  /vault/{tenant_slug}/routing/function-roles.yaml
+# (vault artefact alongside the voice profile + entity graph — spec §6.2;
+#  ${IFOS_VAULT_ROOT} default /vault per the hook-helpers contract).
+#
+# Schema (spec §6.3):
+#   tenant_id              tenant uuid
+#   schema_version         integer; loader (W1 approval-routing pkg) validates
+#   confirmed_at/by        set when Diagnostic confirmation completes
+#   firm_default_approver  ladder step 3 catch-all (spec §4). MUST always be set
+#   functions[]            one row per function; function ∈ {finance, ops_data,
+#                          business_development, candidate_comms_default,
+#                          client_comms_default, admin}
+#     holder.person_ref    canonical identity = M365/Entra object id (§6.4)
+#     holder.source        graph_inferred | diagnostic_confirmed | manual
+#     escalation[]         ordered backup chain (hop timing comes from
+#                          action-class-registry.yaml escalation_after_minutes)
+#     ttl_minutes          null = holds indefinitely (Bucket 3)
+#     breaks_quiet_hours   may this function's approvals ping out-of-hours
+#
+# Populated: M365 Graph inference → Diagnostic confirmation → written here.
+# Read by: notification-adapter / resolver, for function-bound agents only.
+# Record-bound actions never consult this file (they resolve via Bullhorn owner).
+
+tenant_id: "0f47ac10-58cc-4372-a567-0e02b2c3d479"
+schema_version: 1
+confirmed_at: "2026-06-10T00:00:00Z"
+confirmed_by: "11111111-1111-1111-1111-111111111111"
+
+# The firm-wide catch-all. Ladder step 3. Must always be set.
+firm_default_approver:
+  person_ref: "11111111-1111-1111-1111-111111111111"
+  display_name: "Jane Founder"
+
+functions:
+  - function: finance                    # Cash Conductor, invoice/credit actions
+    holder:
+      person_ref: "11111111-1111-1111-1111-111111111111"
+      display_name: "Jane Founder"
+      source: diagnostic_confirmed
+    escalation: []
+    ttl_minutes: null                    # null = holds indefinitely (Bucket 3)
+    breaks_quiet_hours: false
+
+  - function: ops_data                   # Janitor cleanup batches, ATS hygiene
+    holder:
+      person_ref: "11111111-1111-1111-1111-111111111111"
+      display_name: "Jane Founder"
+      source: graph_inferred
+    escalation: []
+    ttl_minutes: 1440                    # 24h, low urgency
+    breaks_quiet_hours: false
+
+  - function: business_development       # Client Hunter / Competitor Interception (v1.1)
+    holder:
+      person_ref: "22222222-2222-2222-2222-222222222222"
+      display_name: "Sam Consultant"     # the one delegated function: Sam owns the tech patch
+      source: diagnostic_confirmed
+    escalation:
+      - person_ref: "11111111-1111-1111-1111-111111111111"
+        display_name: "Jane Founder"
+    ttl_minutes: 120
+    breaks_quiet_hours: true             # competitor-interception window is time-sensitive
+
+  - function: candidate_comms_default    # fallback when a candidate has no Bullhorn owner
+    holder:
+      person_ref: "11111111-1111-1111-1111-111111111111"
+      display_name: "Jane Founder"
+      source: manual
+    escalation: []
+    ttl_minutes: 120
+    breaks_quiet_hours: false
+
+  - function: client_comms_default       # fallback when a client has no Bullhorn owner
+    holder:
+      person_ref: "11111111-1111-1111-1111-111111111111"
+      display_name: "Jane Founder"
+      source: manual
+    escalation: []
+    ttl_minutes: null
+    breaks_quiet_hours: false
+
+  - function: admin                      # timesheet chases, generic ops
+    holder:
+      person_ref: "11111111-1111-1111-1111-111111111111"
+      display_name: "Jane Founder"
+      source: graph_inferred
+    escalation: []
+    ttl_minutes: 1440
+    breaks_quiet_hours: false
+
+# Boutique collapse note (spec §6.3 verbatim): in a boutique, multiple
+# `holder.person_ref` values will be identical (the founder). That is correct
+# and expected. If the founder wants to delegate a function from day one,
+# edit one `holder` row — no other change.

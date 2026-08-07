@@ -293,3 +293,24 @@ templates:
       better, and what your hiring picture looks like for the next quarter.
 
       {{consultant_signature}}
+
+  # Safe-default holding reply (approval-routing spec §5.2 behaviour 3 +
+  # §10 decision 1; action-class-registry.yaml `on_expiry: safe_default`).
+  # NOT one of the 12 lifecycle events — selected only when a candidate-comms
+  # approval TTL lapses with no decision from the escalation chain. Minimal,
+  # pre-approved, judgement-free: engages the candidate immediately while the
+  # full personalised draft stays in the vault awaiting human approval
+  # (ESC_SAFE_DEFAULT_SENT records holding_template_id + full_draft_vault_path).
+  # Per-tenant override (same resolution chain as every event above):
+  #   /vault/{tenant_slug}/concierge-templates/holding-reply-candidate.md
+  - event_type: holding-reply
+    recipient_role: candidate
+    template_id: shared-holding-reply-candidate-v1
+    subject: "We've received your CV"
+    body: |
+      Hi {{candidate_first_name}},
+
+      Thanks for sending your CV across — it has arrived safely with us, and
+      one of the team will be in touch.
+
+      {{consultant_signature}}
