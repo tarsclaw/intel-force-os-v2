@@ -50,7 +50,8 @@ if command -v pnpm >/dev/null 2>&1; then
     packages/mcp-connectors/xero packages/mcp-connectors/quickbooks \
     packages/mcp-connectors/open-banking packages/mcp-connectors/companies-house \
     packages/mcp-connectors/bullhorn packages/mcp-connectors/cv-library \
-    packages/mcp-connectors/reed packages/utilities/autosend-bridge-telegram; do
+    packages/mcp-connectors/reed packages/utilities/autosend-bridge-telegram \
+    packages/utilities/approval-routing; do
     [[ -d "${dir}" ]] || continue
     pkg="$(basename "${dir}")"
     if (cd "${dir}" && pnpm -s typecheck && pnpm -s test) >"/tmp/gate-${pkg}.log" 2>&1; then
