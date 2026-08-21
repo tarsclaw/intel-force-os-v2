@@ -20,10 +20,14 @@ Nothing below STAGE 0 may start until every row here is done. Each is a GO condi
 | ☐ | Precondition | Why it blocks | Verify |
 |---|---|---|---|
 | ☐ | **Founder ratifies the STEP 0 slate** | The estate boot sequence gates all code on it | Slate signed or returned with amendments |
-| ☐ | **Package scope decided and written down** (recommended `@core/*`) | Every package declares `@ifos/*`. Deciding after the move means re-running every import rewrite — `TRANSFER-MAP` §8.1 | Scope recorded in the new repo's ruling register |
-| ☐ | **RED-3 ruled: where the `tenants` RLS exemption is ratified** | R15 requires a *ratified* exemption; a CortexOS doc cannot ratify into the new register | Exemption row exists in the new `RULING-REGISTER.md` |
-| ☐ | **A3 second item ruled: does `FUNCTION_NAMES` ship with contracts?** | Decides the shape of the contracts split — see `patches/A3` | Ruling recorded |
-| ☐ | RED-1 ruled: does `web-scraper` travel or die with `diagnostic-generator`? | Blocks nothing before Phase B; decide before STAGE 9 | Ruling recorded |
+| ☑ | ~~Package scope decided~~ — **`@core/*`, R-CX-1** | Verified safe: all 12 packages are `private: true` with `workspace:*` deps, so no npm collision | RULINGS.md R-CX-1 |
+| ☑ | ~~`tenants` RLS exemption~~ — **ratified, R-CX-2** | Exactly one table; any other table landing without RLS is still a violation | RULINGS.md R-CX-2 — copy into `RULING-REGISTER.md` at STAGE 1 |
+| ☑ | ~~`FUNCTION_NAMES` in contracts?~~ — **yes, R-CX-3** | Avoids a hand-maintained duplicate that would drift | RULINGS.md R-CX-3 |
+| ☑ | ~~`web-scraper`~~ — **deferred, not deleted, R-CX-5** | Diagnostic is not a priority; code stays green in CortexOS | RULINGS.md R-CX-5 |
+| ☑ | ~~`decision_log` read ownership~~ — **spine owns both directions, R-CX-4** | Was an unquoted interpretation in patch A2; now ruled | RULINGS.md R-CX-4 |
+
+**Four of five preconditions are closed.** The only remaining blocker is the slate.
+Copy `harvest/RULINGS.md` into the new `RULING-REGISTER.md` as the first entries after `R-0001`.
 
 ---
 
@@ -141,7 +145,7 @@ Do not start until Phase A's exit gate passes.
 | ☐ | 9 connectors (14,653) | `packages/mcp-connectors/*` | `packages/ingest-connectors/*` | `verify-test-baseline.sh @core` → **380 total** |
 | ☐ | Register the 6 deferred ESC codes | `registers/` appendix A.1 | `docs/registers/` | 88 codes |
 | ☐ | OAuth tooling + runbook | `harvest/scripts/`, `scripts/oauth-*.sh` | `scripts/` | present |
-| ☐ | `web-scraper` (412 + 163) | `packages/utilities/web-scraper` | per RED-1 ruling | 12 passed, or deliberately dropped |
+| ⊘ | ~~`web-scraper` (412 + 163)~~ | **DEFERRED — R-CX-5.** Does not land. Stays in CortexOS, green (12 tests), until Diagnostic is revisited. NOT deleted | — |
 
 ---
 

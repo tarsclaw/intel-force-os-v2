@@ -32,15 +32,15 @@
 #                 the RLS scoping, so the property is regression-tested wherever
 #                 the constant lands.
 #
-# ⚠ RULE GAP      R3 names only WRITES. Neither R2 nor R3 explicitly forbids
-#                 READING `decision_log` from outside spine — R2 is scoped to
-#                 "brain content", and decision_log is spine content, not brain
-#                 content. This patch moves the reader (FETCH_SQL) as well as the
-#                 writer, on the §4 reading that the Value Spine tables are
-#                 "P2 writes, ledger measures, P4 reads" — i.e. spine owns both
-#                 directions. THIS IS AN INTERPRETATION, NOT A QUOTED RULE.
-#                 Logged for founder confirmation; if the ruling goes the other
-#                 way the reader stays in queue and this patch shrinks.
+# RULE GAP — RESOLVED by R-CX-4 (harvest/RULINGS.md)
+#                 R3 names only WRITES, and R2's read rule is scoped to "brain
+#                 content", which decision_log is not. So moving the READER was
+#                 an interpretation, not a quoted rule. Ruled 2026-08-21: spine
+#                 owns decision_log in BOTH directions, on MONOREPO §4 ("P2
+#                 writes, ledger measures, P4 reads") and because leaving the
+#                 reader in queue means two packages know the decision_log
+#                 schema — a split that would recur for outcome_event and
+#                 holdout_assignment. This patch proceeds as written.
 #
 # VERIFY          pnpm --filter @core/autosend-bridge-telegram test
 #                 CortexOS baseline: 34 passed (34).

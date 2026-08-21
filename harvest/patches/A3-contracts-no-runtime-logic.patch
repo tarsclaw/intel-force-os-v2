@@ -66,24 +66,21 @@ export class RoutingConfigError extends Error {
 #   Lines 1-226 of the current src/types.ts, verbatim. Declarations only.
 #   Do NOT copy the RoutingConfigError class (lines 227-235).
 #
-# ⚠ SECOND ITEM — needs a founder call, and it is a judgement not a violation
+# ── SECOND ITEM — RULED (R-CX-3, harvest/RULINGS.md) ────────────────────────
 #
 #   src/types.ts:146  export const FUNCTION_NAMES = [ ... ] as const
 #   :155              export type FunctionName = (typeof FUNCTION_NAMES)[number];
 #
-#   FUNCTION_NAMES is a runtime VALUE, not a type — but it is a frozen literal
-#   whose only purpose is to derive FunctionName, and it is data rather than
-#   logic. R9's hard line is "a function appearing in contracts/ is a review
-#   rejection"; a const array is not a function.
+#   RULED 2026-08-21: FUNCTION_NAMES SHIPS WITH CONTRACTS, and FunctionName is
+#   derived from it there. Both move as part of the lines 1-226 block above.
 #
-#   Two readings, both defensible:
-#     (a) STRICT — "types, schemas, nothing else". FUNCTION_NAMES stays in the
-#         authoriser barrel above; contracts declares FunctionName as a plain
-#         union literal instead of deriving it. Costs a hand-maintained
-#         duplicate that can drift from the array.
-#     (b) PRAGMATIC — a frozen literal that exists solely to derive a type is a
-#         schema in TypeScript's clothing. It ships with contracts. Single
-#         source of truth, no drift.
+#   Rationale: R9's stated hard line is "a function appearing in contracts/ is a
+#   review rejection". This is data, not a function — a frozen literal whose only
+#   purpose is to generate a type. Leaving it behind would force a hand-declared
+#   duplicate union in contracts, and drift between a declaration and its source
+#   is exactly the failure R9 exists to prevent. Excluding it would satisfy the
+#   letter of the rule while defeating its purpose.
 #
-#   RECOMMENDED (b), because (a) reintroduces exactly the drift R9 exists to
-#   prevent. Flagged rather than decided: it is a ruling, not a session's call.
+#   BOUNDARY: this licenses `as const` literals that exist solely to derive
+#   types. It does NOT license functions, classes, or any value with behaviour.
+#   RoutingConfigError still leaves contracts, per the split above.

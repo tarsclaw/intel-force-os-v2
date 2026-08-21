@@ -107,8 +107,13 @@ harnesses. Against ~22,400 lines transferring as working code.
 
 ### Rules with zero violations
 
-R1, R4, R5, R6, R7, R8, R10, R11, R12, R14 — clean across every audited asset. **No package declares a dependency
-on any other package in this repo**, so there is no internal coupling to unwind.
+R1, R4, R5, R6, R7, R8, R10, R11, R12, R14 — clean across every audited asset.
+
+**Precision correction (2026-08-21).** This section originally read "no package declares a dependency on any other
+package in this repo". A full edge scan finds **exactly one**: `diagnostic-generator -> [web-scraper,
+companies-house]`. It originates from a **discarded** package, so the operative claim holds — *no transferable
+package depends on another, and there is no internal coupling to unwind* — but the original wording was too broad.
+The edge independently confirms the RED-1 analysis: `web-scraper` has one consumer and it is on the discard list.
 
 ### One suspicion refuted
 
@@ -209,3 +214,19 @@ below its baseline. **Silently skipped tests are the failure mode it exists to c
 quietly runs 40 of 52 tests looks identical to a healthy one on the console.
 
 Self-verified against CortexOS on the day of capture: **BASELINE HELD**.
+
+
+---
+
+## Rulings — all three REDs closed, 2026-08-21
+
+| Was | Now |
+|---|---|
+| RED-1 web-scraper | **R-CX-5** — deferred, not deleted. Diagnostic deprioritised; the code stays green in CortexOS |
+| RED-2 telegram-surface | **Resolved by investigation** — never built; scoped as a Phase A item (see above) |
+| RED-3 `tenants` RLS exemption | **R-CX-2** — ratified as a permanent single-table exemption |
+
+Two further items raised by the patches are also ruled: **R-CX-3** (`FUNCTION_NAMES` ships with contracts) and
+**R-CX-4** (`spine` owns `decision_log` reads as well as writes, closing the rule gap flagged in patch A2).
+
+Full reasoning and reversal costs: `harvest/RULINGS.md`. **Zero open rulings remain.**
