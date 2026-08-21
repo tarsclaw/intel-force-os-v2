@@ -1,3 +1,36 @@
+# ⛔ THIS REPOSITORY IS FROZEN — 2026-08-21
+
+**Superseded by `~/code/ifos`.** Do not build here. Do not resume W3–W8. Do not fix the renderer.
+
+CortexOS is now a **harvest source and a read-only reference**, not a development target. It stays running and
+green until the migration completes (target: after thickening pass 2 / WP-12), then retires.
+
+| | |
+|---|---|
+| **Successor repo** | `~/code/ifos` |
+| **What transfers, where, and how** | `harvest/LANDING-ORDER.md` — 67 rows, 11 stages, a verification command per row |
+| **Why the architecture changed** | `docs/handoff/SESSION-HANDOFF-cortexos-to-ifos.md`, `TRANSFER-MAP.md` |
+| **What had to change to conform** | `docs/handoff/CONFORMANCE-AUDIT.md` + `harvest/patches/` |
+| **Decisions and their reversal costs** | `harvest/RULINGS.md` (R-CX-1 … R-CX-9) |
+| **Freeze tag** | `frozen-2026-08-21` |
+
+**What the freeze permits:** data-integrity and security fixes, and only to something that will be harvested.
+Everything else waits for the new repo.
+
+**Why W3–W8 stopped** (three reasons, each sufficient — `ESTATE-DECISIONS-repo-freeze-vps.md` D3):
+1. It builds what is already superseded — the six agent bundles and the renderer are replaced by the three-tool seam.
+2. It cannot reach live verification — credentials were declared unobtainable 2026-06-11.
+3. `[LOCK-MR-5]` — implementing in a stub-phase package before its phase opens is the spec-gravity trap.
+
+**Do not fix the renderer.** It is confirmed to be six missing `config.schema.json` files and nothing else
+(`packages/agent-renderer/src/fileMap.ts:20-22`, `preflight.ts:checkBundle`). It is cheap, and the payoff is zero:
+it would render agents into a runtime whose agent model is being replaced.
+
+**The nine connectors, the migrations and the dev-DB harness stay here until their phase opens.** Nothing has been
+deleted; every move to `~/code/ifos` is a copy.
+
+---
+
 # Intel Force OS v2 — Claude Code Instructions
 
 **Loaded by Claude Code at the start of every session. Read this first, then the master brief.**
