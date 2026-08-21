@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-client.json",
+  "title": "common-client",
+  "description": "Per-firm identity collected by the onboarding wizard. Per PRODUCT-SPEC §5.3 line 357.",
+  "type": "object",
+  "properties": {
+    "firm_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+      "description": "Must equal common-base.tenant_slug. Duplicated for clarity in firm-facing tooling."
+    },
+    "legal_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Full legal name; surfaces in tenant footer of every CLAUDE.md."
+    },
+    "trading_name": {
+      "type": "string",
+      "description": "Optional trading-as name; defaults to legal_name if absent."
+    },
+    "primary_contact": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["name", "email"]
+    },
+    "tier": {
+      "type": "string",
+      "enum": ["solo", "boutique", "growth", "scale"],
+      "description": "Pricing tier; gates agent count per PRODUCT-SPEC tier matrix."
+    },
+    "deployment_preference": {
+      "type": "string",
+      "enum": ["sovereign", "cloud"],
+      "default": "cloud",
+      "description": "Sovereign = on-prem cluster; cloud = managed Hetzner. Per master brief §4."
+    },
+    "operating_window": {
+      "type": "string",
+      "enum": ["24/7", "business-hours", "out-of-hours"],
+      "default": "business-hours",
+      "description": "Drives agent Tier 1/2/3 classification per master brief §2.4 primitive 1."
+    },
+    "geography": {
+      "type": "object",
+      "properties": {
+        "country": { "type": "string", "default": "GB" },
+        "currency": { "type": "string", "default": "GBP" }
+      }
+    }
+  },
+  "required": ["firm_slug", "legal_name", "primary_contact", "tier"],
+  "additionalProperties": false
+}

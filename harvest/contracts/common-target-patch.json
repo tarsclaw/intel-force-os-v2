@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-target-patch.json",
+  "title": "common-target-patch",
+  "description": "Tenant's commercial sweet spot: sectors, geography, deal sizes, allow/block lists. Read by Sourcing Scout (W9) + Diagnostic (W3-4). Per PRODUCT-SPEC §5.3 line 363.",
+  "type": "object",
+  "properties": {
+    "sectors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 0,
+      "description": "Tenant's target sectors; e.g. ['fintech', 'public-sector-tech', 'climate']. Free-form strings."
+    },
+    "geographies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 0,
+      "default": ["UK"],
+      "description": "ISO-3166-alpha-2 codes or region labels; UK first per master brief §4."
+    },
+    "size_bands": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["startup-1-50", "scaleup-50-250", "midmarket-250-1000", "enterprise-1000-plus"]
+      },
+      "default": ["scaleup-50-250"],
+      "description": "Headcount bands defining typical client size."
+    },
+    "deal_size_band_gbp": {
+      "type": "object",
+      "properties": {
+        "perm_min": { "type": "number", "minimum": 0, "default": 5000 },
+        "perm_max": { "type": "number", "minimum": 0, "default": 50000 },
+        "contract_day_rate_min": { "type": "number", "minimum": 0, "default": 400 },
+        "contract_day_rate_max": { "type": "number", "minimum": 0, "default": 1500 }
+      },
+      "description": "Bands surface in Diagnostic ICP scoring + Sourcing Scout shortlist filtering."
+    },
+    "named_allowlist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Explicit firm names always in-scope (overrides sectors/size filters)."
+    },
+    "named_blocklist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Explicit firm names always out-of-scope (overrides other includes)."
+    },
+    "competitor_blocklist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Competing recruitment firms; agents must not contact their candidates."
+    }
+  },
+  "required": ["sectors", "geographies"],
+  "additionalProperties": false
+}

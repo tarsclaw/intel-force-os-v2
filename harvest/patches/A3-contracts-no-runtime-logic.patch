@@ -1,0 +1,89 @@
+# A3 — approval-routing/src/types.ts → packages/contracts : no runtime logic in contracts
+#
+# RULE VIOLATED   R9 ([LOCK-MR-2], MONOREPO §2): "`packages/contracts` is the only
+#                 package every other package may depend on, and it contains no
+#                 runtime logic: schemas, types, JSON Schema files, nothing else.
+#                 A function appearing in `contracts/` is a review rejection."
+#
+# EVIDENCE        packages/utilities/approval-routing/src/types.ts:228
+#                   export class RoutingConfigError extends Error {
+#                     readonly code: RoutingConfigErrorCode;
+#                     constructor(code, message) { ... }
+#                   }
+#                 A class with a constructor is runtime logic. TRANSFER-MAP §1
+#                 maps this file to packages/contracts, so it would land there.
+#
+# WHAT CHANGES    types.ts is split. The 23 pure declarations (lines 1-226:
+#                 RecordRef, ResolveInput, LadderStep, OnExpiry, TrustBucket,
+#                 EscalationHop, ResolveResult, PersonRef, IdentityRow,
+#                 IdentitySource, RoutingRule, ActionClassRow, FunctionName,
+#                 HolderSource, FunctionHolder, FunctionEscalationEntry,
+#                 FunctionRoleEntry, FirmDefaultApprover, FunctionRolesMap,
+#                 OwnerLookupResult, OwnerLookup, RoutingConfigErrorCode) move to
+#                 contracts. The error class stays in the authoriser.
+#
+# WHY IT IS SAFE  ZERO consumer changes. types.ts survives in the authoriser as a
+#                 barrel that re-exports contracts and declares the class locally,
+#                 so all 12 files importing `RoutingConfigError` from "./types.js"
+#                 — src/{identity-map,function-roles,registry,resolve}.ts,
+#                 bin/{cli-shared,resolve-approver,seed-identity-map}.ts, and 4
+#                 test files — compile unchanged. No import line is touched.
+#
+# VERIFY          pnpm --filter @core/approval-routing test
+#                 CortexOS baseline: 86 passed (86). After A1 relocates the 9
+#                 owner-lookup cases the expected figure is 77 — A3 must not
+#                 change it further. A3 is import-invisible: any delta is a defect.
+#
+# ESTIMATE        ~15 lines. ACTUAL: ~10 lines in the authoriser + a declaration
+#                 block extracted to contracts. Under estimate.
+#
+# ── AFTER: packages/authoriser/src/types.ts (replaces 235 lines with ~14) ────
+
+// @core/authoriser — local type barrel.
+//
+// The pure declarations live in @core/contracts/routing. Only runtime logic
+// stays here, so contracts satisfies [LOCK-MR-2] and every existing
+// `import { RoutingConfigError, type X } from "./types.js"` still resolves.
+
+export * from "@core/contracts/routing";
+
+/**
+ * Routing configuration is absent or unusable. The W3 caller treats this as
+ * "resolver unavailable" and falls back to the single-operator path
+ * byte-for-byte (PLAN.md decision 2). CLI exit code 3.
+ */
+export class RoutingConfigError extends Error {
+  readonly code: RoutingConfigErrorCode;
+  constructor(code: RoutingConfigErrorCode, message: string) {
+    super(message);
+    this.name = "RoutingConfigError";
+    this.code = code;
+  }
+}
+
+# ── NEW: packages/contracts/routing/types.ts ─────────────────────────────────
+#
+#   Lines 1-226 of the current src/types.ts, verbatim. Declarations only.
+#   Do NOT copy the RoutingConfigError class (lines 227-235).
+#
+# ⚠ SECOND ITEM — needs a founder call, and it is a judgement not a violation
+#
+#   src/types.ts:146  export const FUNCTION_NAMES = [ ... ] as const
+#   :155              export type FunctionName = (typeof FUNCTION_NAMES)[number];
+#
+#   FUNCTION_NAMES is a runtime VALUE, not a type — but it is a frozen literal
+#   whose only purpose is to derive FunctionName, and it is data rather than
+#   logic. R9's hard line is "a function appearing in contracts/ is a review
+#   rejection"; a const array is not a function.
+#
+#   Two readings, both defensible:
+#     (a) STRICT — "types, schemas, nothing else". FUNCTION_NAMES stays in the
+#         authoriser barrel above; contracts declares FunctionName as a plain
+#         union literal instead of deriving it. Costs a hand-maintained
+#         duplicate that can drift from the array.
+#     (b) PRAGMATIC — a frozen literal that exists solely to derive a type is a
+#         schema in TypeScript's clothing. It ships with contracts. Single
+#         source of truth, no drift.
+#
+#   RECOMMENDED (b), because (a) reintroduces exactly the drift R9 exists to
+#   prevent. Flagged rather than decided: it is a ruling, not a session's call.

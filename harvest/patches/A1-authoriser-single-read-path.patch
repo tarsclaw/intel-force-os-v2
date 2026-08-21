@@ -1,0 +1,86 @@
+# A1 — approval-routing → packages/authoriser : satisfy the single-read-path rule
+#
+# RULE VIOLATED   R2 (MONOREPO §3): "Only `trust` may expose a read API; no other
+#                 package may query Postgres/pgvector for brain content directly."
+#
+# EVIDENCE        packages/utilities/approval-routing/src/owner-lookup.ts:45
+#                   const child = execFile("psql", args, { timeout: 30_000 }, ...)
+#                 The query at :70-79 (OWNER_LOOKUP_SQL) reads the `entities`
+#                 table — candidates, contractors, clients. That is brain content.
+#
+# WHAT CHANGES    Nothing is rewritten. One file RELOCATES to packages/trust,
+#                 four re-exports are dropped from the authoriser's public
+#                 surface, and one CLI import is repointed.
+#
+# WHY IT IS SAFE  Three independent reasons.
+#
+#   1. The seam already exists. `resolve.ts` consumes `OwnerLookup` as an
+#      injected type from ./types.js and never touches Postgres. Its own header
+#      calls it "a PURE function over injected dependencies". The authoriser's
+#      core is already conformant; only this one concrete factory is not.
+#
+#   2. The TYPE stays put. `OwnerLookup` / `OwnerLookupResult` / `RecordRef` are
+#      declarations and land in contracts. Only the psql IMPLEMENTATION moves.
+#      No caller of resolveApprover() changes.
+#
+#   3. It is a no-op in production today, and the source says so.
+#      owner-lookup.ts:18-28 documents that the Bullhorn CLI normalisers drop the
+#      owner field before it reaches `data` jsonb, so "live cached rows currently
+#      resolve to not-found here and the ladder falls through to function role /
+#      firm default (§4.2) — which is the correct, honest behaviour."
+#      Relocating a lookup that already returns null cannot change behaviour.
+#
+# PHASE NOTE      `trust` is a Phase A STUB. During Phase A the authoriser is
+#                 injected with the stub brain's OwnerLookup; the psql
+#                 implementation below lands in trust at Phase B, behind the
+#                 identical interface. This is exactly [LOCK-MR-4] — "a pillar is
+#                 replaced behind its seam or not at all".
+#
+# VERIFY          pnpm --filter @core/approval-routing test
+#                 MUST report: 86 passed (86) — the CortexOS baseline.
+#                 owner-lookup.test.ts (100 lines, 9 cases) moves WITH the file
+#                 to trust and must pass there; authoriser's remaining count is
+#                 86 minus those 9 = 77. Record both numbers.
+#
+# ESTIMATE        ~30 lines. ACTUAL: 8 changed lines + 2 file relocations.
+#
+# ── FILE RELOCATIONS (git mv, not edits) ─────────────────────────────────────
+#   packages/utilities/approval-routing/src/owner-lookup.ts   (131 lines)
+#     -> packages/trust/src/owner-lookup.ts
+#   packages/utilities/approval-routing/tests/owner-lookup.test.ts  (100 lines)
+#     -> packages/trust/tests/owner-lookup.test.ts
+#
+# ── IN-PLACE EDIT 1 of 2: drop the re-exports ────────────────────────────────
+--- packages/utilities/approval-routing/src/index.ts	2026-08-07 12:57:51
++++ /private/tmp/claude-501/-Users-madsadmin-code-CortexOS/091dae29-6983-4b4f-ac8a-a85095caa62d/scratchpad/a1/index.ts	2026-08-21 21:42:05
+@@ -23,13 +23,9 @@
+   parseRoutingRule,
+   type ActionClassRegistry,
+ } from "./registry.js";
+-export {
+-  createPostgresOwnerLookup,
+-  defaultRunPsql,
+-  OWNER_FIELD_BY_ENTITY_TYPE,
+-  OWNER_LOOKUP_SQL,
+-  type OwnerLookupConfig,
+-  type RunPsql,
+-} from "./owner-lookup.js";
++// createPostgresOwnerLookup / OWNER_LOOKUP_SQL / OWNER_FIELD_BY_ENTITY_TYPE
++// relocated to packages/trust — they read the `entities` cache, which is brain
++// content, and only trust may do that (MONOREPO §3 single-read-path rule).
++// The OwnerLookup TYPE stays in contracts; resolve.ts is unchanged.
+ export { resolveApprover, type ResolveDeps } from "./resolve.js";
+ export { parseYaml, emitYaml, YamlParseError, type YamlValue } from "./yaml-lite.js";
+
+# ── IN-PLACE EDIT 2 of 2: repoint the CLI ────────────────────────────────────
+#
+# bin/resolve-approver.ts:33
+#   - import { createPostgresOwnerLookup } from "../src/owner-lookup.js";
+#   + import { createPostgresOwnerLookup } from "@core/trust";
+#
+# bin/resolve-approver.ts:99 is UNCHANGED — the call site keeps its shape:
+#     ownerLookup = createPostgresOwnerLookup({ db_url: dbUrl as string });
+#
+# During Phase A, while trust is a stub, this CLI path is not exercised: the
+# non-record-bound branch at :101 already assigns `async () => null`, which is
+# the same value the psql lookup returns in production today.

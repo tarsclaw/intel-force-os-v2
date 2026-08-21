@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-ats.json",
+  "title": "common-ats",
+  "description": "Generic ATS interface — Bullhorn-only in v1.0 per bullhorn-integration-path.md §4 Sub-decision C; extensible to other ATSes in v1.1+. Per PRODUCT-SPEC §5.3 line 361.",
+  "type": "object",
+  "properties": {
+    "ats_choice": {
+      "type": "string",
+      "enum": ["bullhorn"],
+      "default": "bullhorn",
+      "description": "Single value in v1.0 per Sub-decision C; v1.1+ may add jobadder/vincere/etc."
+    },
+    "tenant_corp_id": {
+      "type": ["string", "integer"],
+      "description": "Bullhorn corporation ID; one per tenant. Loaded from _secrets.env."
+    },
+    "bullhorn_cluster": {
+      "type": "string",
+      "enum": ["UK", "EU", "US-East", "US-West", "AU"],
+      "default": "UK",
+      "description": "Bullhorn data centre; UK default for IFOS UK-first geography."
+    },
+    "rest_url_template": {
+      "type": "string",
+      "default": "https://rest-{cluster}.bullhornstaffing.com/rest-services/{tenant_corp_id}/",
+      "description": "Per bullhorn-integration-path.md §3. Resolved at runtime."
+    },
+    "oauth_token_path": {
+      "type": "string",
+      "default": "/vault/{tenant_slug}/_secrets.env",
+      "description": "Where the BULLHORN_OAUTH_TOKEN env var is sourced. Refreshed by per-agent 8-minute cycle per bullhorn-integration-path.md §4.5."
+    },
+    "auth_refresh_interval_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 900,
+      "default": 480,
+      "description": "8-min cycle per bullhorn-integration-path.md §4.5; under 10-min Bullhorn token TTL."
+    },
+    "rate_limit_backoff_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 1,
+      "description": "Initial 429 backoff; exponential up to 30s per bullhorn-integration-path.md §2.2."
+    },
+    "field_mapping_overrides": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Tenant-specific Bullhorn field aliases. Keys = canonical IFOS field names from vertical-schema.yaml; values = tenant's Bullhorn field IDs.",
+      "default": {}
+    }
+  },
+  "required": ["ats_choice", "tenant_corp_id", "bullhorn_cluster"],
+  "additionalProperties": false
+}

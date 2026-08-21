@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-accounting.json",
+  "title": "common-accounting",
+  "description": "Accounting-system stub used by Cash Conductor (W7-8 v1.0). Xero-only in v1.0 per master brief §8.2 row 4; extensible later. Per PRODUCT-SPEC §5.3 line 362.",
+  "type": "object",
+  "properties": {
+    "accounting_choice": {
+      "type": "string",
+      "enum": ["xero", "none"],
+      "default": "none",
+      "description": "None = Cash Conductor not deployed for this tenant. Xero = deployed."
+    },
+    "xero_tenant_id": {
+      "type": "string",
+      "description": "Xero tenant ID; one per IFOS-tenant. Loaded from _secrets.env."
+    },
+    "xero_oauth_path": {
+      "type": "string",
+      "default": "/vault/{tenant_slug}/_secrets.env",
+      "description": "Where XERO_OAUTH_REFRESH_TOKEN lives."
+    },
+    "chase_cadence": {
+      "type": "object",
+      "properties": {
+        "days_overdue_first_chase": { "type": "integer", "minimum": 1, "default": 3 },
+        "days_overdue_second_chase": { "type": "integer", "minimum": 1, "default": 14 },
+        "days_overdue_escalate": { "type": "integer", "minimum": 1, "default": 30 }
+      },
+      "description": "Default Cash Conductor cadence; tenant-overridable per autosend-safety-policy §6 tenant-override discipline."
+    },
+    "escalation_threshold_gbp": {
+      "type": "number",
+      "minimum": 0,
+      "default": 5000,
+      "description": "Outstanding amount above which Cash Conductor escalates to operator via ESC route rather than auto-chasing."
+    },
+    "open_banking_provider": {
+      "type": "string",
+      "enum": ["truelayer", "tink", "none"],
+      "default": "none",
+      "description": "v1.0 closes loop via Open Banking reconciliation per Ultraplan §8.1 A4; truelayer placeholder."
+    }
+  },
+  "required": ["accounting_choice"],
+  "additionalProperties": false
+}

@@ -1,0 +1,378 @@
+# IFOS recruitment vertical schema v0.4 — tenant_adapters.config keys for
+# D1-B autosend bridge + WorkOS SSO + Bullhorn per-tenant + Granola per-tenant
+# ============================================================================
+# Status: Proposed (W5 Day-30 landing; W6+ Codex ratification queue addendum)
+# Date:   2026-06-03 (Day 30; post-W5-MCP-sweep)
+# Author: Founder (Maddox) + Claude Code
+# Predecessor: docs/verticals/recruitment/vertical-schema.v0.3-supplement.yaml
+#
+# v0.4 is an ADDITIVE-ONLY tenant_adapters.config extension. It does NOT
+# touch entity field schemas, auxiliary tables, agent access matrices, or
+# the decision_log payload shape — those are all preserved verbatim from
+# v0.3. The supplement scope is narrow by design: add the 5 config keys the
+# W5 MCP scaffolds (@ifos/workos, @ifos/granola, @ifos/bullhorn) + the
+# Concierge + Cash Conductor autosend-bridge consumers need to read from
+# tenant_adapters at runtime, replacing the IFOS_FORCE_* env-var fallbacks
+# that have been the interim canonical source since W4 Day-26.
+#
+# Companion migrations: migrations/v0.3-to-v0.4.sql + migrations/v0.4-to-v0.3.sql
+#   Both files drafted alongside this supplement; UP + DOWN symmetric, atomic,
+#   idempotent.
+#
+# Field types: per `review-schema-change` skill §2 allowed types only —
+# string | integer | number | boolean | array | object | timestamp | date.
+# Enums expressed as `type: string` + `enum: [...]`. SQL-level types
+# (NUMERIC, TIMESTAMPTZ) appear only in the companion migration SQL.
+# ============================================================================
+
+vertical: recruitment
+version: v0.4
+supplements: v0.3
+status: Proposed
+date: 2026-06-03
+author: founder (Maddox) + Claude Code; W5 Day-30 MCP-substrate alignment
+codex_ratification_queue_position: pending  # F-tris cluster per goal-week-5-execution-plan.md §5
+
+# ============================================================================
+# §0 — Notes
+# ============================================================================
+
+notes: |
+  v0.4 scope is INTENTIONALLY NARROW: 5 new tenant_adapters.config keys, no
+  entity field changes, no auxiliary tables, no agent access matrix changes,
+  no decision_log payload changes. This keeps the supplement reviewable and
+  the migration short.
+
+  Founder confirmed 2026-06-03: IFOS Granola workspace will be on
+  Business+/Paid tier (Business OR Enterprise). The two Paid-only Granola
+  MCP tools (list_meeting_folders, get_meeting_transcript per @ifos/granola
+  v0.1.0 PAID_PLAN_TOOLS) are therefore unlocked-by-default at provisioning.
+  Tenant onboarding pre-caches plan_tier='paid' in the GranolaClient via
+  getAccountInfo() so the per-call Paid-plan guard short-circuits before any
+  wire round-trip. There is no granola_plan_tier config key — the tier is
+  resolved at runtime via the Granola API rather than mirrored into IFOS
+  state (avoids drift when the founder changes plans).
+
+  Plan-doc fix-forward landed alongside this supplement: the W5 plan doc
+  originally listed workos_directory_id as the 5th key, intended for SCIM
+  provisioning support. SCIM write-back is v1.1+ scope per master brief §6;
+  the Day-29 vendor pivot from Fathom/Fireflies to Granola made
+  granola_workspace_id the higher-priority addition (W6 Scribe needs the
+  per-tenant Granola workspace identifier; v1.1+ supplement can add
+  workos_directory_id when SCIM lands).
+
+# ============================================================================
+# §1 — tenant_adapters.config additions (5 new top-level keys)
+# ============================================================================
+#
+# Each key is hard-fail-on-unknown via the validate_tenant_adapters_config_v0_4
+# trigger (replaces v0_3 trigger; preserves all 11 v0.1+v0.2+v0.3 allowlist
+# entries + adds these 5). Total v0.4 allowlist: 16 keys.
+
+tenant_adapters_config_additions:
+
+  operator_telegram_chat_id:
+    type: string
+    pattern: '^-?[0-9]+$'  # Telegram chat IDs are signed 64-bit integers as strings
+    required: false
+    set_by: [tenant-admin]
+    read_by: [concierge, cash-conductor]
+    notes: |
+      Per-tenant Telegram chat ID for the operator who approves orange-tier
+      autosends per D1-B (docs/decisions/2026-05-31-d1-founder-decision.md).
+      Consumed by @ifos/autosend-bridge-telegram via the consumer's
+      context.sh: SELECT config->>'operator_telegram_chat_id' FROM
+      tenant_adapters WHERE tenant_slug=$1.
+
+      Path A (reuse approval_routing.default_recipient) and Path B (this
+      top-level key) are BOTH schema-clean post-v0.4. The recommended
+      production path is Path A for new tenants (one JSONB sub-tree per
+      autosend-relevant config, cleaner upgrade story to v1.1+ rich-panel
+      approvals); Path B exists for tenants who want a simpler single-key
+      override + clarity in the wizard. Until a tenant explicitly sets
+      either, the env-var fallback IFOS_FORCE_OPERATOR_TELEGRAM_CHAT_ID
+      remains supported for local dev / fixtures.
+
+      Telegram chat IDs are integers but presented as strings here to avoid
+      JSON number-precision issues across the consumer stack (Bash + jq +
+      Postgres JSONB). Pattern accepts both positive (user chat) and
+      negative (group chat) IDs.
+
+  email_channel:
+    type: string
+    enum: [microsoft-graph, gmail]
+    required: false
+    default: microsoft-graph
+    set_by: [tenant-admin]
+    read_by: [concierge]
+    notes: |
+      Per-tenant outbound email provider selection. Concierge cycle.sh
+      Step 3 reads to route email_provider OAuth refresh + send calls.
+      Default 'microsoft-graph' matches the UK recruitment-agency norm
+      per W3 vendor survey; tenants with a Workspace-only IT estate select
+      'gmail' at onboarding wizard.
+
+      Currently consumed via IFOS_FORCE_EMAIL_CHANNEL env-var fallback in
+      concierge/context.sh line 92; v0.4 enables the canonical
+      tenant_adapters read path. The TODO(W10-13) marker in context.sh
+      flips from "supplement-pending" to "supplement-landed; canonical
+      source is the SELECT, env-var fallback remains for fixtures".
+
+      v1.1+ scope: add 'gsuite-modern' + 'exchange-on-prem' as the on-prem
+      tenants surface. v1.0 supports only the two cloud-OAuth providers.
+
+  workos_org_id:
+    type: string
+    pattern: '^org_[A-Z0-9]+$'  # WorkOS org ID format ("org_01HFAV…")
+    required: false
+    set_by: [tenant-admin]
+    read_by: [admin-ui-future]  # v1.1+ admin agent reads; no v1.0 agent consumer
+    notes: |
+      Per-tenant WorkOS organisation identifier. Consumed by @ifos/workos
+      (Day-29 Phase 2 scaffold; commit 6dc5a4a) for organization-scoped
+      reads (getOrganization, listConnections.organization_id filter,
+      listDirectories.organization_id filter, etc.).
+
+      Per master brief §5.3 line 401 WorkOS AuthKit is the v1.0 IFOS auth
+      substrate; the per-tenant org_id is set at tenant provisioning when
+      the founder runs `bash scripts/run-tenant-provisioning.sh <tenant>`
+      (W6+ runbook; not yet authored).
+
+      v1.0 agent consumers: none directly (admin/onboarding UI is the
+      primary consumer). v1.1+ adds the SSO-aware admin agent that wires
+      tenant onboarding through getOrganization. The allowlist entry lands
+      now to unblock that v1.1+ agent without a second schema supplement.
+
+  granola_workspace_id:
+    type: string
+    required: false
+    set_by: [tenant-admin]
+    read_by: [scribe]  # W6+ Scribe bundle reads
+    notes: |
+      Per-tenant Granola workspace identifier. Consumed by @ifos/granola
+      (Day-29 Phase 3 scaffold; commit 1b657e6) — every GranolaClient is
+      constructed with config.workspace_id which sets the rate-limit
+      bucket + token persistence namespace + cache namespace.
+
+      Bootstrap dance (per Granola browser OAuth + DCR; @ifos/granola
+      README §Authentication): founder runs the one-time consent dance
+      per workspace; IFOS captures the resulting access_token +
+      refresh_token + the workspace_id from get_account_info; persists
+      tokens to ~/.ifos-local-vault/<tenant>/granola-tokens-<workspace_id>.json
+      (mode 0600); writes workspace_id to tenant_adapters.config.
+
+      Founder confirmed 2026-06-03: tier is Business+/Paid (see §0 notes).
+      There is NO granola_plan_tier config key; tier is resolved at runtime
+      via get_account_info to avoid mirror-drift.
+
+      W6+ Scribe agent.md tools.yaml will reference this key at the
+      capability level when the Scribe bundle scaffold lands. v0.4
+      pre-lands the schema to unblock W6 without a second supplement.
+
+  bullhorn_corporation_id:
+    type: string
+    pattern: '^[0-9]+$'  # Bullhorn corporation IDs are integers; stored as strings
+    required: false
+    set_by: [tenant-admin]
+    read_by: [janitor, scribe, concierge]  # v1.0 agent consumers
+    notes: |
+      Per-tenant Bullhorn corporation identifier. Consumed by @ifos/bullhorn
+      (Day-28 scaffold; commit ff0f7b6) — every BullhornClient is
+      constructed with config.corporation_id which sets the rate-limit
+      bucket (per-corp 600/min) + token persistence namespace
+      (~/.ifos-local-vault/<tenant>/bullhorn-tokens-<corporation_id>.json)
+      + per-corp REST URL routing returned by Step B login.
+
+      The corporation_id is captured at tenant provisioning when the
+      founder runs the one-time Bullhorn OAuth bootstrap (per
+      docs/decisions/bullhorn-integration-path.md Sub-decision A RESOLVED
+      2026-06-02). Once captured, it's stable per tenant — different IFOS
+      pilot tenants point at different Bullhorn corporation_ids.
+
+      v1.0 agent consumers: Janitor + Scribe + Concierge (each loads it
+      via context.sh to construct their per-cycle BullhornClient). v1.1+
+      adds Sourcing Scout (R-only on candidate/contractor entities per
+      bullhorn-integration-path §4.1 A5).
+
+# ============================================================================
+# §2 — What v0.4 deliberately does NOT change
+# ============================================================================
+
+deliberate_no_op_scope:
+
+  entity_field_additions: |
+    None. The 14 v0.3 entity field additions (employment_type, key_skills,
+    linkedin_url, preferred_channel, next_action_target_date, must_haves,
+    nice_to_haves, deal_breakers, placement_status, week_1_status_vault_path,
+    satisfaction_signal, headcount_growth_signal_text, hiring_velocity_band,
+    decision_window_text) carry forward verbatim. The
+    validate_entities_data_v0_3 trigger is preserved unchanged by v0.4 (the
+    migration §6 explicitly does NOT touch it).
+
+  auxiliary_tables: |
+    None. cash_conductor_transactions + cash_conductor_invoices (v0.3) +
+    voice_corpus + voice_corpus_chunks + tone_rule + recent_edit (v0.2)
+    all preserved verbatim. No new tables in v0.4.
+
+  agent_access_matrix: |
+    None. The v0.3 cumulative matrix (entities + auxiliary tables) carries
+    forward. v0.4 does not extend or narrow any agent's access. (Future
+    v0.5+ may add the v1.1+ admin agent for workos_org_id reads, but v0.4
+    pre-lands the schema without yet declaring the consumer agent.)
+
+  decision_log_payload: |
+    None. Per ADR-006 Tier 2 the per_claim_confidence_distribution payload
+    key remains DEFERRED to a future W4-polish ADR. v0.4 is silent on
+    decision_log schema (consistent with v0.3 §5).
+
+# ============================================================================
+# §3 — Migration sequencing
+# ============================================================================
+
+migration_sequence:
+  forward: migrations/v0.3-to-v0.4.sql
+  rollback: migrations/v0.4-to-v0.3.sql
+
+  pre_conditions:
+    - v0.3 migration applied (validate_tenant_adapters_config_v0_3 trigger active)
+    - cash_conductor_transactions + cash_conductor_invoices tables exist
+    - RLS + ifos_app grants from Day-4 §6.3 in place
+    - migration-test tenant row exists in tenants table
+
+  steps:
+    1: |
+      Verify v0.3 prerequisites (DO block in migration §1).
+    2: |
+      CREATE OR REPLACE FUNCTION validate_tenant_adapters_config_v0_4() —
+      preserves all 11 v0.1+v0.2+v0.3 allowlist entries + adds 5 v0.4 entries
+      (operator_telegram_chat_id, email_channel, workos_org_id,
+      granola_workspace_id, bullhorn_corporation_id). Per-key type validation
+      for each new entry. Total v0.4 allowlist: 16 keys.
+    3: |
+      DROP TRIGGER validate_tenant_adapters_config_v0_3 ON tenant_adapters;
+      CREATE TRIGGER validate_tenant_adapters_config_v0_4 (re-bind).
+    4: |
+      DROP FUNCTION validate_tenant_adapters_config_v0_3() (no longer
+      referenced; v0_4 function supersedes it cleanly).
+    5: |
+      Smoke verification DO block confirms the v0_4 trigger is bound +
+      v0_3 function is gone (migration §5).
+    6: |
+      COMMIT; or ROLLBACK on any error.
+
+  post_migration_steps:
+    1: Run scripts/run-tenancy-audit.sh; expect 12/12 invariants pass (T1-T12 + new allowlist trigger).
+    2: Update consumer context.sh files (concierge done in same commit-set; cash-conductor TODO marker remains until W7-8 consumer wiring).
+    3: Re-run Codex review-schema-change on this supplement; expect 1 round (additive-only).
+
+# ============================================================================
+# §4 — Codex ratification path
+# ============================================================================
+
+codex_ratification:
+  skill: review-schema-change
+  expected_round_trips: 1 (additive-only; no entity changes; no matrix changes)
+  manifest_queue_position: F-tris (deferred to W5 Phase 7 per goal-week-5-execution-plan.md §5; partial-ratification framework available per Fbis + G precedent)
+  rationale: |
+    v0.4 is the smallest possible schema supplement that unblocks the W5
+    MCP scaffolds + the W6+ Scribe + W7-8 Cash Conductor consumer wiring.
+    Additive-only; no entity changes; no matrix changes; the only function
+    rename is the validate trigger v0_3→v0_4. Expected to ratify in 1
+    round; partial-ratification framework remains available if Codex finds
+    a structural issue.
+
+# ============================================================================
+# §5 — Open questions
+# ============================================================================
+
+open_questions:
+
+  Q1_granola_plan_tier_in_schema:
+    question: Should granola_plan_tier ('free'|'paid') be a top-level allowlist key?
+    options:
+      A: |
+        No — resolve at runtime via @ifos/granola getAccountInfo() (cached
+        1h). Avoids drift when founder changes plan tier in Granola dashboard.
+        CURRENT v0.4 behavior.
+      B: |
+        Yes — mirror tier into tenant_adapters.config so consumer code can
+        short-circuit without the runtime API call. Adds drift risk: if
+        founder downgrades in Granola but doesn't update IFOS, consumer
+        attempts Paid-only calls + gets surprise 403s.
+      C: |
+        Per-tenant override only (boolean granola_plan_tier_override).
+        Tenant-admin asserts they want IFOS to assume Paid even if
+        getAccountInfo says Free (useful for testing; not for production).
+    v0_4_default: A
+    trigger_for_revisit: First commercial signup; if getAccountInfo latency
+      becomes a hot-path bottleneck (>50ms per cycle), escalate to B with
+      explicit cache-invalidation runbook.
+
+  Q2_workos_secret_key_storage:
+    question: Where does the WorkOS secret_key live?
+    options:
+      A: |
+        IFOS deployment env-var only (WORKOS_SECRET_KEY=sk_…); one key
+        services all tenant orgs. CURRENT v0.4 behavior (no tenant_adapters
+        entry — secret is platform-level not tenant-level per WorkOS docs).
+      B: |
+        Per-tenant secret_key in vault (~/.ifos-local-vault/<tenant>/
+        workos-secret.txt mode 0600). Adds isolation but requires per-tenant
+        WorkOS account provisioning (current pricing model doesn't favour).
+    v0_4_default: A
+    trigger_for_revisit: If pilot tenants require per-org-key isolation
+      (e.g. regulatory or per-customer audit requirement), escalate to B
+      with per-tenant WorkOS account model.
+
+  Q3_bullhorn_region_in_schema:
+    question: Should bullhorn_region be a tenant_adapters.config key?
+    options:
+      A: |
+        No — region is captured at OAuth bootstrap time and persisted to
+        the per-tenant token file (~/.ifos-local-vault/<tenant>/
+        bullhorn-tokens-<corp_id>.json). Consumer reads it from token file
+        config. CURRENT v0.4 behavior (consistent with @ifos/bullhorn
+        BullhornOAuthConfig.region shape).
+      B: |
+        Yes — add bullhorn_region as a top-level allowlist entry. Cleaner
+        for the wizard but duplicates the token-file state.
+    v0_4_default: A
+    trigger_for_revisit: If tenant onboarding needs to expose region
+      selection in the admin UI before the OAuth dance completes, escalate
+      to B.
+
+# ============================================================================
+# §6 — Why v0.4 is the right unblock
+# ============================================================================
+
+rationale: |
+  W5 Day-28 + Day-29 shipped 3 new MCP scaffolds (@ifos/bullhorn,
+  @ifos/workos, @ifos/granola) + the Day-26 autosend-bridge consumer
+  wiring on Concierge + Cash Conductor. All 5 of those consumers need to
+  read per-tenant identifiers from tenant_adapters.config — but the v0.3
+  validate_tenant_adapters_config_v0_3 trigger hard-fails on any of the
+  5 new key reads. The interim solution has been env-var fallbacks
+  (IFOS_FORCE_*) which are explicitly documented as "ONLY supported path
+  until v0.4 lands" in concierge/context.sh lines 85-92 and 127-135.
+
+  v0.4 closes that loop:
+    - Concierge context.sh TODO(W10-13) markers flip from "supplement-pending"
+      to "supplement-landed; canonical source is the SELECT".
+    - D1-B Path A (reuse approval_routing) + Path B (top-level
+      operator_telegram_chat_id) BOTH become schema-clean.
+    - W6 Scribe bundle scaffold can land tools.yaml referencing
+      granola_workspace_id without a second supplement.
+    - W7-8 Cash Conductor + Concierge live wiring can read all 5 keys
+      from tenant_adapters at runtime.
+
+  v0.4 is also a deliberate test-of-discipline: NARROW SCOPE. The original
+  v0.3 supplement extended 7 dimensions (entities + matrix + auxiliary +
+  config + payload + sequencing + open-questions). v0.4 extends ONE
+  dimension (config) + leaves the other 6 dimensions explicitly no-op.
+  Each subsequent supplement should be as small as the unblock requires;
+  bundling unrelated work into one supplement is what made v0.3 take 8
+  Codex rounds.
+
+# ============================================================================
+
+end_of_supplement: true

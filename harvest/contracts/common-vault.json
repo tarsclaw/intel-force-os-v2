@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-vault.json",
+  "title": "common-vault",
+  "description": "Vault paths + concurrency lock config per docs/architecture/vault-concurrency.md.",
+  "type": "object",
+  "properties": {
+    "vault_root": {
+      "type": "string",
+      "default": "/vault/{tenant_slug}/",
+      "description": "Per-tenant vault root on Hetzner LUKS-mounted volume per Day-4 §6.5."
+    },
+    "voice_subdir": {
+      "type": "string",
+      "default": "_voice/",
+      "description": "Relative to vault_root; holds style-guide.md + banned-phrases.md + voice samples."
+    },
+    "config_subdir": {
+      "type": "string",
+      "default": "_config/",
+      "description": "Relative to vault_root; holds _config.yaml + autosend-overrides.yaml."
+    },
+    "brand_subdir": {
+      "type": "string",
+      "default": "_brand/",
+      "description": "Logo + signature blocks + email footers."
+    },
+    "playbook_subdir": {
+      "type": "string",
+      "default": "_playbooks/",
+      "description": "Per-tenant operating procedures referenced by agents."
+    },
+    "spot_check_subdir": {
+      "type": "string",
+      "default": "spot-checks/",
+      "description": "Queue directory written by autosend_spot_check_enqueue per autosend-safety-policy §4."
+    },
+    "secrets_env_path": {
+      "type": "string",
+      "default": "/vault/{tenant_slug}/_secrets.env",
+      "description": "chmod 0600; loaded by render-agent .env synthesis per ADR-003 §2.1 row 3 + Day-4 §6.5."
+    },
+    "lock_timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 5,
+      "description": "OP_LOCK_TIMEOUT_S per vault-concurrency §2; flock acquisition budget."
+    },
+    "retry_backoff_ms": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 5000,
+      "default": 100,
+      "description": "OP_RETRY_BACKOFF_MS per vault-concurrency §3; optimistic-concurrency retry pause."
+    },
+    "cascade_timeout_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 300000,
+      "default": 30000,
+      "description": "CASCADE_TIMEOUT_MS per vault-concurrency §5; rewrite-backlinks cascade budget."
+    },
+    "obsidian_debounce_max_retries": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 5,
+      "description": "MAX_RETRIES per vault-concurrency §4; raises ESC_VAULT_HUMAN_EDIT_BLOCKED on exhaust."
+    }
+  },
+  "required": ["vault_root", "secrets_env_path"],
+  "additionalProperties": false
+}

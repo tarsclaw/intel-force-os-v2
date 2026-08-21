@@ -123,3 +123,61 @@ like a code bug.
 The two founder items raised in the original verification are both **resolved**: production agreement is confirmed
 (the baseline is now the prod dump itself), and the `voice_corpus_chunks` question is answered — it exists in
 production and was missing locally for the reason above.
+
+---
+
+# STAGE-1 LANDING KIT — verification, 2026-08-21
+
+Second pass. Goal `migration-landing-kit`. All four gates run; results below.
+
+| Gate | Criterion | Result |
+|---|---|---|
+| G1 | No landing patch applied to source | **PASS** — `git status packages/ agents/` clean throughout |
+| G2 | Every staged file byte-identical to source, or declared derived | **PASS** — 0 mismatches across all staged copies |
+| G3 | Every `TRANSFER-MAP` asset appears in `LANDING-ORDER.md` | **PASS after fix** — see below |
+| G4 | Test baseline still holds | **PASS** — 380 passed / 9 skipped, BASELINE HELD |
+
+## G3 caught three real omissions
+
+The coverage check was not a formality. It found three assets staged or mapped with **no landing row**:
+
+1. **`vertical-schema.yaml` + 3 supplements — 2,794 lines, staged to `harvest/vertical-pack/`, no row anywhere.**
+   The single largest omission. Added as STAGE 9b.
+2. **`scripts/provision-tenant.sh`** — Phase C config-centre input, no row. Added as STAGE 9b.
+3. **The 8 JSON Schemas** — had a row, but cited only the `harvest/` path, so a reader could not trace them back
+   to `packages/agents-runtime/_shared/`. Source path added.
+
+Both new rows are Phase C. `LANDING-ORDER.md` grew 63 → 67 rows.
+
+## Landing patches — actual vs estimate
+
+All three came in **at or under** estimate, for one reason: both packages already inject their database access,
+so the seam the new architecture requires was already present.
+
+| Patch | Rule | Estimate | Actual | Shape |
+|---|---|---|---|---|
+| A1 | R2 single read path | ~30 lines | **8 changed lines** + 2 file relocations | `owner-lookup.ts` (131) + its test (100) move to `trust` |
+| A2 | R3 single write path | ~60 lines | **~10 changed lines** + 1 file relocation | `decisions-postgres.ts` (152) moves to `spine` |
+| A3 | R9 contracts purity | ~15 lines | **~10 lines** + a declaration block extracted | `types.ts` splits; **zero consumer imports change** |
+
+No patch exceeded its estimate, so the STOP condition ("2× estimate means it is a port, not a refactor") was never
+approached. **A1 is additionally a behavioural no-op**: `owner-lookup.ts:18-28` documents that the Bullhorn CLI
+normalisers drop the owner field before it reaches `data` jsonb, so the lookup already returns null in production
+and the ladder already falls through to function-role/firm-default.
+
+## Two items raised for founder ruling
+
+- **A2 rule gap.** R3 forbids non-`spine` **writes** to `decision_log`. Neither R2 nor R3 explicitly forbids
+  **reading** it from outside `spine` — R2 is scoped to "brain content", and `decision_log` is spine content. A2
+  moves the reader as well as the writer, on the §4 reading that the Value Spine tables are "P2 writes, ledger
+  measures, P4 reads". **That is an interpretation, not a quoted rule.** If the ruling goes the other way, the
+  reader stays in `queue` and A2 shrinks.
+- **A3 second item.** `types.ts:146` `export const FUNCTION_NAMES = [...]` is a runtime *value* whose only purpose
+  is to derive `FunctionName`. R9's hard line is "a function in contracts is a review rejection" — a const array is
+  not a function. Recommended it ships with contracts, because the alternative (a hand-maintained union literal)
+  reintroduces exactly the drift R9 exists to prevent. Flagged, not decided.
+
+## Staging count
+
+30 files → **95 files**. Added: 3 landing patches, 8 JSON Schemas, 4 vertical-schema files, 7 architecture docs,
+4 runbooks, 3 specs, 4 learnings, 26 ADRs (7 renamed `ADR-CX-*`), `LANDING-ORDER.md`, `verify-test-baseline.sh`.

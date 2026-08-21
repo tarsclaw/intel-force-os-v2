@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intelforce.os/schemas/common-voice.json",
+  "title": "common-voice",
+  "description": "Per-tenant voice corpus reference. Read by agents/_shared/voice-loader.sh per master brief §8.1 Change 1. Schema substrate landed in vertical-schema.yaml v0.2 (Phase 4).",
+  "type": "object",
+  "properties": {
+    "voice_corpus_path": {
+      "type": "string",
+      "default": "/vault/{tenant_slug}/_voice/",
+      "description": "Vault directory holding voice samples and tone rules. Token {tenant_slug} resolved at render time."
+    },
+    "voice_pack_version": {
+      "type": "string",
+      "default": "v0",
+      "description": "Tag matching docs/verticals/recruitment/vertical-schema.yaml voice_corpus.version row."
+    },
+    "style_guide_path": {
+      "type": "string",
+      "default": "/vault/{tenant_slug}/_voice/style-guide.md",
+      "description": "Canonical style guide; referenced by claude-md-preamble.md."
+    },
+    "banned_phrases_path": {
+      "type": "string",
+      "default": "/vault/{tenant_slug}/_voice/banned-phrases.md",
+      "description": "Phrases that trigger ESC_VOICE_DRIFT before classifier scoring."
+    },
+    "voice_classifier_threshold": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "default": 0.75,
+      "description": "Per bullhorn-integration-path.md §4.1 A6 Concierge gate; voice classifier scores below this fail Gate A."
+    },
+    "recent_edits_lookback_days": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 365,
+      "default": 30,
+      "description": "Window for hh_load_recent_edits queries against recent_edit table (vertical-schema v0.2)."
+    },
+    "tone_rules_severity_floor": {
+      "type": "string",
+      "enum": ["info", "warn", "block"],
+      "default": "warn",
+      "description": "Minimum severity tone_rule that hh_load_tone_rules surfaces to the agent."
+    }
+  },
+  "required": ["voice_corpus_path", "voice_classifier_threshold"],
+  "additionalProperties": false
+}

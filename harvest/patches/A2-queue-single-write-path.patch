@@ -1,0 +1,103 @@
+# A2 — autosend-bridge-telegram → packages/queue : satisfy the single-write-path rule
+#
+# RULES VIOLATED  R3 (MONOREPO §3): "Only `spine` writes `decision`,
+#                 `outcome_event`, `holdout_assignment`; only `harness` executes."
+#
+# EVIDENCE        packages/utilities/autosend-bridge-telegram/src/decisions-postgres.ts
+#                   :132  INSERT INTO decision_log (tenant_slug, agent_name, ...)
+#                         — inside RECORD_DECISION_SQL, the package's write path
+#                   :46   execFile("psql", ...) — the reader
+#                   :63   FROM decision_log — inside FETCH_SQL
+#
+# WHAT CHANGES    Nothing is rewritten. One file RELOCATES to packages/spine, two
+#                 re-exports drop from the queue's public surface, and two CLI
+#                 entrypoints repoint.
+#
+# WHY IT IS SAFE  The seam already exists, same as A1. `bridge.ts` consumes
+#                 `DecisionSource` as an injected interface from ./types.js and
+#                 never touches Postgres. `proposeApproval` and
+#                 `awaitApprovalDecision` are unchanged. Only the concrete
+#                 Postgres implementation moves, and it moves to the package that
+#                 the rule says owns those rows.
+#
+#                 The storage design is already spine-shaped and the source says
+#                 so at :6-15: approval decisions are recorded as ordinary
+#                 `decision_log` rows rather than a separate `approvals` table,
+#                 "to keep the D1-B audit chain inside the same append-only
+#                 substrate". That is the Value Spine substrate by another name.
+#
+#                 First-valid-reply-wins is preserved verbatim: the NOT EXISTS
+#                 guard at :93-100 travels inside the SQL constant, untouched.
+#                 production-wiring.test.ts:160-163 asserts on that guard and on
+#                 the RLS scoping, so the property is regression-tested wherever
+#                 the constant lands.
+#
+# ⚠ RULE GAP      R3 names only WRITES. Neither R2 nor R3 explicitly forbids
+#                 READING `decision_log` from outside spine — R2 is scoped to
+#                 "brain content", and decision_log is spine content, not brain
+#                 content. This patch moves the reader (FETCH_SQL) as well as the
+#                 writer, on the §4 reading that the Value Spine tables are
+#                 "P2 writes, ledger measures, P4 reads" — i.e. spine owns both
+#                 directions. THIS IS AN INTERPRETATION, NOT A QUOTED RULE.
+#                 Logged for founder confirmation; if the ruling goes the other
+#                 way the reader stays in queue and this patch shrinks.
+#
+# VERIFY          pnpm --filter @core/autosend-bridge-telegram test
+#                 CortexOS baseline: 34 passed (34).
+#                 production-wiring.test.ts covers both the transport (fetch-
+#                 mocked) and createPostgresDecisionSource. The decision-source
+#                 cases move WITH the implementation to spine; record the split
+#                 counts on landing and assert they sum to 34.
+#
+# ESTIMATE        ~60 lines. ACTUAL: ~10 changed lines + 1 file relocation.
+#
+# ── FILE RELOCATION (git mv, not an edit) ────────────────────────────────────
+#   packages/utilities/autosend-bridge-telegram/src/decisions-postgres.ts
+#     (152 lines: FETCH_SQL, RECORD_DECISION_SQL, createPostgresDecisionSource,
+#      defaultRunPsql)  ->  packages/spine/src/decisions-postgres.ts
+#
+# ── IN-PLACE EDIT 1 of 2: drop the re-exports ────────────────────────────────
+--- packages/utilities/autosend-bridge-telegram/src/index.ts	2026-06-11 13:11:21
++++ /private/tmp/claude-501/-Users-madsadmin-code-CortexOS/091dae29-6983-4b4f-ac8a-a85095caa62d/scratchpad/a2/index.ts	2026-08-21 21:42:37
+@@ -13,10 +13,10 @@
+ // transport + the postgres approvals reader for the D1-B orange path.
+ export { createTelegramTransport } from "./transport-telegram.js";
+ export type { FetchLike, TelegramTransportConfig } from "./transport-telegram.js";
+-export {
+-  createPostgresDecisionSource,
+-  RECORD_DECISION_SQL,
+-} from "./decisions-postgres.js";
++// createPostgresDecisionSource / RECORD_DECISION_SQL relocated to
++// packages/spine — decision_log is a Value Spine table and only spine writes it
++// (MONOREPO §3 single-write-path rule). The DecisionSource TYPE stays in
++// contracts; bridge.ts is unchanged.
+ export type { PostgresDecisionSourceConfig, RunPsql } from "./decisions-postgres.js";
+ 
+ export {
+
+# NOTE the surviving line immediately below the hunk:
+#   export type { PostgresDecisionSourceConfig, RunPsql } from "./decisions-postgres.js";
+# Repoint it to @core/spine, or move both type aliases into contracts. It is a
+# TYPE-only export, so it is not itself an R3 violation — but it must not dangle
+# once the implementation file has moved.
+#
+# ── IN-PLACE EDIT 2 of 2: repoint the two CLI entrypoints ────────────────────
+#
+# bin/record-decision.ts:24-25
+#   - import { RECORD_DECISION_SQL, createPostgresDecisionSource } from "../src/decisions-postgres.js";
+#   + import { RECORD_DECISION_SQL, createPostgresDecisionSource } from "@core/spine";
+#
+# bin/await.ts:23
+#   - import { createPostgresDecisionSource } from "../src/decisions-postgres.js";
+#   + import { createPostgresDecisionSource } from "@core/spine";
+#
+# Call sites at record-decision.ts:45,70 and await.ts:51 are UNCHANGED.
+#
+# ── CARRIES FORWARD: the inbound gap (RED-2, resolved) ───────────────────────
+#
+# record-decision.ts:1-10 documents that `@ifos/telegram-surface` — the
+# getUpdates-driven /approve //reject command handler — was never built, and
+# that manual operator invocation is the current path. That gap travels with
+# this package. packages/queue lands able to propose, format, record and read,
+# but not able to HEAR. See CONFORMANCE-AUDIT.md §"RED-2 — resolved".
+# Not a blocker for this patch; scope it as Phase A work.
