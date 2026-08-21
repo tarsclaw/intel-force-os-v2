@@ -118,7 +118,7 @@ Also read: `~/Desktop/Hand-Off/IFOS-NEW-PROJECT-KICKOFF-PROMPT.md` (the paste-re
 - (Earlier, superseded by the above) keystone-first sequencing; four pillars in focus.
 
 **Open — the next session must NOT decide these alone:**
-1. Repo path for IFOS (`~/code/ifos/` proposed, unconfirmed).
+1. Repo path for IFOS (`~/code/core/` proposed, unconfirmed).
 2. Whether CortexOS is frozen immediately, or the approval-routing sprint (W3–W8) continues in parallel.
 3. Everything in STEP 0: R20–R24, R27–R32, OL-1→OL-8, `[LOCK-BX-*]`, `[LOCK-FM-*]` — all unread, therefore unratified.
 4. The VPS: leave, migrate, or rebuild under the single `migrations/` lineage.

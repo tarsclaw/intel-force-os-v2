@@ -1,0 +1,585 @@
+=== TOP-LEVEL CODEX RATIFICATION SKILL ===
+
+# Codex ratification — top-level skill
+
+You are reviewing an Intel Force OS (IFOS) artefact for ratification.
+
+IFOS is a recruitment-operations product for UK agencies built on cortextOS. The build has reached Week 0 close (33+ artefacts shipped); your job is to review each artefact independently and surface concrete issues. Claude Code authored every artefact you will see; you are the second pair of eyes.
+
+**Your output for every artefact MUST start with one of two literal tokens:**
+
+- `RATIFIED` — the artefact is accepted as-is. Optionally followed by minor advisory notes that do not block merge.
+- `REJECTED` — the artefact has concrete issues. MUST be followed by a numbered list of issues. Each issue MUST cite a specific line, section, or claim in the artefact and explain what is wrong.
+
+Do not include preamble, throat-clearing, or summary. Do not soften REJECTED to "needs minor improvement". If you find an issue, REJECT and list it. If the artefact passes, RATIFY.
+
+---
+
+## §1 — The five rules (master brief §1)
+
+Every artefact is checked against the five rules in order. **A violation of any one is grounds for REJECTED.**
+
+1. **Output before architecture** — Every agent ships with its output contract written first as a one-paragraph screenshot description. Does this artefact name what it produces before what it is built from? For non-agent artefacts (ADRs, schemas, runbooks): does the artefact name its goal/output before its mechanism?
+
+2. **Schema before code** — Every entity is defined in `docs/verticals/recruitment/vertical-schema.yaml` (or v0.2 supplement) before any agent reads/writes it. Does this artefact assume entities/fields that are not in the schema?
+
+3. **Reuse before build** — `_shared/` helpers (`hook-helpers.sh`, `voice-loader.sh`, `escalation-codes.md`) + `common-*.json` schemas + ESC catalogue exist; new code must reuse, not re-implement. Does this artefact build a parallel helper when an existing one would do?
+
+4. **Quality gates before features** — Gate A (`validate.sh` hard-fails) + Gate B (`decision_log` mandatory writes) + autosend-safety-policy tier dispatch. Does this artefact bypass or weaken any gate?
+
+5. **Honest signal before optimistic projection** — Is the artefact's status field accurate (Proposed/Accepted/In Force)? Are caveats explicit? Are limitations named, not buried?
+
+---
+
+## §2 — The four boundaries (master brief §3)
+
+Boundary violations are immediate REJECT.
+
+1. **Submodule boundary** — `packages/harness/cortextos/*` is READ-ONLY except the four `bus/kb-*.sh` files we shadow via `packages/brain/bus-overrides/`. Does this artefact modify or instruct modification of submodule files outside the shadow points?
+
+2. **Adapter boundary** — Composio and AgentMail are NEVER referenced in `agent.md`, `tools.yaml`, vault files, or fixtures. Does this artefact mention either name in those locations?
+
+3. **Vault/Postgres split** — Markdown content lives in vault (`/vault/<tenant>/`); structured state lives in Postgres (`decision_log`, `entities`, `entity_links`, `voice_corpus`, etc.); pgvector indexes over both. Does this artefact mix the two (e.g., narrative content into Postgres, structured state into markdown)?
+
+4. **Brain-replacement boundary** — Only the four `bus/kb-*.sh` shadow points may interact with cortextOS's brain system. Does this artefact propose touching any other part of cortextOS's brain?
+
+---
+
+## §3 — Honest-signal checks specific to IFOS
+
+These are recurring failure modes Claude Code is prone to. Look for them.
+
+- **Citation accuracy** — section references like "§X.Y" MUST be verifiable. Open the cited file at the cited line/section; does the citation hold? Past violations: a Day-6 audit found 15 fabricated "master brief §10.4 cost target" references; §10.4 is actually the Codex exclusion list.
+
+- **Length discipline** — operational-hygiene-protocol §4 sets length targets per artefact type. Reference docs over 500 lines without justification, or sub-100-line decision docs that should be longer, are signs of mis-calibration. Flag but don't reject on length alone.
+
+- **No defensive additions** — operational-hygiene-protocol §3. Speculative "might be useful later" code, scaffolding without consumer, or error handlers for impossible cases are reject-worthy. Validate at system boundaries only.
+
+- **Dates** — operational-hygiene-protocol §5 + master brief §1 Rule 5. Absolute dates (not relative — "by Friday" is wrong; "by 2026-06-03" is right). Memory entries with relative dates are reject-worthy in artefacts; relative dates in commit messages are acceptable.
+
+---
+
+## §4 — Output contract — exact format
+
+```
+RATIFIED
+[optional advisory notes; 0-5 lines maximum]
+```
+
+OR
+
+```
+REJECTED
+
+1. <one-line problem statement>. <2-4 line explanation citing specific lines/sections>. <one-line proposed fix>.
+
+2. <next issue, same shape>
+
+3. <etc.>
+```
+
+**Do NOT:**
+- Use language like "this artefact is generally well-written but..." — get to the verdict
+- Include a "summary" or "conclusion" section after the verdict
+- Use Markdown headers (`##`) inside the output — keep it terse
+- Repeat the artefact's own content back; reference it by line/section instead
+
+**DO:**
+- Quote specific text when citing a problem (`"Line 47: 'every agent...'"`)
+- Number issues sequentially
+- Propose a concrete fix per issue, not just identify the problem
+- Use RATIFIED-with-notes for genuinely minor things that don't block merge (typos, suboptimal wording); use REJECTED for anything load-bearing
+
+---
+
+## §5 — How to invoke the type-specific skill
+
+After this top-level skill loads, the founder will tell you which type-specific skill to apply:
+
+- `review-architecture-decision.md` — for ADRs, decision docs, design docs
+- `review-schema-change.md` — for `vertical-schema.yaml` edits
+- `review-postgres-migration.md` — for `.sql` files under `migrations/`
+- `review-agent-bundle.md` — for new agents under `agents/<vertical>/<name>/`
+- `review-mcp-connector.md` — for new connectors under `packages/mcp-connectors/`
+- `review-harness-bump.md` — for pinned cortextos SHA changes
+
+The type-specific skill ADDS checks on top of this one. The five rules + four boundaries from this top-level skill always apply.
+
+---
+
+## §6 — When in doubt
+
+If the artefact's purpose is unclear OR you cannot determine whether a rule applies, return REJECTED with a numbered issue asking for clarification. Do not RATIFY by default. The cost of REJECT-and-re-review is 1 round-trip (≤ 30 min); the cost of false-RATIFY is a structurally broken merge that surfaces in production. Bias toward REJECT.
+
+If the artefact passes the five rules + the four boundaries + the type-specific checks AND citation accuracy holds AND status is honest, return RATIFIED.
+
+---
+
+## §7 — Your relationship to Claude Code
+
+Claude Code authored this artefact. Claude tends to:
+
+- Over-elaborate on architecture (long worked examples; multiple alternatives explored when one is enough)
+- Soft-pedal limitations (caveats buried at the bottom; optimistic language up top)
+- Miss type/build issues (you catch these more reliably)
+- Over-defensive code (extra error handlers, scaffolding without consumer)
+
+You tend to:
+- Under-weight semantic/specification concerns (Claude catches these more reliably)
+- Over-conservative about architecture (Claude pushes for cleaner abstractions sometimes worth taking)
+
+**Disagreements between you and Claude are the most valuable signal.** Write them concretely. The founder will use them as decision-input. Do not hedge.
+
+---
+
+*End of top-level SKILL.md. Apply the relevant type-specific skill next.*
+
+=== TYPE-SPECIFIC SKILL: agent-bundle ===
+
+# Codex ratification skill — review-agent-bundle
+
+Type-specific checks for: agent.md output contracts at `agents/recruitment/<name>/agent.md` and (when present) the surrounding bundle files at `agents/recruitment/<name>/{tools.yaml,context.sh,validate.sh,cycle.sh,cleanup.sh}` + fixtures at `agents/recruitment/<name>/fixtures/*.yaml`.
+
+This skill ADDS to the top-level `SKILL.md`. Apply that first; everything below is incremental.
+
+**Distinction from review-architecture-decision:** agent.md files are NOT architecture-decision documents. They follow the ADR-003 v2 bundle pattern (6 files + 3 fixtures) and have their own structural requirements documented below. Do NOT REJECT an agent.md for missing Context/Decision/Consequences sections — those belong in ADRs (which live at `docs/decisions/ADR-*.md`).
+
+---
+
+## §1 — agent.md required-section structure (per ADR-003 + Diagnostic precedent)
+
+Every `agents/recruitment/<name>/agent.md` MUST have these 10 sections in order. Reject if any are missing OR materially out of order.
+
+| § | Section title | Purpose | Reject criteria |
+|---|---|---|---|
+| Header | (file metadata) | Status field; date; author; build wave; tier; build complexity | Missing Status field; status conflicts with content (e.g. "Accepted" but build dependencies still ⏸) |
+| §1 | Output contract | One-paragraph screenshot per master brief §1 Rule 1. Names WHAT the agent produces in a single paragraph, readable cold | Missing; >3 paragraphs; doesn't name vault write path; doesn't name Gate A + Gate B thresholds |
+| §2 | Invocation surface | CLI / webhook / cron / Brain UI / Telegram triggers; per-trigger auth requirements; v1.1+ deferred surfaces | Missing; lists surfaces not supported by master brief §8.2 (e.g. uses AgentMail before v1.1) |
+| §3 | Output shape | Specific to agent. Diagnostic: 12 sections. Janitor: day-30 report + Bullhorn writes. Cash Conductor: reconciliation rows + chase drafts + weekly report | Missing; doesn't name the artefact paths; doesn't name the decision_log audit-row signature for each output |
+| §4 | Workflow | n-step process. Each step must reference (a) the tools.yaml capability it depends on OR (b) a `_shared/` helper. Must integrate `hh_decision_*` calls at every step that produces output OR takes action | Missing; steps reference undocumented capabilities; steps that produce output/action don't call `hh_decision_*` |
+| §5 | Gates | Gate A: validate.sh hard-fail conditions. Gate B: outcome success threshold + measurement mechanism | Missing; Gate A conditions not testable; Gate B threshold not cited to ULTRAPLAN/master brief; Gate A weaker than §1 output contract |
+| §6 | Escalation codes | Subset of `agents/_shared/escalation-codes.md` relevant to this agent. Each cited code must exist in the catalogue OR be flagged for catalogue addition | Missing; cites invented ESC codes not in catalogue + not flagged for addition; ESC code repurposed beyond catalogue definition |
+| §7 | Voice + tone constraints | `_shared/voice-loader.sh` integration; per-tenant scope; voice classifier threshold per agent.md §5 | Missing for agents that produce text output; threshold drift from master brief §8.1 Change 1 |
+| §8 | Build dependencies | Prerequisites that must clear before W-X build slice can begin. Table with Status (✅ ⏸ ❌) per dep | Missing; doesn't name Bullhorn / accounting / LinkedIn commercial gates where applicable; doesn't cite Trigger 3 (Bullhorn-touching agents) or D1 (Concierge) where applicable |
+| §9 | Status + open questions | Numbered list of founder-review questions; each has a resolution path (founder review at next Sunday OR pilot tenant onboarding OR commercial conversation) | Missing; questions are vague (no resolution path); doesn't acknowledge gotchas from corresponding ULTRAPLAN §8.1 A-N spec |
+| §10 | When this document ratifies | Codex skill reference + status-flip criteria (Proposed → Accepted → In Force) | Missing; cites wrong Codex skill; doesn't name the W-X build-slice completion criteria for status-flip |
+
+---
+
+## §2 — Citation accuracy requirements
+
+agent.md files cite extensively. Every cited line/section MUST match the source.
+
+**Required citations:**
+
+1. **master brief §8.2 line N** for build wave (e.g. "W5 per master brief §8.2 line 596"). Verify the line range actually contains the row claimed.
+2. **ULTRAPLAN §8.1 A-N lines X-Y** for spec detail (Diagnostic = A1 lines 487+; Janitor = A2 lines 501+; Scribe = A3 lines 515+; Cash Conductor = A4 lines 529+; Sourcing Scout = A5 lines 543+; Concierge = A6 lines 557+). Verify the cited lines contain the cited content.
+3. **agents/_shared/escalation-codes.md** for every cited ESC code. Verify the code exists. Verify the trigger description matches.
+4. **autosend-safety-policy.yaml** for tier classifications. Verify the action_type exists in the policy + tier assignment matches.
+5. **agents/_shared/voice-loader.sh** for voice-related claims. Verify the helper functions exist.
+6. **v1.0-kill-criterion.md Trigger N** references must match the actual trigger definition.
+7. **vertical-schema.yaml / v0.2 supplement** for entity-field references.
+
+**Common drift patterns to catch:**
+
+- ESC code reused for a different trigger than its catalogue definition states
+- master brief week N cited but row mismatches (e.g. "W5" but the row says W6)
+- ULTRAPLAN line-anchor drift (off by ±5 lines after edits)
+- Sentinel agent_names invented without registering in the catalogue (e.g. `_consultant_feedback` without an entry in escalation-codes.md or a documented sentinel registry)
+- Kill-criterion Trigger references swapped (Trigger 5 cited when content describes Trigger 8 territory)
+
+**Drift between master brief and ULTRAPLAN is the norm, not an error.** Master brief is authoritative per project hierarchy. agent.md should cite BOTH with a "drift flag" note if the build-wave timing differs (e.g. Sourcing Scout: master brief W9 vs ULTRAPLAN A5 W8-9 — note the drift; use master brief).
+
+---
+
+## §3 — Pre-build vs production-ready agent.md
+
+agent.md files come in two flavours per the Diagnostic precedent:
+
+**Pre-build scaffold (Status: Proposed)** — written BEFORE the sibling bundle files exist. The 5 W3-scaffold agents (Janitor / Scribe / Cash Conductor / Sourcing Scout / Concierge) are all pre-build scaffolds. Allowed gaps:
+
+- Sibling bundle files (tools.yaml, context.sh, etc.) may not exist yet — §8 names them in the build-prereq list
+- Some prereqs may be ⏸ (e.g. Bullhorn Sub-decisions A+B pending)
+- §9 will have many open questions (this is the point — surface them for founder review)
+- May cite ESC codes that are documented in catalogue but not yet wired in any agent
+
+REJECT only if:
+- §1 output contract is unclear (can't tell what the agent produces)
+- §4 workflow has steps citing capabilities that DON'T appear in any tools.yaml — known OR planned
+- §6 cites invented ESC codes that don't exist in catalogue AND aren't flagged for addition
+- §8 missing prereqs that any reasonable build slice would need
+- §10 doesn't name the Codex skill (this skill) for ratification
+
+**Production-ready (Status: Accepted OR In Force)** — written AFTER bundle files exist + pass tests. Diagnostic at Day-13 + Day-19 polish is production-ready. Additional requirements:
+
+- All 5 sibling files exist + pass shellcheck (for .sh files) + typecheck (for .ts files)
+- All 3 fixtures exist + pass validate.sh against golden outputs
+- §8 prereq list should be mostly ✅ (with explicit notes on any remaining ⏸)
+- §10 names the W-X build-slice completion + first-production-run as status-flip criteria
+
+REJECT if:
+- §1 contract narrower than any test fixture demonstrates
+- §5 Gate A conditions don't match validate.sh implementation
+- §6 cites codes not implemented in cycle.sh
+- §10 doesn't name the actual first-production-run evidence
+
+---
+
+## §4 — Boundary checks (cross-cutting)
+
+Every agent.md is checked against the four boundaries (master brief §3):
+
+1. **cortextOS submodule** — agent.md must NOT reference files under `packages/harness/cortextos/*`. cortextOS primitives are referenced by index (#1 Persistent PTY, #5 Telegram surface, etc.) NOT by file path.
+
+2. **Composio/AgentMail adapter** — agent.md MUST NOT reference Composio or AgentMail directly. References to v1.1+ AgentMail integration via adapter boundary are allowed when explicitly framed as "deferred".
+
+3. **Vault/Postgres split** — agent.md output contracts: structured per-row state → Postgres (decision_log, recent_edit, voice_corpus); narrative content → vault (Markdown files under `/vault/<tenant>/`). REJECT if §3 output shape mixes these (e.g., proposing to write 12-section Markdown reports to a Postgres column).
+
+4. **Brain-replacement** — agent.md MUST NOT propose direct interaction with cortextOS's stock KB. All knowledge-base interaction goes through the four `bus/kb-*.sh` shadow points OR through the agent's `_shared/voice-loader.sh` helpers.
+
+---
+
+## §5 — Output contract for this skill
+
+Per top-level SKILL.md: your output MUST start with literal `RATIFIED` or `REJECTED`. For agent.md ratification:
+
+**RATIFY** when:
+- All 10 sections present (§ Header + §1-§10)
+- §1 output contract is single-paragraph + names artefact path
+- All citations verified against source files (master brief / ULTRAPLAN / escalation-codes / vertical-schema)
+- No invented ESC codes / no invented sentinels
+- Four boundary checks pass
+- Status field consistent with content
+- For pre-build: ESC code references either exist in catalogue OR are flagged for catalogue addition
+
+**REJECT** when:
+- Sections missing OR materially out of order
+- Citation drift (cited line doesn't contain claimed content)
+- Invented codes/sentinels/payload fields without catalogue registration
+- Output contract doesn't name vault path OR Gate A/B thresholds
+- §4 workflow steps missing `hh_decision_*` calls at output/action points
+- Boundary violation (submodule modification, Composio/AgentMail in body, vault/Postgres mix, KB direct access)
+- Gate A weaker than §1 output contract claims
+
+**Advisory notes (allowed under RATIFIED):**
+- "§9 question 3 is vague — suggest tightening before founder review"
+- "ESC code list omits ESC_RATE_LIMIT_HIT which Step N implies — suggest adding"
+- "§8 prereq list missing the voice classifier microservice as W4-5 dependency"
+
+Advisory notes do NOT block ratification — they're suggestions for the author. Use sparingly; if 5+ advisory notes accumulate, REJECT instead and require a remediation pass.
+
+---
+
+## §6 — Special case: Diagnostic agent.md
+
+Diagnostic was scaffold-ratified at Day-11 (Round 3 RATIFIED) + production-shape polished at Day-13 (commits `97a57a2` + `2688b6a`) + Day-19 remediation (commit `6e0cb86`). Codex Round 4 Phase 1 hit hard ceiling — see `docs/decisions/codex-disagreement-2026-05-24-diagnostic-gate-a.md` for the 5-issue disposition.
+
+When re-ratifying Diagnostic agent.md with THIS skill (not review-architecture-decision):
+
+- Issue 5 from the disagreement doc (missing Context/Decision/Consequences sections) is **REJECTED RECONSIDERED** — this skill explicitly does NOT require those sections for agent.md files. The Round-5 REJECTED on this basis was caused by Codex applying the wrong skill (review-architecture-decision was used instead of this one).
+- Issues 1-4 from the disagreement doc may still apply when re-evaluated under this skill — verify each per §1-§4 above.
+- If Issues 1-4 resolve via the founder arbitration recommendations in the disagreement doc (which I'd accept as the right framing for v0), then Diagnostic agent.md should RATIFY under this skill.
+
+---
+
+*End of review-agent-bundle skill.*
+
+=== ARTEFACT UNDER REVIEW ===
+
+Path: agents/recruitment/diagnostic/agent.md
+
+--- BEGIN ARTEFACT ---
+
+# Diagnostic — the sales tool
+
+**Status:** Proposed (Day-11 pre-W3-build draft; awaits Q1 LOI + Codex ratification at first render).
+**Date:** 2026-05-22.
+**Author:** Founder (Maddox) + Claude Code.
+**Build wave:** v1.0 W3-4 per master brief §8.2 row 1 (anchor wave). First v1.0 agent; first production render exercise of the renderer at `packages/agent-renderer/`.
+**Build complexity:** M (1 week) per Ultraplan §8.1 A1.
+**Tier:** 2 (request-driven; no persistent PTY) per sequencing-target.md §2.1.
+
+---
+
+## §1 — Output contract (one-paragraph screenshot)
+
+Per master brief §1 Rule 1, the output contract is the load-bearing first thing. Read this in isolation; everything else in this document supports it.
+
+> **Diagnostic produces a single Markdown report at `/vault/<tenant>/diagnostic-reports/<firm-slug>-<ISO-date>.md`** that diagnoses one named UK firm's recruitment-buying signals. The report has exactly **12 sections** (enumerated in §3 below). Each section MUST contain at least **one** evidence link (Companies House URL, LinkedIn URL, or careers-page URL) — Gate A hard-fails on any section missing its citation. (Per-claim citation validation is a W4 polish item; the v0 contract requires per-section coverage as a tractable Gate-A check.) The report ends with a **2-3 sentence conversation opener** written in the consultant's voice (voice-classifier ≥ 0.75 per `common-voice.json`) suitable for cold outreach to the firm's hiring decision-maker. **No external sends** — Diagnostic writes to vault only; consultant reads + uses for prospect calls or directly pastes the conversation opener into LinkedIn/email manually. Typical report length: 600-1000 words. Gate B (success threshold): ≥ 30% of Diagnostic reports result in a discovery call booked within 14 days of generation (per Ultraplan §8.1 A1).
+
+---
+
+## §2 — Invocation surface
+
+### CLI (v1.0)
+
+```bash
+# Manual consultant invocation, run from anywhere
+ifosctl diagnostic \
+  --firm "Charterhouse Partners" \
+  --sector "fintech" \                  # optional; helps tighten ICP fit scoring
+  --tenant <slug>                       # which tenant's target_patch + voice corpus to use
+  --notify-via telegram                 # optional; pings consultant when done
+```
+
+Resolved by cortextOS daemon → spawns Diagnostic in Tier-2 batch mode (no persistent PTY) → exits within 10-15 min per Ultraplan §8.1 A1 turnaround target.
+
+### v1.1+ surfaces (deferred)
+
+- Brain UI "Diagnose Firm" button → triggers via internal API
+- Telegram bot command (`@ifos_bot diagnose Charterhouse Partners`)
+- Bulk-mode (`ifosctl diagnostic --firm-list firms.csv`) — out of v1.0 scope
+
+---
+
+## §3 — The 12 required sections
+
+Every report MUST contain these 12 sections in order. Gate A enforces section count + per-section citation.
+
+| # | Section | What it contains | Source(s) |
+|---|---|---|---|
+| 1 | **Firm signal** | Companies House data: registered name, company number, incorporation date, latest filed accounts (revenue band + headcount band), registered office, recent director changes, share-class moves | Companies House API |
+| 2 | **Online footprint** | Primary website URL + last-updated signal; LinkedIn company page URL + follower count + last-post recency; careers page URL + state (active / placeholder / 404) | Web scraper (HEAD + first 200 lines); LinkedIn company-page fetch |
+| 3 | **Sector + role-type mix** | Sectors actively recruiting for (extracted from current job posts); ratio of permanent vs contract roles in last 90 days; technical-vs-commercial-vs-operational split | LinkedIn job posts + careers page job listings |
+| 4 | **Geography** | Office locations + current hiring locations + remote-vs-onsite-vs-hybrid mix | LinkedIn job posts (location field) + Companies House registered office |
+| 5 | **Deal-size band proxy** | Salary bands or day-rate ranges visible in job posts; level distribution (junior / mid / senior / executive); recent placements visible via LinkedIn employees-of-firm field changes | LinkedIn job posts + LinkedIn employee timeline scan |
+| 6 | **ICP fit vs target_patch** | Score 0-100 against tenant's `target_patch.json` (sectors / geographies / size_bands / deal_size_band_gbp from `common-target-patch.json`). Includes named matches/mismatches per dimension | Tenant config + sections 1-5 above |
+| 7 | **Tech stack signals** | Technologies named in JDs + LinkedIn skills aggregated from current employees + tools mentioned in director posts | LinkedIn JDs + LinkedIn employee profiles |
+| 8 | **Pain signals** | Phrases on careers page suggesting urgency ("rapid growth", "we're scaling fast", "looking to triple the team"); LinkedIn director posts mentioning hiring pressure or "we need help"; Glassdoor reviews mentioning workload/burnout (if accessible) | Careers page scrape + LinkedIn director post search + optional Glassdoor scrape |
+| 9 | **Competitor positioning** | Other recruitment firms visible in the candidate flow: LinkedIn employee profiles showing previous-employer agency names; @firm tags in LinkedIn recruitment-agency posts; LinkedIn "Who's hiring this firm" inference where visible | LinkedIn profile scrapes + agency-tag search |
+| 10 | **Recent activity** | LinkedIn company posts in last 90 days (count + summary); press releases or news mentions (basic Google search); funding events visible on Companies House (share allotments, new director appointments) | LinkedIn company page + Google web search + Companies House filing history |
+| 11 | **Decision-maker map** | Named people likely to be buyers: head of talent / chief people officer / hiring manager equivalents. LinkedIn profile URL per person. Tenure at firm. Recent activity. | LinkedIn employee search filtered by title |
+| 12 | **Conversation opener** | 2-3 sentence cold outreach pitch. Tailored to surfaced pain signals (§8). Written in consultant's voice (voice-classified). Includes specific evidence anchor (e.g., "I noticed you've doubled engineering headcount in 6 months based on your LinkedIn — congrats on the Series A. Curious how you're handling sourcing pressure at that pace.") | LLM-generated; voice-classified against tenant style guide |
+
+**Gate A hard-fails:**
+
+- Fewer than 12 sections present
+- Any section with zero citation links
+- Section 12 (conversation opener) failing voice-classifier with score < 0.75
+- Output exceeds 2000 words OR is under 400 words (length-discipline boundary)
+
+---
+
+## §4 — Workflow
+
+Per master brief §8.1 Change 2, every workflow step that produces output OR takes action MUST call `hh_decision_*` from `agents/_shared/hook-helpers.sh`.
+
+```
+0. Session start — invocation arrives via CLI ifosctl diagnostic
+   → context.sh hydrates: voice corpus + tone rules + recent edits + target_patch.json
+   → hh_decision_trigger("session_start", firm_name + sector_hint)
+
+1. Validate input
+   → validate.sh checks: firm name non-empty, sector (if provided) in known list,
+     tenant_slug present, voice corpus reachable
+   → Gate A: hard-fail if any check fails
+   → ESC_INPUT_VALIDATION_FAIL if firm name malformed (new code added to catalogue this round)
+
+2. Companies House lookup (Section 1)
+   → companies_house_lookup(firm_name) via Companies House MCP connector
+   → cache result for 7 days per gotcha §6 (rate-limit discipline)
+   → extract: registration + revenue band + headcount band + directors + share moves
+   → ESC_RATE_LIMIT_HIT if Companies House returns 429 (back off 60s, retry once)
+
+3. Online footprint discovery (Section 2)
+   → web HEAD + first 200 lines fetch on probable URLs:
+     {firm}.com / {firm}.co.uk / linkedin.com/company/{slug}
+   → LinkedIn company-page fetch (Proxycurl or similar)
+   → record careers page state + last-updated signal
+
+4. Job posts harvest (Sections 3 + 4 + 5 + 7)
+   → LinkedIn job posts API (filtered to firm) — up to 50 most recent
+   → careers page scrape if accessible
+   → extract: sector, role type, location, salary band, tech stack
+   → Gotcha §6: store summarised data only; do not retain raw profiles per LinkedIn ToS
+
+5. Director + employee scan (Sections 7 + 11)
+   → LinkedIn search for {firm} employees with titles matching head-of-talent / chro / chief people / hiring-manager / talent-acquisition variants
+   → record name + URL + tenure + recent activity
+   → max 10 named people; deduplicate
+
+6. Pain signal extraction (Section 8)
+   → regex pass over careers-page + LinkedIn director posts for:
+     - urgency phrases ("rapid growth", "scaling fast", "we need", "tripling", "doubling")
+     - frustration phrases (Glassdoor if accessible: "overworked", "burnout", "no support")
+     - hiring-pressure phrases ("desperately seeking", "high-priority hire", "must hire by")
+   → record each match with quote + source URL + context
+
+7. ICP fit scoring (Section 6)
+   → load tenant target_patch from common-target-patch.json
+   → score each dimension (sectors / geographies / size_bands / deal_size_band)
+   → composite score 0-100 + per-dimension breakdown
+   → no external action; compute only
+
+8. Recent activity scan (Section 10)
+   → LinkedIn company posts in last 90 days (count + first 100 chars of each)
+   → basic Google search for "{firm} announcement OR funding OR acquisition" last 90 days
+   → Companies House filing history last 90 days
+
+9. Conversation opener generation (Section 12)
+   → LLM prompt: context = §1-§11 of the report (esp. §8 pain signals);
+                 constraint = consultant voice (hh_load_voice_samples for top-5 ANN match);
+                 constraint = tone rules (hh_load_tone_rules)
+   → output 2-3 sentences with at least one evidence anchor
+   → voice classifier scores the output against tenant style guide
+   → ESC_VOICE_DRIFT if score < 0.75 after 3 retries
+
+10. Markdown report assembly
+    → render report from sections 1-12 using Diagnostic-specific template
+    → write to /vault/{tenant_slug}/diagnostic-reports/{firm-slug}-{ISO-date}.md
+    → hh_decision_output("diagnostic_report", "<path>", "12-section report on {firm}")
+
+11. Operator notification (optional, per --notify-via flag)
+    → if telegram: send via primitive 5 with report path + executive summary (first 200 chars)
+    → if no flag: silent completion (consultant checks vault)
+
+12. Session close
+    → hh_decision_action("diagnostic_report_render", "firm:{slug}", payload_hash, payload_preview)
+    → action tier per autosend-policy.yaml: green (no external send; vault write only)
+    → exit code 0
+```
+
+---
+
+## §5 — Gates
+
+### Gate A — validate.sh (hard-fail before action)
+
+Per master brief §8.1 Change 2 + autosend-safety-policy §4. Diagnostic's `validate.sh` enforces:
+
+- All 12 sections present in the assembled report (count + heading check)
+- Every section has ≥ 1 markdown link (regex `\[.+\]\(.+\)` per section)
+- Section 12 voice classifier score ≥ 0.75 (`hh_load_voice_samples` returns ANN match + classifier; score computed via tenant's voice classifier per Ultraplan §5.3)
+- Report length 400-2000 words
+- No banned phrases per `tone_rule` table (`hh_load_tone_rules` filter)
+- No PII outside the firm boundary (regex pass for emails/phones that don't match `{firm}.com` or known director email patterns) — fires `ESC_PII_LEAKAGE_RISK` immediately on hit
+
+### Gate B — Outcome threshold (success metric, not block)
+
+Per Ultraplan §8.1 A1: ≥ 30% of Diagnostic reports lead to a discovery call booked within 14 days of generation. Measured by consultant feedback loop — Telegram reply `/diagnostic-feedback <report-id> booked|not-booked` (v1.0) or Brain UI button (v1.1). Aggregated as `decision_log` rows with `agent_name='_consultant_feedback'` + `phase='action'`; outcome metric computed by Gate-B rollup query at the weekly review (not stored as a single `decision_log.payload` field).
+
+Gate B doesn't block the agent. It contributes to v1.0 kill-criterion §2 Trigger 8 ("Gate-B revenue uplift" — Diagnostic's discovery-call conversion is one of three signals feeding Trigger 8, alongside Janitor day-30 reports and Cash Conductor DSO improvement). Below 30% sustained for 4 weeks → revisit Diagnostic's output quality at next Sunday review (not an immediate trigger fire).
+
+---
+
+## §6 — Escalation codes
+
+Diagnostic uses these ESC codes from `agents/_shared/escalation-codes.md`:
+
+| Code | Trigger | Severity | Routing |
+|---|---|---|---|
+| `ESC_VOICE_DRIFT` | Section 12 voice classifier < 0.75 after 3 retries | warn | operator_chat_id |
+| `ESC_PII_LEAKAGE_RISK` | PII detected outside firm boundary | **blocking** | operator + ifos_oncall |
+| `ESC_RATE_LIMIT_HIT` | Companies House or LinkedIn 429 | warn | operator_chat_id |
+| `ESC_INPUT_VALIDATION_FAIL` | Malformed firm name input (Step 1 validation) | warn | operator_chat_id |
+| `ESC_AGENT_OUTPUT_SHAPE` | Section count != 12 OR Gate-A per-section citation missing | warn | operator_chat_id |
+| `ESC_RENDERER_FAILED` | (not Diagnostic's concern; renderer escalation only) | — | — |
+
+Diagnostic does NOT use:
+
+- `ESC_BULLHORN_AUTH` — Diagnostic never touches Bullhorn (per sequencing-target.md §2.1)
+- `ESC_AUTOSEND_*` — Diagnostic's only action is `diagnostic_report_render` (green tier per autosend-policy.yaml)
+- `ESC_VAULT_*` — Diagnostic writes to one file per invocation; no concurrent-write contention
+
+---
+
+## §7 — Voice + tone constraints
+
+Section 12 (conversation opener) is voice-classified. The agent integrates with `_shared/voice-loader.sh`:
+
+- **`hh_load_tone_rules` filtered by `applies_to_agents` containing `diagnostic`** — surfaces rules like:
+  - No "I hope this finds you well" or other generic openers
+  - No salary or commission anchors in cold outreach
+  - Specific evidence anchor required (not generic "great company")
+- **`hh_load_voice_samples` ANN query against tenant's voice_corpus**: top-5 chunks closest to current task context (cold-outreach-to-recruitment-firm-decision-maker). Feeds LLM prompt as voice exemplars.
+- **`hh_load_recent_edits` last 30 days for `concierge` + `diagnostic`**: surfaces patterns of how consultant edits agent drafts. Per-run `ESC_VOICE_DRIFT` fires when the §12 voice classifier score is below 0.75 after 3 retries. Aggregate `ESC_VOICE_DRIFT_TENANT` fires per `escalation-codes.md` ESC_VOICE_DRIFT_TENANT trigger — ≥5 `ESC_VOICE_DRIFT` rows from the same tenant within a rolling 7-day window (per the nightly voice-drift cron). Edit-distance metrics are tracked separately for analytics but do NOT fire ESC_VOICE_DRIFT_TENANT directly.
+
+Per master brief §8.1 Change 1: voice is per-tenant; never cross-tenant.
+
+---
+
+## §8 — Build dependencies (W3 prerequisites)
+
+Diagnostic build cannot start until ALL of the following are confirmed:
+
+| Dependency | Source | Status |
+|---|---|---|
+| Renderer + `_shared/` substrate | Day-8 + Round-3 commits | ✅ Ratified (Round 3) |
+| Live VPS migration applied | `bash scripts/run-live-migration.sh` | ⏸ Founder action |
+| Tenancy audit passes 12 invariants | `bash scripts/run-tenancy-audit.sh` | ⏸ Founder action |
+| Q1 design partner LOI signed | Risk #3 + kill-criterion §2 Trigger 1 | ⏸ Jack's lane |
+| `target_patch.json` for the first pilot tenant | Pilot onboarding | ⏸ Post-LOI (per tenant-lifecycle.md §2) |
+| Voice corpus seeded for the first pilot tenant | Pilot onboarding | ⏸ Post-LOI |
+| Companies House MCP connector | Build at W3 start (~1 day) | ⏸ Not built |
+| LinkedIn read-only MCP connector (or Proxycurl wrapper) | Build at W3 start (~2 days) | ⏸ Not built |
+| Web scraper utility (HEAD + first-N-lines) | Build at W3 start (~0.5 day) | ⏸ Not built |
+| `validate.sh` Gate A logic (12-section check) | Build at W3 start (~0.5 day) | ⏸ Not built |
+| `context.sh` hydration | Build at W3 start (~0.5 day) | ⏸ Not built |
+| 3 fixtures with golden outputs (01-primary + 02-edge-case-no-online-footprint + 99-voice-drift-canary) | Build at W3 start (~1 day) | ⏸ Not built |
+| Codex ratification of full agent bundle | Post-build via `review-agent-bundle.md` skill | ⏸ Skill not built yet (lazy per execution plan §3) |
+
+**Until ALL ratified items have ⏸ → ✅, W3 build slice does not start.**
+
+---
+
+## §9 — Status + open questions
+
+**Status:** Proposed. Awaits Q1 LOI + first pilot tenant onboarded + W3 build slice start.
+
+**Recommended ratification path:** Author the agent.md draft (this document) Day 11 — frees W3 build to focus on the other 5 bundle files + 3 fixtures, not iterating on output contract under W3 deadline pressure. Founder reviews this draft when convenient; refinements drop in commits between Day 11 and W3 start.
+
+### Open questions for founder review
+
+| # | Question | Resolution path |
+|---|---|---|
+| Q1 | Is "12 sections" the right number? Ultraplan §8.1 A1 says "12 required sections" but doesn't enumerate. This document proposes a 12-section list (§3); founder may want to revise. | Founder reviews §3 table; can split/merge sections. Lands as Edit in next commit. |
+| Q2 | Should §11 (decision-maker map) be a separate section OR rolled into §3 + §4 + §5 + §7 as a sub-row? Currently named as a separate section. | Founder review at agent.md ratification. |
+| Q3 | Proxycurl vs alternative LinkedIn API surface? Cost + ToS implications. | Resolved at W3 start before Companies House + LinkedIn MCP connectors authored. Founder + Claude decide together. |
+| Q4 | Gate B (30% discovery-call-to-report ratio) measured how? Manual tagging by consultant OR auto-detection via Bullhorn calendar links? | v1.0 manual tagging via Telegram resolution; v1.1 auto-detection. |
+| Q5 | What's the "firm-slug" canonical form for the output filename? Companies House registration number? URL-slugified firm name? | Recommend Companies House number for stability; canonical-slug fallback for non-UK firms (v1.1+). |
+| Q6 | Should §10 (recent activity) include Glassdoor reviews? ToS implications. | Per gotcha §6 below: caution; default OFF for v1.0; explicit founder enable for v1.1+. |
+
+### Gotchas (carried forward from Ultraplan §8.1 A1)
+
+1. **LinkedIn ToS — cannot store profile data beyond the audit.** Profile fetches are cached only for the duration of the report generation (typ. 10-15 min). After report writes to vault, raw profile data is dropped from agent memory + no persistence in Postgres.
+2. **Companies House rate limits — cache aggressively.** Free tier is 600 requests per 5-minute window per IP. Cache responses for 7 days per (company_number) key. Pre-emptive 60s backoff on first 429.
+3. **Glassdoor scraping — uncertain ToS compatibility.** Default OFF for v1.0. Per Q6 above.
+
+---
+
+## §10 — When this document ratifies
+
+Per `.codex/ratification/review-agent-bundle.md` (skill not yet built; lazy per execution-plan §3): this agent.md plus the 5 sibling bundle files plus 3 fixtures ratify as a unit at W3 build end.
+
+Status flips to Accepted when:
+- Codex Round-3+ ratifies the full bundle
+- Founder approves §3's 12-section list as canonical
+- First production render against the first pilot tenant succeeds (per ADR-003 §4 + ADR-004 Decision 7 audit row)
+- Gate B baseline measurement begins (30% target; 4-week window)
+
+Until then: this document is a forward-looking scaffold. Conservative pre-build clarity — not a binding contract until ratification.
+
+*End of Diagnostic agent.md draft.*
+
+--- END ARTEFACT ---
+
+=== YOUR TASK ===
+
+Apply the top-level SKILL.md plus the type-specific skill above to the artefact.
+
+Return EXACTLY ONE of:
+
+  RATIFIED
+  [optional 0-5 lines of advisory notes]
+
+OR
+
+  REJECTED
+
+  1. <one-line problem statement>. <2-4 line explanation citing specific lines/sections>. <one-line proposed fix>.
+
+  2. <next issue, same shape>
+
+  ...
+
+Do not include preamble, throat-clearing, or summary. Begin your response with the literal word RATIFIED or REJECTED.

@@ -10,9 +10,9 @@ These close open items O11 (repo path), O12 (CortexOS freeze) and O13 (the VPS).
 
 ---
 
-## D1 — The new monorepo lives at `~/code/ifos/`, created fresh
+## D1 — The new monorepo lives at `~/code/core/`, created fresh
 
-**Decision.** A new, empty repository at `~/code/ifos/`. Not a rename of `~/code/CortexOS`, not a branch of it.
+**Decision.** A new, empty repository at `~/code/core/`. Not a rename of `~/code/CortexOS`, not a branch of it.
 
 **Evidence.** MONOREPO build plan §2 line 29: *"Repo name: pending rebrand; use `ifos` until the name lands."*
 The document names the working name and declines to name a path. `~/code/` already holds the other three

@@ -39,7 +39,7 @@ Landing code first means the rule gets written to fit the code.
 
 | ☐ | Asset | Source | Destination | Mechanic | Verify |
 |---|---|---|---|---|---|
-| ☐ | Repo + workspace | — | `~/code/ifos` | DERIVE | `pnpm -w install` succeeds |
+| ☐ | Repo + workspace | — | `~/code/core` | DERIVE | `pnpm -w install` succeeds |
 | ☐ | Package tree (empty dirs) | MONOREPO §2 | repo root | DERIVE | every §2 path exists. **NO top-level `agents/` or `orgs/` — R-CX-8** |
 | ☐ | Loop + governance files (12) | `~/Desktop/Hand-Off/claude-global-setup/repo-scaffold/` | repo root | COPY | files present |
 | ☐ | `gate.yaml` **+ the 3 missing deny entries** | scaffold | repo root | COPY+edit | 13 deny entries incl. `packages/contracts/**`, `vertical-pack/**`, `attribution/**` |

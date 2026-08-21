@@ -1,13 +1,13 @@
 # ⛔ THIS REPOSITORY IS FROZEN — 2026-08-21
 
-**Superseded by `~/code/ifos`.** Do not build here. Do not resume W3–W8. Do not fix the renderer.
+**Superseded by `~/code/core`.** Do not build here. Do not resume W3–W8. Do not fix the renderer.
 
 CortexOS is now a **harvest source and a read-only reference**, not a development target. It stays running and
 green until the migration completes (target: after thickening pass 2 / WP-12), then retires.
 
 | | |
 |---|---|
-| **Successor repo** | `~/code/ifos` |
+| **Successor repo** | `~/code/core` |
 | **What transfers, where, and how** | `harvest/LANDING-ORDER.md` — 67 rows, 11 stages, a verification command per row |
 | **Why the architecture changed** | `docs/handoff/SESSION-HANDOFF-cortexos-to-ifos.md`, `TRANSFER-MAP.md` |
 | **What had to change to conform** | `docs/handoff/CONFORMANCE-AUDIT.md` + `harvest/patches/` |
@@ -27,7 +27,7 @@ Everything else waits for the new repo.
 it would render agents into a runtime whose agent model is being replaced.
 
 **The nine connectors, the migrations and the dev-DB harness stay here until their phase opens.** Nothing has been
-deleted; every move to `~/code/ifos` is a copy.
+deleted; every move to `~/code/core` is a copy.
 
 ---
 
