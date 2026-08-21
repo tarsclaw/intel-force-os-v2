@@ -84,11 +84,17 @@ Substantial and previously uncounted.
 |---|---|---|
 | `tests/` (cross-package) | 18 shell test harnesses in `scripts/run-*-test.sh` | **3,045 lines** |
 | `evals/` | 18 bundle fixture files + the `tenant_eval_sets` table (in baseline) | **2,419 lines** |
-| per-package tests | 162 vitest files | **2,076 test cases** |
+| per-package tests | **57 IFOS-owned** vitest files | **380 passing + 9 skipped** — verified by running them, 2026-08-21 |
 | approval-routing config fixtures | `_shared/tests/fixtures/approval-routing/` — `function-roles.example.yaml`, `identity-map.example.yaml`, `standing-approvals.example.yaml` | 3 files |
 
-**2,076 passing test cases** is the transfer's safety net: a connector or utility that lands in the new repo and
-still passes its own suite has moved correctly, with no judgement required.
+**380 passing tests across 57 files** is the transfer's safety net: a package that lands in the new repo and still
+passes its own suite at the same count has moved correctly, with no judgement required.
+
+> **Corrected 2026-08-21.** This row previously read "162 vitest files / 2,076 test cases". That was a static grep
+> for `it(`/`test(` across `packages/`, and **105 of the 162 files belong to the vendored cortextOS submodule**,
+> not to IFOS. The real figure was obtained by running every suite: 380 passed, 9 skipped, zero failures. The 9
+> skips are the live-API tests in `open-banking`, `quickbooks` and `xero`, gated behind `MCP_LIVE_TESTS`.
+> The gate is executable: `harvest/scripts/verify-test-baseline.sh`.
 
 The three approval-routing example fixtures matter more than their size — they define the *runtime config shapes*
 the authoriser expects per tenant, which is exactly what has to be documented before anyone provisions a firm.

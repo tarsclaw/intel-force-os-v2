@@ -89,7 +89,7 @@ default resolves to. The logic, the tests and the public API are untouched. `res
 | # | Question | Why it cannot be decided here |
 |---|---|---|
 | **RED-1** | **Does `packages/utilities/web-scraper` (412 src + 163 test) travel, or die with the diagnostic generator?** Its only consumer is `packages/diagnostic-generator` (`package.json:20` declares `"@ifos/web-scraper": "workspace:*"`), which `TRANSFER-MAP` §6 discards. Note `companies-house/src/cache.ts:2` copied its cache pattern deliberately rather than depending on it | Whether the Diagnostic capability survives into the new estate is a product decision, not an architectural one |
-| **RED-2** | **Does `@ifos/telegram-surface` exist anywhere, or was the Telegram command handler never built?** Referenced in four comments — `decisions-postgres.ts:17`, `:129`, `message-format.ts:7`, `types.ts:73` — as the component that handles `/approve` and `/reject` and *"writes rows to a"* decision source. It is **not** a declared dependency and does not exist in this repo | If it was never built, `packages/queue` arrives without its human input surface and Phase A is larger than §9 of the transfer map states |
+| ~~**RED-2**~~ | **RESOLVED 2026-08-21 — not a ruling.** See §RED-2 resolution below | — |
 | **RED-3** | **Does the new estate ratify the `tenants` RLS exemption, and in which register?** Documented at `tenancy-invariants.md:215` as a CortexOS decision. R15 requires a *ratified* exemption | The new repo's ruling register is the authority; a CortexOS doc cannot ratify into it |
 
 ---
@@ -131,3 +131,81 @@ blockers dissolve into ~90 lines because both packages were built with injected 
 2. `migrations/` and `docs/architecture/tenancy-invariants.md` move in the same commit.
 3. Scope the `Math.random` CI grep before the connectors arrive, or four of them fail on landing.
 4. RED-2 answered before `packages/queue` is scoped.
+
+
+---
+
+## RED-2 — resolved by investigation, not by ruling
+
+**Question was:** does `@ifos/telegram-surface` exist, or was the `/approve` `/reject` handler never built?
+
+**Answer: it was never built, anywhere, and the omission was deliberate and documented.** Searched `~/code`,
+`~/Desktop`, `~/Downloads`, `~/Documents`; no package by that name, no `package.json` declaring it, and
+`git log --all --diff-filter=A` shows it was never committed to this repo.
+
+`bin/record-decision.ts:1-10` states the scope decision in its own header:
+
+> *This is the SINGLE WRITER of approval-decision rows. Callers: the **future** `@ifos/telegram-surface`
+> `/approve`//`reject` command handler (its reconciliation point — it shells this CLI per reply), and
+> operators/tests doing manual decision recording **while the Telegram command handler is not yet built**
+> (honest-scope: getUpdates-driven command handling is telegram-surface scope, NOT this package's).*
+
+### What this means for `packages/queue`
+
+The approval loop is complete except for one inbound leg:
+
+| Leg | Status |
+|---|---|
+| Propose an approval to a human | **Built** — `proposeApproval`, `createTelegramTransport` (`transport-telegram.ts:44`) |
+| Format the message so a reply can be matched | **Built** — `message-format.ts` |
+| Record an approve/reject decision | **Built** — `bin/record-decision.ts`, `RECORD_DECISION_SQL`, first-reply-wins, RLS-scoped |
+| Read pending/decided state | **Built** — `createPostgresDecisionSource` |
+| **Turn a human's Telegram tap into a `record-decision` call** | **MISSING** — no `getUpdates`, webhook, or poller anywhere in `src/` |
+
+So `packages/queue` arrives able to ask and able to record, but **not able to hear.** Today a human decision is
+recorded by an operator invoking the CLI by hand.
+
+**Disposition: a scoped Phase A work item, not a founder ruling.** The gap is a `getUpdates`-driven command
+handler that parses `/approve <id>` using the existing `message-format` contract and shells the existing
+`record-decision` CLI. Both ends already exist and the wire format is already specified — this is the smallest
+piece of net-new work identified anywhere in the transfer.
+
+Note also that cortextOS's own Telegram module (`~/code/cortex-os-ifos/src/telegram/` — `api`, `poller`,
+`media`, `transcribe`) is transport and polling only; it has no slash-command routing, so it does not fill this
+gap for free.
+
+**Revised ruling count: 2 RED, not 3.** Remaining: RED-3 (where the `tenants` RLS exemption is ratified) and
+RED-1 (whether `web-scraper` travels).
+
+---
+
+## Test baseline — the acceptance gate, made executable
+
+`TRANSFER-MAP.md` §8 condition 2 makes test count the acceptance criterion. That criterion was previously an
+uncounted assertion. It is now measured and checkable.
+
+All 12 transferable packages were run on 2026-08-21 at `90df272`. **380 passed, 9 skipped, zero failures.**
+
+| Package | Passing | Skipped |
+|---|---|---|
+| approval-routing | 86 | — |
+| bullhorn | 52 | — |
+| autosend-bridge-telegram | 34 | — |
+| granola | 33 | — |
+| open-banking | 32 | 3 |
+| xero | 29 | 3 |
+| quickbooks | 27 | 3 |
+| workos | 24 | — |
+| cv-library | 20 | — |
+| reed | 18 | — |
+| companies-house | 13 | — |
+| web-scraper | 12 | — |
+
+The 9 skips are live-API tests gated behind `MCP_LIVE_TESTS` — expected, not a gap.
+
+`harvest/scripts/verify-test-baseline.sh` bakes these numbers in and re-runs them. It takes a scope prefix, so it
+works unchanged in the new repo (`bash verify-test-baseline.sh @core`). It exits non-zero on any package landing
+below its baseline. **Silently skipped tests are the failure mode it exists to catch** — a green suite that
+quietly runs 40 of 52 tests looks identical to a healthy one on the console.
+
+Self-verified against CortexOS on the day of capture: **BASELINE HELD**.
