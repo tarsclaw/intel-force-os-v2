@@ -9,8 +9,9 @@ Every check below was executed, not asserted.
 | V2 | Policy-layer duplicates | zero duplicate keys in either file | **PASS** — 0 and 0 |
 | V3 | Policy property coverage | all 53 keys carry tier, trust_bucket, routing_rule, on_expiry | **PASS** — 53/53 on all four |
 | V4 | No seeded auto-approval | zero `on_expiry: auto_execute` | **PASS** — 51 hold, 2 safe_default, 0 auto_execute |
-| V5 | Baseline round-trip | `0000_baseline.sql` → empty DB, then `0001` forward, byte-identical to the dev DB dump | **PASS** — md5 `e3d241c7…` both sides |
-| V6 | Baseline rollback | v0.5 columns absent from the baseline | **PASS** — 0 of 2 present |
+| V5 | Baseline vs **live production** | `0000_baseline.sql` matches a fresh `pg_dump` of `ifos_v2` on `ifos-v2-prod-01` | **PASS by construction** — the file now *is* that dump (regenerated 2026-08-21). See revision note |
+| V6 | Baseline version | v0.5 columns absent (prod is at v0.4) | **PASS** — confirmed against live: 0 of 2 present |
+| V6b | Baseline applies to an empty DB | clean apply | **NOT VERIFIED LOCALLY** — requires pgvector, absent on this Mac. See dev-environment gap |
 | V7 | Escalation reconciliation | every `ESC_*` in code is catalogued | **FAIL — 6 genuine defects.** See below |
 | V8 | SQL artefacts | all bundle `.sql` staged | **PASS** — 5 files, 400 lines |
 | V9 | Agent specs | 6 × agent.md + 6 × tools.yaml staged | **PASS** — 12 files, 3,978 lines |
@@ -56,3 +57,69 @@ The assistant cannot run this — `ssh maddox@178.105.87.24` returns `Permission
 
 One observation to check while there: the v0.5 migration header names `voice_corpus_chunks` as an existing table,
 but it is absent from the local dev DB's 11 tables. Either it was never created locally, or the dump predates it.
+
+
+---
+
+# REVISION 2026-08-21 (same day) — VPS reached, baseline regenerated
+
+## What changed
+
+`ssh maddox@178.105.87.24` failed for both assistant and founder with `Permission denied (publickey)`. Cause was
+not lost access: the key `~/.ssh/ifos_hetzner_ed25519` exists but there is **no `~/.ssh/config` entry** and nothing
+loaded in `ssh-agent`, so ssh never offered it and fell back to default key names that do not exist. Naming the key
+explicitly connects:
+
+```
+ssh -i ~/.ssh/ifos_hetzner_ed25519 maddox@178.105.87.24     # -> ifos-v2-prod-01, PostgreSQL 16.14
+```
+
+**Recommended fix** — add to `~/.ssh/config` so the bare hostname works:
+
+```
+Host ifos-prod 178.105.87.24
+    HostName 178.105.87.24
+    User maddox
+    IdentityFile ~/.ssh/ifos_hetzner_ed25519
+```
+
+## The defect this exposed
+
+The original `0000_baseline.sql` was derived from the local dev DB and **was incomplete**. Diff against live:
+
+| Missing from the derived baseline | |
+|---|---|
+| `CREATE EXTENSION vector` (pgvector) | |
+| `public.voice_corpus_chunks` | `vector(1536)` embeddings, HNSW index (`vector_cosine_ops`, m=16, ef_construction=64), FK to `voice_corpus` ON DELETE CASCADE, RLS-isolated by `tenant_slug` |
+
+Nothing was present in the baseline and absent from prod — it was a strict subset missing exactly one table and its
+extension. **Production has 12 tables; the local dev DB has 11.**
+
+`0000_baseline.sql` has been regenerated directly from the live `pg_dump` and is now authoritative rather than
+derived. The earlier derivation is discarded; nothing depended on it.
+
+## Root cause — a dev-environment gap, not a stale dump
+
+`setup-local-dev-db.sh:81` loads the VPS dump with `ON_ERROR_STOP=0`. Local Postgres is **15.17 with no pgvector**;
+production is **16.14 with pgvector**. So on every local setup run, `CREATE EXTENSION vector` fails silently, then
+`voice_corpus_chunks` fails silently for want of the `vector` type, and the script's own guard passes anyway
+because it only checks for a named subset of expected tables.
+
+**Consequence:** every local dev database ever built by that script has been missing the embeddings table. Any
+local work touching voice-corpus embeddings, semantic retrieval or pgvector would have failed in a way that looked
+like a code bug.
+
+## Actions for the new repo
+
+| # | Action | Priority |
+|---|---|---|
+| 1 | `brew install pgvector` (0.8.6 available) and align local Postgres to **16** to match production | Before any local embeddings work |
+| 2 | Change the dev-DB loader to `ON_ERROR_STOP=1` — silent tolerance is what hid this for months | WP-0 |
+| 3 | Replace the named-table guard with a **count + set comparison against the baseline**, so a missing table fails loudly | WP-0 |
+| 4 | Add the `~/.ssh/config` entry above so VPS commands are copy-pasteable | Any time |
+
+## Closed
+
+The two founder items raised in the original verification are both **resolved**: production agreement is confirmed
+(the baseline is now the prod dump itself), and the `voice_corpus_chunks` question is answered — it exists in
+production and was missing locally for the reason above.

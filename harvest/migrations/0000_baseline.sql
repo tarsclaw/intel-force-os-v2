@@ -1,36 +1,36 @@
 -- ============================================================================
--- 0000_baseline.sql — recruitment vertical schema, v0.4 state
+-- 0000_baseline.sql — recruitment vertical schema, v0.4 (LIVE PRODUCTION STATE)
 -- ============================================================================
 -- Generated: 2026-08-21, CortexOS -> new-estate harvest (HARVEST-MANIFEST A4).
+-- Source:    pg_dump --schema-only --no-owner --no-privileges ifos_v2
+--            on ifos-v2-prod-01 (178.105.87.24), PostgreSQL 16.14.
+--            This is the AUTHORITATIVE live production schema, not a derivation.
 --
--- PROVENANCE. There is no v0.1 base schema in CortexOS source control; the
--- migration chain is incremental only (v0.1-to-v0.2 onward) and the origin
--- state existed solely on the Hetzner VPS. This baseline was therefore derived,
--- not concatenated:
---   1. pg_dump --schema-only of the local ifos_v2_dev database (v0.5 state)
---   2. apply v0.5-to-v0.4.sql to roll the two reconciliation write-back
---      columns and the write-queue index back off
---   3. pg_dump the result  ->  this file
+-- WHY THIS FILE EXISTS. CortexOS has no base schema in source control: the
+-- migration chain is incremental from v0.1-to-v0.2 onward, and
+-- setup-local-dev-db.sh builds the dev database from a pg_dump of this server
+-- rather than from git. The origin state existed ONLY on the VPS. This file is
+-- the first complete, self-contained schema definition the project has held in
+-- version control. The new repo must never regress to incremental-only.
 --
--- VERIFIED. Round-trip: this file applied to an empty database, then
--- v0.4-to-v0.5.sql applied forward, produces a schema byte-identical to the
--- ifos_v2_dev dump (pg_dump session nonces excluded). Confirmed by md5.
+-- VERSION. v0.4. Confirmed against live: the v0.5 columns
+-- (reconciliation_written_at, accounting_payment_id) are ABSENT in production.
+-- v0.5 follows as 0001_reconciliation_writeback.sql. Baselining at the deployed
+-- state makes this file true by construction — see ESTATE-DECISIONS D4.
 --
--- WHY v0.4 AND NOT v0.5. v0.4 is the state the live VPS actually holds; v0.5 is
--- local-only. Baselining at the deployed state makes the baseline true by
--- construction. v0.5 follows as 0001_reconciliation_writeback.sql.
--- See ESTATE-DECISIONS-repo-freeze-vps.md D4 (as amended).
+-- SUPERSEDES an earlier derived baseline (dev-DB dump rolled back through
+-- v0.5-to-v0.4.sql). That derivation round-tripped cleanly but was INCOMPLETE:
+-- it was missing public.voice_corpus_chunks and the pgvector extension,
+-- because the local dev DB descends from an older VPS dump. Caught by this
+-- diff. The derivation is discarded; nothing depends on it.
 --
--- OUTSTANDING FOUNDER VERIFICATION. The local dev DB descends from a VPS
--- pg_dump of unrecorded date, loaded with ON_ERROR_STOP=0 (setup-local-dev-db.sh
--- line 81), so load errors were tolerated. Before this baseline is trusted in
--- the new repo, diff it against a fresh dump:
---     ssh maddox@178.105.87.24 'sudo -u postgres pg_dump --schema-only ifos_v2'
--- Assistant cannot perform this check: SSH returns Permission denied (publickey).
---
--- Tables (11): cash_conductor_invoices, cash_conductor_transactions,
+-- TABLES (12): cash_conductor_invoices, cash_conductor_transactions,
 --   decision_log, entities, entity_links, recent_edit, tenant_adapters,
---   tenant_eval_sets, tenants, tone_rule, voice_corpus
+--   tenant_eval_sets, tenants, tone_rule, voice_corpus, voice_corpus_chunks
+--
+-- REQUIRES the `vector` extension (pgvector). voice_corpus_chunks carries
+-- vector(1536) embeddings under an HNSW index (vector_cosine_ops, m=16,
+-- ef_construction=64) and is RLS-isolated by tenant_slug like every other table.
 -- ============================================================================
 
 --
@@ -38,8 +38,8 @@
 --
 
 
--- Dumped from database version 15.17 (Homebrew)
--- Dumped by pg_dump version 15.17 (Homebrew)
+-- Dumped from database version 16.14 (Ubuntu 16.14-1.pgdg24.04+1)
+-- Dumped by pg_dump version 16.14 (Ubuntu 16.14-1.pgdg24.04+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -78,6 +78,20 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 --
 
 COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
+
+
+--
+-- Name: vector; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION vector; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION vector IS 'vector data type and ivfflat and hnsw access methods';
 
 
 --
@@ -897,6 +911,24 @@ ALTER TABLE ONLY public.voice_corpus FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: voice_corpus_chunks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.voice_corpus_chunks (
+    id bigint NOT NULL,
+    tenant_slug text NOT NULL,
+    voice_corpus_id bigint NOT NULL,
+    chunk_index integer NOT NULL,
+    text_chunk text NOT NULL,
+    source_doc_ref text,
+    embedding public.vector(1536),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.voice_corpus_chunks FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: voice_corpus_chunks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -906,6 +938,13 @@ CREATE SEQUENCE public.voice_corpus_chunks_id_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
+
+
+--
+-- Name: voice_corpus_chunks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.voice_corpus_chunks_id_seq OWNED BY public.voice_corpus_chunks.id;
 
 
 --
@@ -995,6 +1034,13 @@ ALTER TABLE ONLY public.tone_rule ALTER COLUMN id SET DEFAULT nextval('public.to
 --
 
 ALTER TABLE ONLY public.voice_corpus ALTER COLUMN id SET DEFAULT nextval('public.voice_corpus_id_seq'::regclass);
+
+
+--
+-- Name: voice_corpus_chunks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_corpus_chunks ALTER COLUMN id SET DEFAULT nextval('public.voice_corpus_chunks_id_seq'::regclass);
 
 
 --
@@ -1134,6 +1180,22 @@ ALTER TABLE ONLY public.tone_rule
 
 
 --
+-- Name: voice_corpus_chunks voice_corpus_chunks_corpus_chunk_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_corpus_chunks
+    ADD CONSTRAINT voice_corpus_chunks_corpus_chunk_unique UNIQUE (voice_corpus_id, chunk_index);
+
+
+--
+-- Name: voice_corpus_chunks voice_corpus_chunks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_corpus_chunks
+    ADD CONSTRAINT voice_corpus_chunks_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: voice_corpus voice_corpus_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1248,6 +1310,20 @@ CREATE INDEX tone_rule_tenant_enabled_idx ON public.tone_rule USING btree (tenan
 
 
 --
+-- Name: voice_corpus_chunks_corpus_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX voice_corpus_chunks_corpus_idx ON public.voice_corpus_chunks USING btree (voice_corpus_id);
+
+
+--
+-- Name: voice_corpus_chunks_tenant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX voice_corpus_chunks_tenant_idx ON public.voice_corpus_chunks USING btree (tenant_slug);
+
+
+--
 -- Name: voice_corpus_one_active_per_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1259,6 +1335,13 @@ CREATE UNIQUE INDEX voice_corpus_one_active_per_tenant ON public.voice_corpus US
 --
 
 CREATE INDEX voice_corpus_tenant_slug_idx ON public.voice_corpus USING btree (tenant_slug);
+
+
+--
+-- Name: voice_samples_embedded; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX voice_samples_embedded ON public.voice_corpus_chunks USING hnsw (embedding public.vector_cosine_ops) WITH (m='16', ef_construction='64');
 
 
 --
@@ -1327,6 +1410,14 @@ ALTER TABLE ONLY public.tenant_adapters
 
 ALTER TABLE ONLY public.tenant_eval_sets
     ADD CONSTRAINT tenant_eval_sets_tenant_slug_fkey FOREIGN KEY (tenant_slug) REFERENCES public.tenants(tenant_slug) ON DELETE CASCADE;
+
+
+--
+-- Name: voice_corpus_chunks voice_corpus_chunks_voice_corpus_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_corpus_chunks
+    ADD CONSTRAINT voice_corpus_chunks_voice_corpus_id_fkey FOREIGN KEY (voice_corpus_id) REFERENCES public.voice_corpus(id) ON DELETE CASCADE;
 
 
 --
@@ -1451,6 +1542,19 @@ CREATE POLICY tone_rule_tenant_isolation ON public.tone_rule USING ((tenant_slug
 --
 
 ALTER TABLE public.voice_corpus ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: voice_corpus_chunks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.voice_corpus_chunks ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: voice_corpus_chunks voice_corpus_chunks_tenant_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY voice_corpus_chunks_tenant_isolation ON public.voice_corpus_chunks USING ((tenant_slug = current_setting('app.current_tenant'::text, true)));
+
 
 --
 -- Name: voice_corpus voice_corpus_tenant_isolation; Type: POLICY; Schema: public; Owner: -
