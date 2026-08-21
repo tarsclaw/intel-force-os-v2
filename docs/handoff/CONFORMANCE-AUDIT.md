@@ -1,0 +1,133 @@
+# Conformance audit — transferable assets vs the new repo's dependency rules
+
+**Run:** 2026-08-21 against `1c62f29`. **Scope:** every asset in `TRANSFER-MAP.md` §1–3.
+**Method:** read-only greps over source on disk. Every verdict cites `file:line`. No verdict inherited from a
+document, including the four suspicions this audit was asked to confirm or refute — one of which is **refuted**.
+**Nothing was modified.** No repo created, no harness code written.
+
+---
+
+## P1 — The rule set
+
+Extracted verbatim from `IFOS-MONOREPO-MASTER-BUILD-PLAN.md` §3 (eight dependency rules), §2 `[LOCK-MR-2]`,
+§4 `[LOCK-MR-4]`, §5 `[LOCK-MR-5]`, and §8 (five CI guards).
+
+| # | Rule | Source |
+|---|---|---|
+| R1 | `gauntlet`, `identity`, `trust`, `ingest-connectors` may never import `harness`, `spine`, `queue`, `authoriser` | §3 |
+| R2 | Only `trust` may expose a read API; no other package may query Postgres/pgvector for brain content directly | §3 |
+| R3 | Only `spine` writes `decision`, `outcome_event`, `holdout_assignment`; only `harness` executes | §3 |
+| R4 | `learning` imports only `contracts` + reads Value Spine via a declared interface; nothing imports `learning` | §3 |
+| R5 | Nothing imports `vendor/cortextos` except `harness/runtime-adapter` | §3 |
+| R6 | `config-centre` composes data; no agent or pillar package imports sector strings | §3 |
+| R7 | `shared/wilson` is the only Wilson implementation | §3 |
+| R8 | No package imports `actions/` or `attribution/` YAML at build time; loaded and validated at runtime | §3 |
+| R9 | `packages/contracts` contains **no runtime logic** — schemas, types, JSON Schema only. A function there is a review rejection | §2 `[LOCK-MR-2]` |
+| R10 | A pillar is replaced behind its seam or not at all | §4 `[LOCK-MR-4]` |
+| R11 | No implemented function in a stub-phase package before its phase opens | §5 `[LOCK-MR-5]` |
+| R12 | Vendor guard: any diff under `vendor/` outside a pinned-SHA bump PR fails | §8.2 |
+| R13 | Discipline greps: swallowed errors (`catch {}`, `\|\| true`, `2>/dev/null` on read/verify paths), second Wilson, `staging_*` schema, `Math.random` in holdout assignment | §8.3 |
+| R14 | Contract suite: seam tests run against stub AND real implementations | §8.4 |
+| R15 | Tenancy guard: every new table's migration enables RLS **or names a ratified exemption**; F14 permission fuzz at 100% | §8.5 |
+
+---
+
+## P2/P3 — Verdicts
+
+### GREEN — lands as-is (7)
+
+| Asset | Destination | Evidence |
+|---|---|---|
+| `agents-runtime/_shared/*.json` (8 files, 487 lines) | `packages/contracts` | All parse as valid JSON Schema draft 2020-12; zero executable content. **R9 clean** |
+| 9 connectors (14,653 lines) | `packages/ingest-connectors` | **R1 clean** — no connector imports `approval-routing` or `autosend-bridge`. **R5 clean** — no `vendor/cortextos` import anywhere. **R6 clean** — no sector strings. No cross-package `@ifos/*` dependency declared |
+| `autosend-policy.yaml` + `action-class-registry.yaml` (1,062) | `actions/` | **R8 clean** — no build-time import found; loaded at runtime by `hook-helpers.sh`. Join verified set-equal at 53 keys |
+| 5 SQL artefacts (400) | called by rebuilt agents | Standalone, parameterised, RLS-scoped by design |
+| `0000_baseline.sql` + `0001` (1,680) | `migrations/` | **R15 conditionally clean** — see the conditional below |
+| `vertical-schema.yaml` + 3 supplements (2,794) | `vertical-pack/recruitment` | Data only, zero code |
+| 18 bundle fixtures (2,419) | `evals/` | Test data |
+
+**Two notes on GREEN rows.**
+
+*Connectors and R13.* `bullhorn/src/client.ts:39`, `reed/src/client.ts:43`, `xero/src/client.ts:37`,
+`cv-library/src/client.ts:37` all call `Math.floor(Math.random() * base)`. The CI discipline grep targets
+`Math.random`. **These are retry backoff jitter, not holdout assignment** — legitimate under R13 as written, but
+they *will* trip a naive grep. The new repo's guard needs a scoped pattern or a named allowlist, or four connectors
+fail CI on arrival for no reason.
+
+*The migration's R15 conditional.* `0000_baseline.sql` defines 12 tables; 11 enable RLS. The exception is
+`tenants`. This is **not** a violation — it is documented as an explicit design exemption at
+`docs/architecture/tenancy-invariants.md:25` and `:215`: *"the tenant registry itself. NO RLS by design (the
+registry needs to be visible to admin operations). All writes admin-only."*
+
+> **Therefore: `migrations/` cannot travel without `docs/architecture/tenancy-invariants.md`.** Move them in the
+> same commit. Separated, the new repo's tenancy guard flags `tenants` with no ratified exemption on record, and
+> someone either adds RLS that breaks admin operations or waves the guard through.
+
+### AMBER — lands after a named refactor (5)
+
+| # | Asset | Rule | Evidence | Refactor | Est. |
+|---|---|---|---|---|---|
+| A1 | `approval-routing` → `packages/authoriser` | R2 | `src/owner-lookup.ts:45` `execFile("psql", ...)` reads entity owner data | Replace the **default** reader with a `trust`-provided one | **~30 lines** |
+| A2 | `autosend-bridge-telegram` → `packages/queue` | R2, R3 | `src/decisions-postgres.ts:46` `execFile("psql")` reads; `:132` `INSERT INTO decision_log` writes | Route reads and writes through `spine` | **~60 lines** |
+| A3 | `approval-routing/src/types.ts` → `packages/contracts` | R9 | `:228` `export class RoutingConfigError extends Error` — runtime logic in a contracts-mapped file | Move the error class to `authoriser` or `shared`; keep `types.ts` pure | **~15 lines** |
+| A4 | `_shared/hook-helpers.sh` → `packages/shared` | R3 | `:148` `INSERT INTO decision_log` directly | Does not travel as-is; the rebuilt agents call `spine`. Port the non-DB helpers only | folded into rebuild |
+| A5 | 18 shell test harnesses → `tests/` | R3, R13 | `run-janitor-report-test.sh:66,121,193` and `run-scribe-gate-a-test.sh:134` INSERT `decision_log` for fixture setup; `run-janitor-gate-a-test.sh:44`, `run-scout-gate-a-test.sh:42`, `run-janitor-report-test.sh:43,46` use `>/dev/null 2>&1 \|\| true` on verify paths | Seed via `spine`; audit each `\|\| true` — some are legitimate cleanup (`run-v0.3-migration.sh:94-97` killing a tunnel), some are swallowed verification | moderate |
+
+**A1 and A2 are much cheaper than they look, and this is the audit's most useful finding.**
+
+Both packages already inject their database access. `approval-routing/src/owner-lookup.ts:84-85` declares
+`runPsql?: RunPsql` — *"Injectable psql runner (tests). Defaults to `execFile("psql", ...)"* — and `:95` resolves
+`config.runPsql ?? defaultRunPsql`. `autosend-bridge-telegram/src/decisions-postgres.ts:37-38` and `:79` are the
+identical pattern.
+
+**The seam the new architecture requires already exists.** Conformance is not a rewrite; it is changing what the
+default resolves to. The logic, the tests and the public API are untouched. `resolve.ts` is already
+*"a PURE function over injected dependencies"* — it was built for this.
+
+### RED — needs a founder ruling (3)
+
+| # | Question | Why it cannot be decided here |
+|---|---|---|
+| **RED-1** | **Does `packages/utilities/web-scraper` (412 src + 163 test) travel, or die with the diagnostic generator?** Its only consumer is `packages/diagnostic-generator` (`package.json:20` declares `"@ifos/web-scraper": "workspace:*"`), which `TRANSFER-MAP` §6 discards. Note `companies-house/src/cache.ts:2` copied its cache pattern deliberately rather than depending on it | Whether the Diagnostic capability survives into the new estate is a product decision, not an architectural one |
+| **RED-2** | **Does `@ifos/telegram-surface` exist anywhere, or was the Telegram command handler never built?** Referenced in four comments — `decisions-postgres.ts:17`, `:129`, `message-format.ts:7`, `types.ts:73` — as the component that handles `/approve` and `/reject` and *"writes rows to a"* decision source. It is **not** a declared dependency and does not exist in this repo | If it was never built, `packages/queue` arrives without its human input surface and Phase A is larger than §9 of the transfer map states |
+| **RED-3** | **Does the new estate ratify the `tenants` RLS exemption, and in which register?** Documented at `tenancy-invariants.md:215` as a CortexOS decision. R15 requires a *ratified* exemption | The new repo's ruling register is the authority; a CortexOS doc cannot ratify into it |
+
+---
+
+## P4 — Summary
+
+| Verdict | Count | Volume |
+|---|---|---|
+| GREEN — lands as-is | **7** | ~21,500 lines |
+| AMBER — named refactor first | **5** | ~105 lines of TS refactor + test-harness work |
+| RED — founder ruling | **3** | — |
+
+**Total refactor estimate: ~105 lines of TypeScript** (A1 30 + A2 60 + A3 15), plus a pass over the 18 shell test
+harnesses. Against ~22,400 lines transferring as working code.
+
+### Rules with zero violations
+
+R1, R4, R5, R6, R7, R8, R10, R11, R12, R14 — clean across every audited asset. **No package declares a dependency
+on any other package in this repo**, so there is no internal coupling to unwind.
+
+### One suspicion refuted
+
+`granola/src/transport-http.ts:73` `new Client(CLIENT_INFO)` is the **MCP SDK client**
+(`@modelcontextprotocol/sdk`, per the file header at `:3`), not a Postgres client. Not an R2 violation.
+
+### Founder rulings required, most blocking first
+
+1. **RED-2** — telegram-surface. Blocks scoping `packages/queue`; everything else is unaffected.
+2. **RED-3** — the `tenants` RLS exemption. Blocks the migrations landing cleanly under the tenancy guard.
+3. **RED-1** — web-scraper. Blocks nothing; decide before the Phase B connector move.
+
+### Go / no-go
+
+**GO, with conditions.** The transfer is safe to start. No asset is architecturally incompatible; the two apparent
+blockers dissolve into ~90 lines because both packages were built with injected database access. Conditions:
+
+1. Do A1–A3 **before** those packages land, not after. Landing first and refactoring later means the boundary rule
+   is written to fit the code.
+2. `migrations/` and `docs/architecture/tenancy-invariants.md` move in the same commit.
+3. Scope the `Math.random` CI grep before the connectors arrive, or four of them fail on landing.
+4. RED-2 answered before `packages/queue` is scoped.
