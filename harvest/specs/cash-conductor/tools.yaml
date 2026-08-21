@@ -1,0 +1,210 @@
+# Cash Conductor agent — tools.yaml (capability declarations)
+#
+# Status: Proposed (W4 Day-26 SKELETON; W7-8 build slice may add per-tenant
+#         overrides + cost ceilings + per-step authz).
+# Reading order: agent.md §1 (output contract) + §2 (invocation surface) +
+#         §4 (workflow + capability dependencies) first.
+#
+# Per ADR-003 agent-bundle pattern: tools.yaml declares every external
+# capability cycle.sh invokes + the autosend-policy action_type each
+# state-changing call emits. cortextOS bus uses this to authorise capability
+# invocation per agent (no capability declared here = bus refuses the call).
+#
+# Action types referenced below MUST exist in agents/_shared/autosend-policy.yaml
+# (current registrations verified W4 Day-25 for accounting_reconciliation_write
+# + xero_reminder_draft_internal + xero_reminder_send_customer; open_banking_*
+# queued for W7-8 build per agent.md §8 backlog).
+
+version: "0.1"
+agent: cash-conductor
+
+capabilities:
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Accounting providers (per-tenant — choose ONE via tenant_adapters.config.accounting_provider)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: xero_oauth
+    package: "@ifos/xero"
+    purpose: "Xero OAuth 2.0 refresh + concurrent-safe token rotation"
+    action_type: xero_oauth          # green tier; registration queued for W7-8
+    cycle_step: 1
+    secrets_required: [XERO_CLIENT_ID, XERO_CLIENT_SECRET]
+    rate_limit_hint: "60/min per tenant_id (see @ifos/xero README §Rate limits)"
+
+  - id: xero_list_open_invoices
+    package: "@ifos/xero"
+    purpose: "Paginated AUTHORISED+SUBMITTED invoices with AmountDue > 0"
+    cycle_step: 4
+    state_changing: false
+
+  - id: xero_get_invoice
+    package: "@ifos/xero"
+    purpose: "Single-entity invoice fetch by Xero InvoiceID (used at Gate A G1 re-check)"
+    cycle_step: 9
+    state_changing: false
+
+  - id: xero_list_payments
+    package: "@ifos/xero"
+    purpose: "List ACCRECPAYMENT records (reconciliation context)"
+    cycle_step: 5
+    state_changing: false
+
+  - id: xero_write_payment_received
+    package: "@ifos/xero"
+    purpose: "Auto-write Stage 1-2 reconciliation matches (yellow tier; spot-check sampled)"
+    action_type: accounting_reconciliation_write  # yellow tier; REGISTERED in autosend-policy.yaml
+    cycle_step: 6
+    state_changing: true
+
+  - id: quickbooks_oauth
+    package: "@ifos/quickbooks"
+    purpose: "QuickBooks OAuth 2.0 refresh (per-realm; PSD2-distinct from Xero per-tenant)"
+    action_type: quickbooks_oauth    # green tier; registration queued for W7-8
+    cycle_step: 1
+    secrets_required: [QB_CLIENT_ID, QB_CLIENT_SECRET]
+    rate_limit_hint: "500/min per realm_id (see @ifos/quickbooks README §Rate limits)"
+
+  - id: quickbooks_list_open_invoices
+    package: "@ifos/quickbooks"
+    purpose: "Query API: SELECT * FROM Invoice WHERE Balance > 0"
+    cycle_step: 4
+    state_changing: false
+
+  - id: quickbooks_get_invoice
+    package: "@ifos/quickbooks"
+    purpose: "Single-entity invoice fetch by QB Id (Gate A G1 re-check)"
+    cycle_step: 9
+    state_changing: false
+
+  - id: quickbooks_list_payments
+    package: "@ifos/quickbooks"
+    purpose: "List Payment records (reconciliation context)"
+    cycle_step: 5
+    state_changing: false
+
+  - id: quickbooks_write_payment_received
+    package: "@ifos/quickbooks"
+    purpose: "Auto-write Stage 1-2 reconciliation matches (same action_type as Xero — provider-agnostic at the audit layer)"
+    action_type: accounting_reconciliation_write  # yellow tier; REGISTERED
+    cycle_step: 6
+    state_changing: true
+
+  # Sage MCP connector deferred per Cash Conductor §9 Q8 (first-pilot-on-Sage trigger).
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Open Banking (TrueLayer v1.0; Plaid UK v1.1+ stubbed)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: open_banking_truelayer_oauth
+    package: "@ifos/open-banking"
+    purpose: "TrueLayer OAuth refresh + PSD2 consent age check (refuses refresh in 7-day blocking window)"
+    action_type: open_banking_truelayer  # green tier; REGISTERED in autosend-policy.yaml per Codex F-R1 closure 2026-06-01
+    cycle_step: 1
+    secrets_required: [TRUELAYER_CLIENT_ID, TRUELAYER_CLIENT_SECRET]
+    rate_limit_hint: "30/min per (provider, connection_id); 80% soft backoff"
+
+  # NOTE: open_banking_plaid_uk_oauth was declared here in R1 (commit 47dbce1)
+  # for capability-surface set-equality with the OB README. Codex F-R3 issue #1
+  # rightly flagged that declaring a v1.1+ stub as a current capability
+  # violates the single-upstream-provider contract + has no success fixtures.
+  # Removed per docs/decisions/2026-06-02-codex-cluster-f-r3-justification.md.
+  # Plaid UK remains as an internal stub in @ifos/open-banking src/ for v1.1+
+  # work but is NOT a v1.0 bus-routed capability.
+
+  - id: open_banking_list_transactions
+    package: "@ifos/open-banking"
+    purpose: "Provider-agnostic transaction list (TrueLayer impl; Plaid UK throws NotImplementedError until v1.1+)"
+    cycle_step: 3
+    state_changing: false
+
+  - id: open_banking_get_account_balance
+    package: "@ifos/open-banking"
+    purpose: "Current account balance (available + cleared) for weekly cash-flow forecast §10"
+    cycle_step: 13
+    state_changing: false
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Autosend bridge (D1-B Telegram shim per 2026-05-31 founder decision;
+  # package scaffold landed 2026-06-01). Split into two rows because the two
+  # public-API call sites have distinct audit + failure semantics:
+  #   - proposeApproval: state-changing; emits ORANGE decision_log row
+  #   - awaitApprovalDecision: read-only poll; produces no audit row directly
+  # Per D1-B doc §"Implementation surface" item 4: declare the capability on
+  # both Concierge AND Cash Conductor (Cash Conductor is the Step-10 consumer).
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: autosend_bridge_telegram_propose
+    package: "@ifos/autosend-bridge-telegram"
+    api: proposeApproval
+    purpose: "Post orange-tier chase-send approval request to operator Telegram chat (D1-B founder decision)"
+    action_type: xero_reminder_send_customer  # ORANGE tier; REGISTERED at autosend-policy.yaml line 263; Cash Conductor OWNS this action_type per the same line
+    cycle_step: 10
+    state_changing: true
+    optional: true  # cycle.sh Step 10 checks for the package dist/; falls back to drafts-only mode if absent (graceful degradation per agent.md §1 readiness caveat)
+    failure_modes:
+      - condition: "Telegram postMessage transport failure (network, 5xx, invalid chat_id)"
+        surface: "BridgeTransportError thrown by package"
+        escalation: ESC_AGENT_TOOL_FAILURE  # transport-class failure, NOT timeout (different routing)
+
+  - id: autosend_bridge_telegram_await
+    package: "@ifos/autosend-bridge-telegram"
+    api: awaitApprovalDecision
+    purpose: "Block on operator approve/reject reply from Telegram (PT4H deadline; authoritative on absolute expires_at_iso, not poll-count × interval)"
+    cycle_step: 10
+    state_changing: false  # poll-side; does not write tenant data
+    optional: true
+    failure_modes:
+      - condition: "Operator never replies before PT4H expires_at_iso"
+        surface: "outcome=timeout (or BridgeTimeoutError via awaitApprovalDecisionOrThrow)"
+        escalation: ESC_APPROVAL_BRIDGE_TIMEOUT  # warn-tier per escalation-codes.md lines 348-353; routes operator_chat_id + ifos_oncall_chat_id; action converts to manual reconciliation
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Operator notification (Telegram operator-chat-id; not customer-facing)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: telegram_notify
+    package: "@ifos/telegram"
+    purpose: "Operator-channel Telegram notifications (NOT customer-facing; green tier)"
+    action_type: operator_notify_telegram  # green tier; REGISTERED in autosend-policy.yaml
+    cycle_step: 14
+    state_changing: false  # write to Telegram is an external side-effect but not on tenant data
+    secrets_required: [TELEGRAM_BOT_TOKEN]
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Cleanup (cleanup.sh — deferred to Day-27+)
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: cash_conductor_cleanup
+    purpose: "Post-run cleanup (transient OAuth-cache + provider-rate-limit-cache purge)"
+    action_type: cash_conductor_cleanup  # green tier; registration queued for cleanup.sh build at W7-8
+    state_changing: false
+    # NOTE: cleanup.sh skeleton DEFERRED to next bundle pass per goal-w4-day-26 §3 stretch scope
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Action-type registration status (cross-reference autosend-policy.yaml at W7-8)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Already REGISTERED in agents/_shared/autosend-policy.yaml (verified 2026-05-25
+# during cash-conductor Codex Round 1 closure):
+#   xero_reminder_draft_internal       line 188   yellow
+#   xero_reminder_send_customer        line 263   orange    [Cash Conductor OWNS this]
+#   accounting_reconciliation_write    yellow              (shared with Xero + QB)
+#   operator_notify_telegram           green
+#
+# QUEUED for registration at W7-8 build start:
+#   xero_oauth                         green
+#   quickbooks_oauth                   green
+#   open_banking_truelayer             green
+#   open_banking_plaid_uk              green   (v1.1+; queued but never fires v1.0)
+#   cash_conductor_cleanup             green
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Boundary check (per master brief §3 + review-mcp-connector.md §8)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# - No forbidden third-party adapter references anywhere in this file (adapter boundary, CLAUDE.md boundary 2).
+# - All packages declared are @ifos/* — no third-party adapters with policy
+#   semantics smuggled in via tools.yaml.
+# - Action types all map to autosend-policy.yaml tiers (or are explicitly
+#   marked QUEUED above for W7-8 build-start registration).
