@@ -34,6 +34,33 @@
 -- ============================================================================
 
 --
+-- ROLE PREAMBLE — added 2026-08-21 after verification found the dump was NOT
+-- self-contained.
+--
+-- `pg_dump --no-privileges` strips GRANT/REVOKE but does NOT strip role names
+-- referenced inside POLICY definitions. All 11 RLS policies below are declared
+-- `TO ifos_app`, so applying this file to a cluster without that role fails at
+-- the FIRST policy (line ~1439) and every policy after it is skipped.
+--
+-- WHY THIS MATTERS MORE THAN A FAILED SCRIPT. With ON_ERROR_STOP=1 the failure
+-- is loud. With ON_ERROR_STOP=0 — which is exactly what setup-local-dev-db.sh
+-- used, and exactly what hid a missing table for months — the result is a
+-- database with all 12 tables present and only 2 of 11 RLS policies applied,
+-- reporting no error. Nine tables would carry tenant data with row-level
+-- security silently disabled. That is a cross-tenant read, not a broken script.
+--
+-- The role is created NOLOGIN here: this file defines SCHEMA, and credentials
+-- are an environment concern. Grant LOGIN and a password per environment.
+--
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ifos_app') THEN
+    CREATE ROLE ifos_app NOLOGIN;
+  END IF;
+END
+$$;
+
+--
 -- PostgreSQL database dump
 --
 

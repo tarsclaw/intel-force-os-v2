@@ -204,3 +204,70 @@ instructing a re-run before investigation, and — importantly — telling the r
 rather than only failures if it repeats at the same package. A silently skipped test is exactly the failure mode
 this gate exists to catch, and it presents as a count shortfall with no red output, which is precisely what was
 seen here.
+
+
+---
+
+# STAGE 3 verification — the baseline was NOT self-contained
+
+Run 2026-08-21 against a clean PostgreSQL 16.15 cluster. This is why the file gets applied before it is trusted.
+
+## The environment, first
+
+Homebrew's `pgvector` bottle ships extensions for **postgresql@17 and @18 only** — not 16, not 15. So
+`brew install pgvector` produced an extension neither installed version could load. pgvector 0.8.6 was built from
+source against `postgresql@16`'s `pg_config` instead (its own documented install path, ~1 minute).
+
+**Postgres 16 runs on port 5433, not 5432.** The 15 instance on 5432 hosts an unrelated **110 GB `copytrading`
+database**. Taking 5432 for this project would have taken that offline. 15 is untouched and still serving it.
+
+## The defect
+
+Applying `0000_baseline.sql` to a clean cluster **failed at line 1439**:
+
+```
+ERROR:  role "ifos_app" does not exist
+```
+
+`pg_dump --no-privileges` strips `GRANT`/`REVOKE`, but it does **not** strip role names referenced inside `POLICY`
+definitions. All 11 RLS policies are declared `TO ifos_app`. Seven references, no `CREATE ROLE` anywhere.
+
+**The file described elsewhere in this handoff as "the first complete, self-contained schema definition the project
+has ever had in version control" was not self-contained.** It silently assumed a role created by
+`setup-local-dev-db.sh`, which is why it had never failed before — it had only ever been applied by that script.
+
+## Why this is worse than a failed script
+
+With `ON_ERROR_STOP=1` the failure is loud and the run halts: 12 tables, **2 of 11** RLS policies applied.
+
+With `ON_ERROR_STOP=0` it is silent. The result is a database with **all 12 tables present, 9 of them carrying
+tenant data with row-level security disabled, and no error reported.** That is a cross-tenant read, not a broken
+script.
+
+`setup-local-dev-db.sh:81` uses `ON_ERROR_STOP=0`. It is the same flag, in the same file, that hid the missing
+`voice_corpus_chunks` table for months. The first failure cost a broken dev database. This one would have cost
+tenant isolation.
+
+## The fix
+
+A role preamble was added to the head of `0000_baseline.sql`, creating `ifos_app` as `NOLOGIN` if absent —
+schema is schema; credentials are an environment concern. The file is now genuinely self-contained.
+
+## Verified after the fix
+
+| Check | Result |
+|---|---|
+| Applies to an empty DB, `ON_ERROR_STOP=1` | **rc=0** |
+| Tables | **12** |
+| Tables with `rowsecurity` | **11** (12th is `tenants`, ratified exemption R-CX-2) |
+| Policies in `pg_policies` | **11** |
+| `vector` extension | **0.8.6** |
+| `embedding` column type | **`vector(1536)`** |
+| HNSW index `voice_samples_embedded` | **present** |
+| `0001_reconciliation_writeback.sql` forward | **applies; own smoke test passes** |
+
+## The check that would have caught it
+
+`LANDING-ORDER` STAGE 3 previously read *"applies to an empty DB; 12 tables"*. **Counting tables was not enough** —
+the broken run produced all 12. The row now requires 12 tables **and** 11 `rowsecurity` **and** 11 policies **and**
+the vector extension. Any future schema landing must assert the policy count, not just the table count.

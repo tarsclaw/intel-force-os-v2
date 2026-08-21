@@ -62,7 +62,7 @@ Landing code first means the rule gets written to fit the code.
 
 | ☐ | Asset | Source | Destination | Mechanic | Verify |
 |---|---|---|---|---|---|
-| ☐ | `0000_baseline.sql` (1,570) | `harvest/migrations/` | `migrations/` | STAGED | applies to an empty DB; 12 tables |
+| ☐ | `0000_baseline.sql` | `harvest/migrations/` | `migrations/` | STAGED | applies to an empty DB with `ON_ERROR_STOP=1`, then **12 tables AND 11 rowsecurity AND 11 policies AND vector ext**. Counting tables alone is not enough — see VERIFICATION.md 'not self-contained' |
 | ☐ | `0001_reconciliation_writeback.sql` + rollback | `harvest/migrations/` | `migrations/` | STAGED | applies forward on the baseline |
 | ☐ | **`tenancy-invariants.md`** | `harvest/docs/architecture/` | `docs/` | STAGED | **SAME COMMIT as the baseline** |
 
