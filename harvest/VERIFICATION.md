@@ -181,3 +181,26 @@ and the ladder already falls through to function-role/firm-default.
 
 30 files → **95 files**. Added: 3 landing patches, 8 JSON Schemas, 4 vertical-schema files, 7 architecture docs,
 4 runbooks, 3 specs, 4 learnings, 26 ADRs (7 renamed `ADR-CX-*`), `LANDING-ORDER.md`, `verify-test-baseline.sh`.
+
+
+---
+
+# Baseline stability — observed anomaly, 2026-08-21
+
+During the final gate run the baseline reported **379 passed** against an expected 380 — one short, no package
+named as failing. It did not reproduce: **three consecutive runs immediately afterwards were each exactly
+380 passed / 9 skipped, with every package matching its expected figure.**
+
+Five total observations: the original capture (380), the post-landing-kit run (380), the anomaly (379), and three
+clean (380 each). One outlier in six.
+
+**Disposition: recorded, not chased.** A cause could not be identified and the anomaly was not reproducible.
+Most likely a per-package timeout under concurrent load — the runner allows 300s and the run was concurrent with
+other work.
+
+**Why this is written down rather than ignored.** A gate that fires spuriously and nobody warned about is a gate
+people learn to disregard, which is worse than not having one. `verify-test-baseline.sh` now carries a header
+instructing a re-run before investigation, and — importantly — telling the reader to check for **skipped** cases
+rather than only failures if it repeats at the same package. A silently skipped test is exactly the failure mode
+this gate exists to catch, and it presents as a count shortfall with no red output, which is precisely what was
+seen here.

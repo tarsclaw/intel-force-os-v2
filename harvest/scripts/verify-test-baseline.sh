@@ -10,6 +10,13 @@
 # baseline has NOT moved correctly, regardless of whether the suite is green —
 # silently skipped tests are the failure mode this exists to catch.
 #
+# ON A FAILURE: RE-RUN ONCE BEFORE INVESTIGATING.
+# One anomalous run was observed 2026-08-21 (379 vs 380) and was NOT reproducible
+# across three consecutive clean runs immediately after. Cause unidentified —
+# most likely a timeout under concurrent load. If a re-run is clean, it was noise.
+# If it repeats at the same package, it is real: diff that package's test list
+# against its last green run, and look for SKIPPED cases, not just failures.
+#
 # Usage:  bash verify-test-baseline.sh [scope-prefix]
 #         scope-prefix defaults to @ifos (use @core in the new repo)
 set -uo pipefail

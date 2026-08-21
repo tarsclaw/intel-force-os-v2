@@ -19,14 +19,15 @@ Nothing below STAGE 0 may start until every row here is done. Each is a GO condi
 
 | ☐ | Precondition | Why it blocks | Verify |
 |---|---|---|---|
-| ☐ | **Founder ratifies the STEP 0 slate** | The estate boot sequence gates all code on it | Slate signed or returned with amendments |
+| ☑ | ~~Founder ratifies the STEP 0 slate~~ — **NOT a gate. Downgraded to a briefing** | Audited 2026-08-21: of ~40 rulings, only the boundary rules, the holdout commitment and the repo shape cannot wait — all three now ruled (R-CX-6/7/8). The rest are additive migrations or commercial policy better decided against real code; R30 says so itself (*"Bars are initial; recalibrate after tenant one"*). Discipline is preserved by the ruling register, not by a pre-sign-off. **R31 cannot be ratified either way** — it cites ADR-006, which does not exist | Read once before STAGE 1. No signature |
+| ☐ | **PREREQUISITE: `brew install pgvector` + local Postgres 16** | Local is 15.17 without pgvector; `0000_baseline.sql` needs the `vector` extension. **Blocks STAGE 3.** Same gap that silently broke every local dev DB for months | `psql -tAc "select name from pg_available_extensions where name='vector'"` returns a row |
 | ☑ | ~~Package scope decided~~ — **`@core/*`, R-CX-1** | Verified safe: all 12 packages are `private: true` with `workspace:*` deps, so no npm collision | RULINGS.md R-CX-1 |
 | ☑ | ~~`tenants` RLS exemption~~ — **ratified, R-CX-2** | Exactly one table; any other table landing without RLS is still a violation | RULINGS.md R-CX-2 — copy into `RULING-REGISTER.md` at STAGE 1 |
 | ☑ | ~~`FUNCTION_NAMES` in contracts?~~ — **yes, R-CX-3** | Avoids a hand-maintained duplicate that would drift | RULINGS.md R-CX-3 |
 | ☑ | ~~`web-scraper`~~ — **deferred, not deleted, R-CX-5** | Diagnostic is not a priority; code stays green in CortexOS | RULINGS.md R-CX-5 |
 | ☑ | ~~`decision_log` read ownership~~ — **spine owns both directions, R-CX-4** | Was an unquoted interpretation in patch A2; now ruled | RULINGS.md R-CX-4 |
 
-**Four of five preconditions are closed.** The only remaining blocker is the slate.
+**All decision preconditions are closed — nine rulings, R-CX-1 to R-CX-9.** One prerequisite ACTION remains (pgvector).
 Copy `harvest/RULINGS.md` into the new `RULING-REGISTER.md` as the first entries after `R-0001`.
 
 ---
@@ -39,11 +40,11 @@ Landing code first means the rule gets written to fit the code.
 | ☐ | Asset | Source | Destination | Mechanic | Verify |
 |---|---|---|---|---|---|
 | ☐ | Repo + workspace | — | `~/code/ifos` | DERIVE | `pnpm -w install` succeeds |
-| ☐ | Package tree (empty dirs) | MONOREPO §2 | repo root | DERIVE | every §2 path exists |
+| ☐ | Package tree (empty dirs) | MONOREPO §2 | repo root | DERIVE | every §2 path exists. **NO top-level `agents/` or `orgs/` — R-CX-8** |
 | ☐ | Loop + governance files (12) | `~/Desktop/Hand-Off/claude-global-setup/repo-scaffold/` | repo root | COPY | files present |
 | ☐ | `gate.yaml` **+ the 3 missing deny entries** | scaffold | repo root | COPY+edit | 13 deny entries incl. `packages/contracts/**`, `vertical-pack/**`, `attribution/**` |
 | ☐ | **dependency-cruiser rules R1–R8** | `CONFORMANCE-AUDIT.md` §P1 | `.dependency-cruiser.js` | DERIVE | rules run and pass on an empty tree |
-| ☐ | **Discipline greps — `Math.random` SCOPED** | §8.3 | CI config | DERIVE | pattern excludes retry jitter; see STAGE 9 note |
+| ☐ | **Discipline greps — `Math.random` SCOPED (R-CX-6)** | §8.3 | CI config | DERIVE | pattern targets holdout assignment only; the 4 connectors' retry jitter must pass |
 | ☐ | cortextOS submodule @ `c21fbfe` | `packages/harness/cortextos` | `vendor/cortextos` | COPY | `git submodule status` shows `c21fbfe` |
 
 ---
@@ -132,6 +133,26 @@ Landing code first means the rule gets written to fit the code.
 | ☐ | 4 runbooks | `harvest/docs/runbooks/` | `docs/runbooks/` | STAGED | present |
 | ☐ | 4 learnings | `harvest/docs/learnings/` | `docs/` | STAGED | incl. `00-cortextos-quirks.md` |
 | ☐ | 6 agent specs + 6 tools.yaml (3,978) | `harvest/specs/` | `docs/reference/agents/` | STAGED | reference only — not bundles |
+
+---
+
+## STAGE 8b — Phase A build inputs (net-new, not transferred)
+
+Everything above is transfer. These four are the genuinely new work Phase A needs, identified during prep so they
+are not discovered mid-build.
+
+| ☐ | Item | Why | Ruling | Verify |
+|---|---|---|---|---|
+| ☐ | **Harbour & Finch fixture tenant** | Phase A's stub brain serves it. **It does not exist** — the name appears only in prose. No fixture, no Slice 0 | **R-CX-9** — build from the 18 existing bundle fixtures (2,419 lines), extend for citations. ~1 day | stub brain answers `brain.query` with real citations |
+| ☐ | **Holdout skeleton** | The only irrecoverable item in the estate | **R-CX-7** — `holdout_assignment` table + **deterministic** assignment + `holdout_arm` on every decision row | no real-tenant action can fire without an arm recorded |
+| ☐ | **`mcp-seam`** — the three tools agents see | Nothing exists; wholly new | — | `brain.query` / `brain.assert` / `spine.propose` |
+| ☐ | **Telegram inbound handler** | The queue can propose, format, record and read — but cannot HEAR | RED-2 resolved | `getUpdates` parses `/approve <id>` via the existing `message-format` contract and calls the existing `record-decision` CLI |
+
+> **Slice 0 is the week-two proof.** It may fake the agent and the brain. It may **not** fake the lease, the
+> idempotency key, the authoriser, the action definition, the three clocks, the budget decrement, the contention
+> constraint or the decision-log schema. Execution pack: *"Slice 0 runs end to end by week two or the architecture
+> is questioned, not the schedule."* That "must not fake" list is the real deadline for the deferred schema
+> rulings (R27, R28, §24) — week two, decided against working code, not today in the abstract.
 
 ---
 
