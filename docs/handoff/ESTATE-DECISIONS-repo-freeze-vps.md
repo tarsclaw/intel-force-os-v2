@@ -113,14 +113,25 @@ be logged as an open item in the ratification pass and given an owning document.
 `decision`, `outcome_event`, `holdout_assignment`, the P1 entity contract — do not exist there yet and arrive as
 new migrations. Additive, not conflicting.
 
-**Lineage.** Squash CortexOS v0.1→v0.5 into a single `migrations/0000_baseline.sql` in the new repo that reproduces
-current production schema state; all estate migrations build forward from it. One lineage, no history rewrite, and
-a fresh dev DB is reproducible from the baseline.
+**Lineage — AMENDED 2026-08-21, see correction note below.** Baseline at **v0.4**, which is the actual live
+production state. Squash CortexOS v0.1→v0.4 into `migrations/0000_baseline.sql`; `v0.4-to-v0.5.sql` then becomes
+the **first forward migration in the new repo's lineage**, applied when the new estate actually needs the
+reconciliation write-back columns. One lineage, no history rewrite, dev DB reproducible from the baseline.
 
-**Loose end that closes during the freeze, not after.** `v0.4-to-v0.5.sql` is applied to the **local dev DB only**;
-production is untouched. It adds the reconciliation write-back columns. It must be applied to prod before the
-baseline squash, or the baseline will not match production. This is exactly the class of data-integrity fix D3's
-freeze permits. **Founder action — Path A credentials, cannot be done autonomously.**
+> **Correction.** This section originally said: baseline at v0.5, therefore apply `v0.4-to-v0.5.sql` to production
+> first, therefore a founder-only blocker on the WP-0 baseline. That was wrong — it manufactured a prerequisite
+> that the design does not need. Baselining at the schema production actually has makes the baseline true by
+> construction rather than true because someone remembered to run something first, and under D3's freeze Cash
+> Conductor performs no live reconciliation writes, so the two columns are not needed in production yet.
+> **Net effect: open item N2 is withdrawn. Nothing is required on the VPS before WP-0.**
+
+**Divergence note.** The local dev DB is at v0.5; production is at v0.4. That divergence predates this decision and
+is not worsened by it — the baseline-plus-replay reconciles the two. `v0.5-to-v0.4.sql` (rollback) exists.
+No `run-v0.5-migration-as-postgres.sh` runner exists yet; the v0.4 runner is the template if one is ever needed.
+
+**Access note.** The assistant cannot reach the VPS — `ssh maddox@178.105.87.24` returns
+`Permission denied (publickey)`. Any future production migration is genuinely founder-executed, not merely
+founder-authorised.
 
 ---
 
@@ -129,6 +140,6 @@ freeze permits. **Founder action — Path A credentials, cannot be done autonomo
 | # | Item | Blocking? |
 |---|---|---|
 | N1 | No canonical document owns the deployment target (the VPS). Needs an owner. | No — log in ratification |
-| N2 | `v0.5` migration must be applied to prod before the baseline squash. Founder-only. | Blocks WP-0 baseline |
+| N2 | ~~`v0.5` must reach prod before the baseline squash~~ — **WITHDRAWN**, see D4 correction. Baseline at v0.4 instead. | No |
 | N3 | `@core` scope should be revisited once the trademark search clears — override or confirm. | No |
 | N4 | `gate.yaml` in the scaffold is 3 deny entries short. | Blocks STEP 3 |
